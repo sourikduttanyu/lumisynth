@@ -37,7 +37,7 @@ const DEFAULTS = Object.freeze({
   overlayColor: '#ffffff',
 });
 
-const STORAGE_KEY = 'fluxkit-state-v1';
+const STORAGE_KEY = 'fluxkit-state-v2';
 
 const state = { ...DEFAULTS, hasSource: false };
 
@@ -57,12 +57,11 @@ const toastRegion = document.getElementById('toast-region');
 const btnSnapshot = document.getElementById('btn-snapshot');
 const btnReset    = document.getElementById('btn-reset');
 
-// ---- Offscreen canvas for half-res blob detection ----
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
 const DETECT_SCALE = 0.5;
 
-// ---- Toast (accessible inline notifications, replaces alert()) ----
+// ---- Toast ----
 function showToast(message, kind = 'info', timeoutMs = 4000) {
   const node = document.createElement('div');
   node.className = `toast toast-${kind}`;
@@ -72,64 +71,189 @@ function showToast(message, kind = 'info', timeoutMs = 4000) {
   setTimeout(() => node.remove(), timeoutMs);
 }
 
-// ---- Configs driving slider + toggle wiring ----
-// Each slider: [inputId, stateKey, parser]
-const SLIDER_CONFIG = [
-  ['voronoi-threshold',   'voronoiThreshold',   parseFloat],
-  ['voronoi-jump-dist',   'voronoiJumpDist',    parseFloat],
-  ['voronoi-falloff',     'voronoiFalloff',     parseFloat],
-  ['voronoi-edge-lines',  'voronoiEdgeLines',   parseFloat],
-  ['ca-density',          'caDensity',          parseFloat],
-  ['ca-stability',        'caStability',        parseFloat],
-  ['ca-evolution-speed',  'caEvolutionSpeed',   parseFloat],
-  ['ca-source-influx',    'caSourceInflux',     parseFloat],
-  ['ascii-cell-size',     'asciiCellSize',      parseFloat],
-  ['ascii-contrast',      'asciiContrast',      parseFloat],
-  ['ascii-black-thresh',  'asciiBlackThresh',   parseFloat],
-  ['ascii-glyph-strength','asciiGlyphStrength', parseFloat],
-  ['shatter-cells',       'shatterCells',       parseFloat],
-  ['shatter-crack',       'shatterCrack',       parseFloat],
-  ['shatter-fill',        'shatterFill',        parseFloat],
-  ['shatter-random',      'shatterRandom',      parseFloat],
-  ['erode-radius',        'erodeRadius',        parseFloat],
-  ['erode-strength',      'erodeStrength',      parseFloat],
-  ['erode-edge',          'erodeEdge',          parseFloat],
-  ['oxide-corr',          'oxideCorr',          parseFloat],
-  ['oxide-metal',         'oxideMetal',         parseFloat],
-  ['oxide-rough',         'oxideRough',         parseFloat],
-  ['oxide-sheen',         'oxideSheen',         parseFloat],
-  ['synth-warm',          'synthWarm',          parseFloat],
-  ['synth-sep',           'synthSep',           parseFloat],
-  ['synth-res',           'synthRes',           parseFloat],
-  ['synth-dyn',           'synthDyn',           parseFloat],
-  ['biolum-glow',         'biolumGlow',         parseFloat],
-  ['biolum-color',        'biolumColor',        parseFloat],
-  ['biolum-pulse',        'biolumPulse',        parseFloat],
-  ['biolum-depth',        'biolumDepth',        parseFloat],
-  ['thermo-cont',         'thermoCont',         parseFloat],
-  ['thermo-hot',          'thermoHot',          parseFloat],
-  ['thermo-cold',         'thermoCold',         parseFloat],
-  ['thermo-white',        'thermoWhite',        parseFloat],
-  ['false-palette',       'falsePalette',       parseFloat],
-  ['false-bandcnt',       'falseBandCnt',       parseFloat],
-  ['false-bright',        'falseBright',        parseFloat],
-  ['wave-source',         'waveSource',         parseFloat],
-  ['wave-damp',           'waveDamp',           parseFloat],
-  ['wave-speed',          'waveSpeed',          parseFloat],
-  ['wave-contr',          'waveContr',          parseFloat],
-  ['connection-rate',     'connectionRate',     parseFloat],
-  ['sensitivity',         'threshold',          parseFloat],
-  ['max-blobs',           'maxBlobs',           parseInt],
-  ['update-interval',     'updateInterval',     parseInt],
-  ['stroke-width',        'strokeWidth',        parseFloat],
-  ['font-size',           'fontSize',           parseInt],
-];
+// ---- Helpers ----
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const KNOB_ARC_LEN = 75;     // visible 75% of pathLength=100 (270° sweep)
+const KNOB_DRAG_PX = 150;    // pixels for full min→max sweep at 1× speed
 
+function kebabToCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
+
+function snapToStep(v, min, step) {
+  if (step <= 0) return v;
+  const n = Math.round((v - min) / step);
+  return min + n * step;
+}
+
+function formatValue(v, step) {
+  if (step >= 1) return String(Math.round(v));
+  const decimals = step >= 0.1 ? 1 : 2;
+  return parseFloat(Number(v).toFixed(decimals)).toString();
+}
+
+// ---- Knob component ----
+const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step, default, stateKey }
+
+function initKnob(el) {
+  const id      = el.id;
+  const min     = parseFloat(el.dataset.min);
+  const max     = parseFloat(el.dataset.max);
+  const step    = parseFloat(el.dataset.step);
+  const def     = parseFloat(el.dataset.default);
+  const stateKey = el.dataset.state || kebabToCamel(id);
+  const isInt   = step >= 1 && Number.isInteger(min) && Number.isInteger(max);
+  const valEl   = document.getElementById(`${id}-val`);
+
+  // Build SVG (track + arc + cap + pointer)
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'knob-svg');
+  svg.setAttribute('viewBox', '0 0 48 48');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const mkCircle = (cls, r, attrs = {}) => {
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('class', cls);
+    c.setAttribute('cx', '24');
+    c.setAttribute('cy', '24');
+    c.setAttribute('r',  String(r));
+    for (const [k, v] of Object.entries(attrs)) c.setAttribute(k, v);
+    return c;
+  };
+
+  const track = mkCircle('knob-track', 18, {
+    pathLength: '100', 'stroke-dasharray': '75 25',
+    'stroke-dashoffset': '0', transform: 'rotate(135 24 24)',
+  });
+  const arc = mkCircle('knob-arc', 18, {
+    pathLength: '100', 'stroke-dasharray': '75 25',
+    'stroke-dashoffset': '75', transform: 'rotate(135 24 24)',
+  });
+  const cap = mkCircle('knob-cap', 11);
+  const pointer = document.createElementNS(SVG_NS, 'line');
+  pointer.setAttribute('class', 'knob-pointer');
+  pointer.setAttribute('x1', '24'); pointer.setAttribute('y1', '24');
+  pointer.setAttribute('x2', '24'); pointer.setAttribute('y2', '11');
+  pointer.style.transform = 'rotate(-135deg)';
+  pointer.style.transformOrigin = '24px 24px';
+  pointer.style.transformBox = 'fill-box';
+
+  svg.appendChild(track);
+  svg.appendChild(arc);
+  svg.appendChild(cap);
+  svg.appendChild(pointer);
+  el.prepend(svg);
+
+  // ARIA setup
+  el.setAttribute('role', 'slider');
+  el.setAttribute('aria-valuemin', String(min));
+  el.setAttribute('aria-valuemax', String(max));
+
+  let currentValue = clamp(def, min, max);
+
+  function paint(v) {
+    const t = (v - min) / (max - min);
+    const offset = KNOB_ARC_LEN * (1 - t);
+    arc.setAttribute('stroke-dashoffset', String(offset));
+    const angle = -135 + 270 * t;
+    pointer.style.transform = `rotate(${angle}deg)`;
+    const display = formatValue(v, step);
+    if (valEl) valEl.textContent = display;
+    el.setAttribute('aria-valuenow', String(v));
+    el.setAttribute('aria-valuetext', display);
+  }
+
+  function setValue(v, { persist = true } = {}) {
+    let next = snapToStep(clamp(v, min, max), min, step);
+    if (isInt) next = Math.round(next);
+    if (next === currentValue) return;
+    currentValue = next;
+    state[stateKey] = next;
+    paint(next);
+    if (persist) schedulePersist();
+  }
+
+  function getValue() { return currentValue; }
+
+  // Pointer drag (vertical)
+  let dragging = false;
+  let lastY = 0;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    dragging = true;
+    lastY = e.clientY;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+    el.focus();
+    e.preventDefault();
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dy = lastY - e.clientY;          // up = positive
+    if (dy === 0) return;
+    lastY = e.clientY;
+    const range = max - min;
+    const fineMult = e.shiftKey ? 0.1 : 1;
+    const delta = (dy / KNOB_DRAG_PX) * range * fineMult;
+    setValue(currentValue + delta);
+  });
+  const stopDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    el.releasePointerCapture(e.pointerId);
+    el.classList.remove('dragging');
+  };
+  el.addEventListener('pointerup', stopDrag);
+  el.addEventListener('pointercancel', stopDrag);
+
+  // Double-click → reset to default
+  el.addEventListener('dblclick', (e) => {
+    setValue(def);
+    e.preventDefault();
+  });
+
+  // Keyboard
+  el.addEventListener('keydown', (e) => {
+    let next = currentValue;
+    const big = step * 10;
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'ArrowRight': next = currentValue + step; break;
+      case 'ArrowDown':
+      case 'ArrowLeft':  next = currentValue - step; break;
+      case 'PageUp':     next = currentValue + big;  break;
+      case 'PageDown':   next = currentValue - big;  break;
+      case 'Home':       next = min; break;
+      case 'End':        next = max; break;
+      default: return;
+    }
+    e.preventDefault();
+    setValue(next);
+  });
+
+  // Wheel (with shift for fine)
+  el.addEventListener('wheel', (e) => {
+    if (document.activeElement !== el && !el.matches(':hover')) return;
+    e.preventDefault();
+    const dir = e.deltaY < 0 ? 1 : -1;
+    const fineMult = e.shiftKey ? 0.1 : 1;
+    setValue(currentValue + dir * step * (e.shiftKey ? 1 : 5) * fineMult);
+  }, { passive: false });
+
+  // Initial paint with current default
+  paint(currentValue);
+  state[stateKey] = currentValue;
+
+  knobRegistry.set(id, { setValue, getValue, min, max, step, default: def, stateKey });
+}
+
+// Initialise every [data-knob] element
+document.querySelectorAll('[data-knob]').forEach(initKnob);
+
+// ---- Toggle groups ----
 const GL_SECTIONS    = ['voronoi','cellular','ascii','shatter','erode','wave','oxide','synth','biolum','thermo','falsecolor'];
 const FULL_FRAME_SET = new Set(GL_SECTIONS);
 const GL_RESETS      = { voronoi: resetVoronoi, cellular: resetCA, wave: resetWave };
 
-// Each toggle group: [groupId, stateKey, parser, onChangeFn?]
 const TOGGLE_CONFIG = [
   ['speed-group',       'speed',       parseFloat, (v) => { video.playbackRate = v; }],
   ['shape-group',       'shape',       String,     null],
@@ -149,22 +273,21 @@ function onFilterChange(v) {
   for (const [name, fn] of Object.entries(GL_RESETS)) {
     if (v !== name) fn();
   }
-  // Bring the newly-revealed panel into view so the user doesn't have to hunt for it.
   const active = document.getElementById(`${v}-controls`);
   if (active && !active.classList.contains('hidden')) {
     active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
 
-// ---- Wiring ----
-function wireSlider(inputId, stateKey, parser) {
-  const slider = document.getElementById(inputId);
-  const valEl  = document.getElementById(`${inputId}-val`);
-  if (!slider) return;
-  slider.addEventListener('input', () => {
-    state[stateKey] = parser(slider.value);
-    if (valEl) valEl.textContent = slider.value;
-    schedulePersist();
+function setToggleGroupValue(groupId, value) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  const isRadio = group.getAttribute('role') === 'radiogroup';
+  group.querySelectorAll('.toggle-btn').forEach(b => {
+    const match = b.dataset.value === String(value);
+    b.classList.toggle('active', match);
+    if (isRadio) b.setAttribute('aria-checked', match ? 'true' : 'false');
+    else         b.setAttribute('aria-pressed', match ? 'true' : 'false');
   });
 }
 
@@ -184,29 +307,18 @@ function wireToggleGroup(groupId, stateKey, parser, onChange) {
     const buttons = [...group.querySelectorAll('.toggle-btn')];
     const i = buttons.indexOf(document.activeElement);
     if (i < 0) return;
-    const next = e.key === 'ArrowRight' ? (i + 1) % buttons.length : (i - 1 + buttons.length) % buttons.length;
+    const next = e.key === 'ArrowRight'
+      ? (i + 1) % buttons.length
+      : (i - 1 + buttons.length) % buttons.length;
     buttons[next].focus();
     buttons[next].click();
     e.preventDefault();
   });
 }
 
-function setToggleGroupValue(groupId, value) {
-  const group = document.getElementById(groupId);
-  if (!group) return;
-  const buttons = group.querySelectorAll('.toggle-btn');
-  const isRadio = group.getAttribute('role') === 'radiogroup';
-  buttons.forEach(b => {
-    const match = b.dataset.value === String(value);
-    b.classList.toggle('active', match);
-    if (isRadio) b.setAttribute('aria-checked', match ? 'true' : 'false');
-    else         b.setAttribute('aria-pressed', match ? 'true' : 'false');
-  });
-}
-
-SLIDER_CONFIG.forEach(([id, key, parser]) => wireSlider(id, key, parser));
 TOGGLE_CONFIG.forEach(([id, key, parser, onChange]) => wireToggleGroup(id, key, parser, onChange));
 
+// ---- Color picker ----
 const colorPicker = document.getElementById('overlay-color');
 const colorLabel  = document.getElementById('overlay-color-val');
 colorPicker.addEventListener('input', () => {
@@ -215,14 +327,13 @@ colorPicker.addEventListener('input', () => {
   schedulePersist();
 });
 
-// ---- Apply state to UI (used after restore + reset) ----
+// ---- Apply persisted state to UI ----
 function applyStateToUI() {
-  for (const [id, key] of SLIDER_CONFIG) {
-    const slider = document.getElementById(id);
-    const valEl  = document.getElementById(`${id}-val`);
-    if (!slider) continue;
-    slider.value = String(state[key]);
-    if (valEl) valEl.textContent = slider.value;
+  for (const [id, info] of knobRegistry) {
+    const v = state[info.stateKey];
+    if (typeof v === 'number' && !Number.isNaN(v)) {
+      info.setValue(v, { persist: false });
+    }
   }
   for (const [groupId, key, , onChange] of TOGGLE_CONFIG) {
     setToggleGroupValue(groupId, state[key]);
@@ -233,7 +344,7 @@ function applyStateToUI() {
   video.playbackRate = state.speed;
 }
 
-// ---- Persistence (debounced localStorage) ----
+// ---- Persistence ----
 let persistTimer = 0;
 function schedulePersist() {
   clearTimeout(persistTimer);
@@ -241,10 +352,9 @@ function schedulePersist() {
     try {
       const { hasSource, ...persistable } = state;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
-    } catch { /* quota or disabled — silently ignore */ }
+    } catch { /* ignore quota / private mode */ }
   }, 200);
 }
-
 function loadPersistedState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -265,7 +375,7 @@ btnReset.addEventListener('click', () => {
   showToast('Reset to defaults', 'ok', 2500);
 });
 
-// ---- Snapshot (canvas → PNG download) ----
+// ---- Snapshot ----
 btnSnapshot.addEventListener('click', () => {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
@@ -298,9 +408,7 @@ fileInput.addEventListener('change', (e) => {
 document.getElementById('btn-camera').addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    if (video.srcObject) {
-      video.srcObject.getTracks().forEach(t => t.stop());
-    }
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
     video.removeAttribute('src');
     video.srcObject = stream;
     await video.play();
@@ -312,7 +420,6 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
   }
 });
 
-// ---- Load video ----
 function loadVideoSource(url, label) {
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
@@ -344,9 +451,7 @@ function setHasSource(val, label) {
       ? ` · ${video.videoWidth}×${video.videoHeight}`
       : '';
     fileStatus.textContent = (label || 'Source loaded') + dims;
-    if (val && rafHandle === 0) {
-      rafHandle = requestAnimationFrame(renderFrame);
-    }
+    if (rafHandle === 0) rafHandle = requestAnimationFrame(renderFrame);
   } else {
     fileStatus.textContent = 'No source loaded';
   }
@@ -388,8 +493,7 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 
-// ---- Main render loop ----
-// rAF only runs while a source is active (gated in setHasSource / renderFrame).
+// ---- Render loop (gated behind hasSource) ----
 function renderFrame() {
   if (!state.hasSource) {
     rafHandle = 0;
@@ -469,10 +573,9 @@ function renderFrame() {
     applyGLFilter('falsecolor', ctx, video, cw, ch, [state.falsePalette, state.falseBand, state.falseBandCnt, state.falseBright]);
   }
 
-  // Per-blob CPU filters: getImageData/putImageData per blob is a known pipeline
-  // stall (CPU<->GPU round-trip per region). Acceptable for the current
-  // architecture because it only runs for non-GL filters; if blob counts grow
-  // large, batch into a single full-frame getImageData read.
+  // Per-blob CPU filters: getImageData/putImageData per blob = CPU<->GPU
+  // round-trip per region. Acceptable here because it only runs for non-GL
+  // filters; if blob counts grow large, batch into a single full-frame read.
   if (state.filter !== 'none' && !FULL_FRAME_SET.has(state.filter)) {
     for (const blob of blobs) {
       const bx = Math.max(0, Math.floor(blob.x));
