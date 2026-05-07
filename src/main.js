@@ -2,6 +2,12 @@ import './style.css';
 import { detectBlobs, resetFrameHistory } from './blobDetector.js';
 import { applyFilterToRegion } from './filters.js';
 import { drawOverlays } from './overlays.js';
+import { trackBlobs, resetTracker } from './kalman.js';
+import { applyVoronoi, resetVoronoi } from './voronoi.js';
+import { applyCA, resetCA } from './cellular.js';
+import { applyASCII } from './ascii.js';
+import { applyGLFilter } from './glFilters.js';
+import { applyWave, resetWave } from './wave.js';
 
 // ---- State ----
 const state = {
@@ -9,9 +15,30 @@ const state = {
   shape: 'rect',
   regionStyle: 'basic',
   filter: 'none',
+  voronoiThreshold: 0.5,
+  voronoiJumpDist:  0.5,
+  voronoiFalloff:   0.5,
+  voronoiEdgeLines: 0.0,
+  caDensity:        0.5,
+  caStability:      0.5,
+  caEvolutionSpeed: 0.5,
+  caSourceInflux:   0.5,
+  asciiCellSize:      0.3,
+  asciiContrast:      0.3,
+  asciiBlackThresh:   0.2,
+  asciiGlyphStrength: 0.9,
+  shatterCells: 0.3, shatterCrack: 0.2, shatterFill: 0.5, shatterRandom: 0.8,
+  erodeMode: 0,      erodeRadius: 0.3,  erodeStrength: 0.7, erodeEdge: 0.0,
+  oxideCorr: 0.5,    oxideMetal: 0.0,   oxideRough: 0.3,    oxideSheen: 0.3,
+  synthWarm: 0.5,    synthSep: 0.3,     synthRes: 0.4,      synthDyn: 0.7,
+  biolumGlow: 0.7,   biolumColor: 0.0,  biolumPulse: 0.2,   biolumDepth: 0.7,
+  thermoCont: 0.4,   thermoHot: 0.0,    thermoCold: 0.1,    thermoWhite: 0.5,
+  falsePalette: 0.25,falseBand: 0.0,    falseBandCnt: 0.5,  falseBright: 0.5,
+  waveSource: 0.5,   waveDamp: 0.3,     waveSpeed: 0.5,     waveContr: 0.5,
   connectionRate: 0.25,
   threshold: 15,
   maxBlobs: 12,
+  detectMode: 'motion',
   updateInterval: 1,
   strokeWidth: 1,
   blobSize: 64,
@@ -63,8 +90,65 @@ function wireSlider(sliderId, valId, stateKey, transform) {
 wireToggleGroup('speed-group',  'speed',       (v) => { video.playbackRate = parseFloat(v); });
 wireToggleGroup('shape-group',  'shape',        null);
 wireToggleGroup('style-group',  'regionStyle',  null);
-wireToggleGroup('filter-group', 'filter',       null);
+const GL_SECTIONS    = ['voronoi','cellular','ascii','shatter','erode','wave','oxide','synth','biolum','thermo','falsecolor'];
+const FULL_FRAME_SET = new Set(GL_SECTIONS);
+const GL_RESETS   = { voronoi: resetVoronoi, cellular: resetCA, wave: resetWave };
 
+wireToggleGroup('filter-group', 'filter', (v) => {
+  for (const name of GL_SECTIONS) {
+    const el = document.getElementById(`${name}-controls`);
+    if (el) el.style.display = v === name ? '' : 'none';
+  }
+  for (const [name, fn] of Object.entries(GL_RESETS)) {
+    if (v !== name) fn();
+  }
+});
+
+wireToggleGroup('detect-mode-group', 'detectMode', (v) => { resetFrameHistory(); });
+wireSlider('voronoi-threshold',  'voronoi-threshold-val',  'voronoiThreshold',  parseFloat);
+wireSlider('voronoi-jump-dist',  'voronoi-jump-dist-val',  'voronoiJumpDist',   parseFloat);
+wireSlider('voronoi-falloff',    'voronoi-falloff-val',    'voronoiFalloff',    parseFloat);
+wireSlider('voronoi-edge-lines', 'voronoi-edge-lines-val', 'voronoiEdgeLines',  parseFloat);
+wireSlider('ca-density',         'ca-density-val',         'caDensity',         parseFloat);
+wireSlider('ca-stability',       'ca-stability-val',       'caStability',       parseFloat);
+wireSlider('ca-evolution-speed', 'ca-evolution-speed-val', 'caEvolutionSpeed',  parseFloat);
+wireSlider('ca-source-influx',      'ca-source-influx-val',      'caSourceInflux',    parseFloat);
+wireSlider('ascii-cell-size',       'ascii-cell-size-val',       'asciiCellSize',     parseFloat);
+wireSlider('ascii-contrast',        'ascii-contrast-val',        'asciiContrast',     parseFloat);
+wireSlider('ascii-black-thresh',    'ascii-black-thresh-val',    'asciiBlackThresh',  parseFloat);
+wireSlider('ascii-glyph-strength',  'ascii-glyph-strength-val',  'asciiGlyphStrength',parseFloat);
+wireSlider('shatter-cells',   'shatter-cells-val',   'shatterCells',  parseFloat);
+wireSlider('shatter-crack',   'shatter-crack-val',   'shatterCrack',  parseFloat);
+wireSlider('shatter-fill',    'shatter-fill-val',    'shatterFill',   parseFloat);
+wireSlider('shatter-random',  'shatter-random-val',  'shatterRandom', parseFloat);
+wireSlider('erode-mode',      'erode-mode-val',      'erodeMode',     parseFloat);
+wireSlider('erode-radius',    'erode-radius-val',    'erodeRadius',   parseFloat);
+wireSlider('erode-strength',  'erode-strength-val',  'erodeStrength', parseFloat);
+wireSlider('erode-edge',      'erode-edge-val',      'erodeEdge',     parseFloat);
+wireSlider('oxide-corr',      'oxide-corr-val',      'oxideCorr',     parseFloat);
+wireSlider('oxide-metal',     'oxide-metal-val',     'oxideMetal',    parseFloat);
+wireSlider('oxide-rough',     'oxide-rough-val',     'oxideRough',    parseFloat);
+wireSlider('oxide-sheen',     'oxide-sheen-val',     'oxideSheen',    parseFloat);
+wireSlider('synth-warm',      'synth-warm-val',      'synthWarm',     parseFloat);
+wireSlider('synth-sep',       'synth-sep-val',       'synthSep',      parseFloat);
+wireSlider('synth-res',       'synth-res-val',       'synthRes',      parseFloat);
+wireSlider('synth-dyn',       'synth-dyn-val',       'synthDyn',      parseFloat);
+wireSlider('biolum-glow',     'biolum-glow-val',     'biolumGlow',    parseFloat);
+wireSlider('biolum-color',    'biolum-color-val',    'biolumColor',   parseFloat);
+wireSlider('biolum-pulse',    'biolum-pulse-val',    'biolumPulse',   parseFloat);
+wireSlider('biolum-depth',    'biolum-depth-val',    'biolumDepth',   parseFloat);
+wireSlider('thermo-cont',     'thermo-cont-val',     'thermoCont',    parseFloat);
+wireSlider('thermo-hot',      'thermo-hot-val',      'thermoHot',     parseFloat);
+wireSlider('thermo-cold',     'thermo-cold-val',     'thermoCold',    parseFloat);
+wireSlider('thermo-white',    'thermo-white-val',    'thermoWhite',   parseFloat);
+wireSlider('false-palette',   'false-palette-val',   'falsePalette',  parseFloat);
+wireSlider('false-band',      'false-band-val',      'falseBand',     parseFloat);
+wireSlider('false-bandcnt',   'false-bandcnt-val',   'falseBandCnt',  parseFloat);
+wireSlider('false-bright',    'false-bright-val',    'falseBright',   parseFloat);
+wireSlider('wave-source',     'wave-source-val',     'waveSource',    parseFloat);
+wireSlider('wave-damp',       'wave-damp-val',       'waveDamp',      parseFloat);
+wireSlider('wave-speed',      'wave-speed-val',      'waveSpeed',     parseFloat);
+wireSlider('wave-contr',      'wave-contr-val',      'waveContr',     parseFloat);
 wireSlider('connection-rate',  'connection-rate-val',  'connectionRate',  parseFloat);
 wireSlider('sensitivity',      'sensitivity-val',      'threshold',       parseFloat);
 wireSlider('max-blobs',        'max-blobs-val',        'maxBlobs',        parseInt);
@@ -95,6 +179,9 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
     video.srcObject = stream;
     video.play();
     resetFrameHistory();
+    resetVoronoi();
+    resetCA();
+    resetWave();
     cachedBlobs = [];
     frameCount  = 0;
     setHasSource(true);
@@ -113,6 +200,10 @@ function loadVideoSource(url) {
   video.loop = true;
   video.play().catch(() => {});
   resetFrameHistory();
+  resetTracker();
+  resetVoronoi();
+  resetCA();
+  resetWave();
   cachedBlobs = [];
   frameCount  = 0;
   setHasSource(true);
@@ -181,10 +272,10 @@ function renderFrame() {
 
   frameCount++;
   if (frameCount % state.updateInterval === 0) {
-    const rawBlobs = detectBlobs(offImageData, state.threshold, state.maxBlobs);
+    const rawBlobs  = detectBlobs(offImageData, state.threshold, state.maxBlobs, state.detectMode);
     const sx = cw / ow;
     const sy = ch / oh;
-    cachedBlobs = rawBlobs.map(b => ({
+    const scaledRaw = rawBlobs.map(b => ({
       ...b,
       x:  b.x  * sx,
       y:  b.y  * sy,
@@ -193,11 +284,50 @@ function renderFrame() {
       cx: b.cx * sx,
       cy: b.cy * sy,
     }));
+    cachedBlobs = trackBlobs(scaledRaw, cw, state.maxBlobs);
   }
   const blobs = cachedBlobs;
 
+  // --- Full-frame WebGL effects (run before blob overlays) ---
+  const f = state.filter;
+  if (f === 'voronoi') {
+    applyVoronoi(ctx, video, cw, ch, {
+      threshold: state.voronoiThreshold, jumpDist: state.voronoiJumpDist,
+      falloff:   state.voronoiFalloff,   edgeLines: state.voronoiEdgeLines,
+    });
+  } else if (f === 'cellular') {
+    applyCA(ctx, video, cw, ch, {
+      density: state.caDensity, stability: state.caStability,
+      evolutionSpeed: state.caEvolutionSpeed, sourceInflux: state.caSourceInflux,
+    });
+  } else if (f === 'ascii') {
+    applyASCII(ctx, video, cw, ch, {
+      cellSize: state.asciiCellSize, contrast: state.asciiContrast,
+      blackThreshold: state.asciiBlackThresh, glyphStrength: state.asciiGlyphStrength,
+    });
+  } else if (f === 'wave') {
+    applyWave(ctx, video, cw, ch, {
+      sourceStrength: state.waveSource, damping: state.waveDamp,
+      speed: state.waveSpeed, contrast: state.waveContr,
+    });
+  } else if (f === 'shatter') {
+    applyGLFilter('shatter', ctx, video, cw, ch, [state.shatterCells, state.shatterCrack, state.shatterFill, state.shatterRandom]);
+  } else if (f === 'erode') {
+    applyGLFilter('erode',   ctx, video, cw, ch, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge]);
+  } else if (f === 'oxide') {
+    applyGLFilter('oxide',   ctx, video, cw, ch, [state.oxideCorr, state.oxideMetal, state.oxideRough, state.oxideSheen]);
+  } else if (f === 'synth') {
+    applyGLFilter('synth',   ctx, video, cw, ch, [state.synthWarm, state.synthSep, state.synthRes, state.synthDyn]);
+  } else if (f === 'biolum') {
+    applyGLFilter('biolum',  ctx, video, cw, ch, [state.biolumGlow, state.biolumColor, state.biolumPulse, state.biolumDepth]);
+  } else if (f === 'thermo') {
+    applyGLFilter('thermo',  ctx, video, cw, ch, [state.thermoCont, state.thermoHot, state.thermoCold, state.thermoWhite]);
+  } else if (f === 'falsecolor') {
+    applyGLFilter('falsecolor', ctx, video, cw, ch, [state.falsePalette, state.falseBand, state.falseBandCnt, state.falseBright]);
+  }
+
   // --- Per-blob sub-region filter (reads only blob pixels, not full frame) ---
-  if (state.filter !== 'none') {
+  if (state.filter !== 'none' && !FULL_FRAME_SET.has(state.filter)) {
     for (const blob of blobs) {
       const bx = Math.max(0, Math.floor(blob.x));
       const by = Math.max(0, Math.floor(blob.y));

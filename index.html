@@ -66,7 +66,186 @@
             <button class="toggle-btn active" data-value="none">None</button>
             <button class="toggle-btn" data-value="inv">Inv</button>
             <button class="toggle-btn" data-value="thermal">Thermal</button>
+            <button class="toggle-btn" data-value="voronoi">Voronoi</button>
+            <button class="toggle-btn" data-value="cellular">Cellular</button>
+            <button class="toggle-btn" data-value="ascii">ASCII</button>
+            <button class="toggle-btn" data-value="shatter">Shatter</button>
+            <button class="toggle-btn" data-value="erode">Erode</button>
+            <button class="toggle-btn" data-value="wave">Wave</button>
+            <button class="toggle-btn" data-value="oxide">Oxide</button>
+            <button class="toggle-btn" data-value="synth">Synth</button>
+            <button class="toggle-btn" data-value="biolum">BioLum</button>
+            <button class="toggle-btn" data-value="thermo">Thermo</button>
+            <button class="toggle-btn" data-value="falsecolor">FalseClr</button>
           </div>
+        </section>
+
+        <!-- Voronoi params (shown when Voronoi filter active) -->
+        <section class="control-section" id="voronoi-controls" style="display:none;">
+          <div class="section-label">Voronoi — Threshold</div>
+          <div class="slider-row">
+            <input type="range" id="voronoi-threshold" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="voronoi-threshold-val">0.5</span>
+          </div>
+          <div class="section-label">Jump Distance</div>
+          <div class="slider-row">
+            <input type="range" id="voronoi-jump-dist" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="voronoi-jump-dist-val">0.5</span>
+          </div>
+          <div class="section-label">Falloff</div>
+          <div class="slider-row">
+            <input type="range" id="voronoi-falloff" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="voronoi-falloff-val">0.5</span>
+          </div>
+          <div class="section-label">Edge Lines</div>
+          <div class="slider-row">
+            <input type="range" id="voronoi-edge-lines" min="0" max="1" step="0.01" value="0" />
+            <span class="slider-val" id="voronoi-edge-lines-val">0</span>
+          </div>
+        </section>
+
+        <!-- Cellular Life params -->
+        <section class="control-section" id="cellular-controls" style="display:none;">
+          <div class="section-label">Cellular — Density</div>
+          <div class="slider-row">
+            <input type="range" id="ca-density" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="ca-density-val">0.5</span>
+          </div>
+          <div class="section-label">Stability</div>
+          <div class="slider-row">
+            <input type="range" id="ca-stability" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="ca-stability-val">0.5</span>
+          </div>
+          <div class="section-label">Evolution Speed</div>
+          <div class="slider-row">
+            <input type="range" id="ca-evolution-speed" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="ca-evolution-speed-val">0.5</span>
+          </div>
+          <div class="section-label">Source Influx</div>
+          <div class="slider-row">
+            <input type="range" id="ca-source-influx" min="0" max="1" step="0.01" value="0.5" />
+            <span class="slider-val" id="ca-source-influx-val">0.5</span>
+          </div>
+        </section>
+
+        <!-- ASCII Luma params -->
+        <section class="control-section" id="ascii-controls" style="display:none;">
+          <div class="section-label">ASCII — Cell Size</div>
+          <div class="slider-row">
+            <input type="range" id="ascii-cell-size" min="0" max="1" step="0.01" value="0.3" />
+            <span class="slider-val" id="ascii-cell-size-val">0.3</span>
+          </div>
+          <div class="section-label">Contrast</div>
+          <div class="slider-row">
+            <input type="range" id="ascii-contrast" min="0" max="1" step="0.01" value="0.3" />
+            <span class="slider-val" id="ascii-contrast-val">0.3</span>
+          </div>
+          <div class="section-label">Black Threshold</div>
+          <div class="slider-row">
+            <input type="range" id="ascii-black-thresh" min="0" max="1" step="0.01" value="0.2" />
+            <span class="slider-val" id="ascii-black-thresh-val">0.2</span>
+          </div>
+          <div class="section-label">Glyph Strength</div>
+          <div class="slider-row">
+            <input type="range" id="ascii-glyph-strength" min="0" max="1" step="0.01" value="0.9" />
+            <span class="slider-val" id="ascii-glyph-strength-val">0.9</span>
+          </div>
+        </section>
+
+        <!-- Shatter -->
+        <section class="control-section" id="shatter-controls" style="display:none;">
+          <div class="section-label">Shatter — Cell Count</div>
+          <div class="slider-row"><input type="range" id="shatter-cells" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="shatter-cells-val">0.3</span></div>
+          <div class="section-label">Crack Width</div>
+          <div class="slider-row"><input type="range" id="shatter-crack" min="0" max="1" step="0.01" value="0.2"/><span class="slider-val" id="shatter-crack-val">0.2</span></div>
+          <div class="section-label">Cell Fill</div>
+          <div class="slider-row"><input type="range" id="shatter-fill" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="shatter-fill-val">0.5</span></div>
+          <div class="section-label">Randomness</div>
+          <div class="slider-row"><input type="range" id="shatter-random" min="0" max="1" step="0.01" value="0.8"/><span class="slider-val" id="shatter-random-val">0.8</span></div>
+        </section>
+
+        <!-- Erode -->
+        <section class="control-section" id="erode-controls" style="display:none;">
+          <div class="section-label">Erode — Mode (0=erode 1=dilate)</div>
+          <div class="slider-row"><input type="range" id="erode-mode" min="0" max="1" step="1" value="0"/><span class="slider-val" id="erode-mode-val">0</span></div>
+          <div class="section-label">Radius</div>
+          <div class="slider-row"><input type="range" id="erode-radius" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="erode-radius-val">0.3</span></div>
+          <div class="section-label">Strength</div>
+          <div class="slider-row"><input type="range" id="erode-strength" min="0" max="1" step="0.01" value="0.7"/><span class="slider-val" id="erode-strength-val">0.7</span></div>
+          <div class="section-label">Edge Ring</div>
+          <div class="slider-row"><input type="range" id="erode-edge" min="0" max="1" step="0.01" value="0"/><span class="slider-val" id="erode-edge-val">0</span></div>
+        </section>
+
+        <!-- Wave -->
+        <section class="control-section" id="wave-controls" style="display:none;">
+          <div class="section-label">Wave — Source Strength</div>
+          <div class="slider-row"><input type="range" id="wave-source" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="wave-source-val">0.5</span></div>
+          <div class="section-label">Damping</div>
+          <div class="slider-row"><input type="range" id="wave-damp" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="wave-damp-val">0.3</span></div>
+          <div class="section-label">Speed</div>
+          <div class="slider-row"><input type="range" id="wave-speed" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="wave-speed-val">0.5</span></div>
+          <div class="section-label">Contrast</div>
+          <div class="slider-row"><input type="range" id="wave-contr" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="wave-contr-val">0.5</span></div>
+        </section>
+
+        <!-- Oxide -->
+        <section class="control-section" id="oxide-controls" style="display:none;">
+          <div class="section-label">Oxide — Corrosion</div>
+          <div class="slider-row"><input type="range" id="oxide-corr" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="oxide-corr-val">0.5</span></div>
+          <div class="section-label">Metal (copper→iron→silver)</div>
+          <div class="slider-row"><input type="range" id="oxide-metal" min="0" max="1" step="0.01" value="0"/><span class="slider-val" id="oxide-metal-val">0</span></div>
+          <div class="section-label">Roughness</div>
+          <div class="slider-row"><input type="range" id="oxide-rough" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="oxide-rough-val">0.3</span></div>
+          <div class="section-label">Metallic Sheen</div>
+          <div class="slider-row"><input type="range" id="oxide-sheen" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="oxide-sheen-val">0.3</span></div>
+        </section>
+
+        <!-- Synth -->
+        <section class="control-section" id="synth-controls" style="display:none;">
+          <div class="section-label">Synth — Warmth</div>
+          <div class="slider-row"><input type="range" id="synth-warm" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="synth-warm-val">0.5</span></div>
+          <div class="section-label">Separation</div>
+          <div class="slider-row"><input type="range" id="synth-sep" min="0" max="1" step="0.01" value="0.3"/><span class="slider-val" id="synth-sep-val">0.3</span></div>
+          <div class="section-label">Resonance</div>
+          <div class="slider-row"><input type="range" id="synth-res" min="0" max="1" step="0.01" value="0.4"/><span class="slider-val" id="synth-res-val">0.4</span></div>
+          <div class="section-label">Dynamic Range</div>
+          <div class="slider-row"><input type="range" id="synth-dyn" min="0" max="1" step="0.01" value="0.7"/><span class="slider-val" id="synth-dyn-val">0.7</span></div>
+        </section>
+
+        <!-- BioLum -->
+        <section class="control-section" id="biolum-controls" style="display:none;">
+          <div class="section-label">BioLum — Intensity</div>
+          <div class="slider-row"><input type="range" id="biolum-glow" min="0" max="1" step="0.01" value="0.7"/><span class="slider-val" id="biolum-glow-val">0.7</span></div>
+          <div class="section-label">Color (cyan→green→violet)</div>
+          <div class="slider-row"><input type="range" id="biolum-color" min="0" max="1" step="0.01" value="0"/><span class="slider-val" id="biolum-color-val">0</span></div>
+          <div class="section-label">Pulse</div>
+          <div class="slider-row"><input type="range" id="biolum-pulse" min="0" max="1" step="0.01" value="0.2"/><span class="slider-val" id="biolum-pulse-val">0.2</span></div>
+          <div class="section-label">Depth Fade</div>
+          <div class="slider-row"><input type="range" id="biolum-depth" min="0" max="1" step="0.01" value="0.7"/><span class="slider-val" id="biolum-depth-val">0.7</span></div>
+        </section>
+
+        <!-- Thermo -->
+        <section class="control-section" id="thermo-controls" style="display:none;">
+          <div class="section-label">Thermo — Contrast</div>
+          <div class="slider-row"><input type="range" id="thermo-cont" min="0" max="1" step="0.01" value="0.4"/><span class="slider-val" id="thermo-cont-val">0.4</span></div>
+          <div class="section-label">Hot Shift</div>
+          <div class="slider-row"><input type="range" id="thermo-hot" min="0" max="1" step="0.01" value="0"/><span class="slider-val" id="thermo-hot-val">0</span></div>
+          <div class="section-label">Cold Floor</div>
+          <div class="slider-row"><input type="range" id="thermo-cold" min="0" max="1" step="0.01" value="0.1"/><span class="slider-val" id="thermo-cold-val">0.1</span></div>
+          <div class="section-label">White Point</div>
+          <div class="slider-row"><input type="range" id="thermo-white" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="thermo-white-val">0.5</span></div>
+        </section>
+
+        <!-- FalseColor -->
+        <section class="control-section" id="falsecolor-controls" style="display:none;">
+          <div class="section-label">FalseClr — Palette</div>
+          <div class="slider-row"><input type="range" id="false-palette" min="0" max="1" step="0.01" value="0.25"/><span class="slider-val" id="false-palette-val">0.25</span></div>
+          <div class="section-label">Banding (0=off 1=on)</div>
+          <div class="slider-row"><input type="range" id="false-band" min="0" max="1" step="1" value="0"/><span class="slider-val" id="false-band-val">0</span></div>
+          <div class="section-label">Band Count</div>
+          <div class="slider-row"><input type="range" id="false-bandcnt" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="false-bandcnt-val">0.5</span></div>
+          <div class="section-label">Brightness</div>
+          <div class="slider-row"><input type="range" id="false-bright" min="0" max="1" step="0.01" value="0.5"/><span class="slider-val" id="false-bright-val">0.5</span></div>
         </section>
 
         <!-- Connection -->
@@ -78,6 +257,15 @@
           </div>
           <div class="slider-ticks">
             <span>0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1</span>
+          </div>
+        </section>
+
+        <!-- Detect Mode -->
+        <section class="control-section">
+          <div class="section-label">Detect Mode</div>
+          <div class="toggle-group" id="detect-mode-group">
+            <button class="toggle-btn active" data-value="motion">Motion</button>
+            <button class="toggle-btn" data-value="luma">Luma</button>
           </div>
         </section>
 

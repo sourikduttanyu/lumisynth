@@ -1,140 +1,94 @@
 /**
- * Blob detection via frame differencing + connected-component labeling.
- * Detects regions of change between frames — works on any video content.
+ * Blob detection via grid-based local maxima.
+ * Divides the frame into cells, picks the strongest pixel per cell.
+ * Works on any video — no connectivity issues, always produces distributed blobs.
+ *
+ * Luma mode:  peaks in absolute brightness  (bright subjects on dark bg)
+ * Motion mode: peaks in frame-to-frame diff (moving regions on any bg)
  */
 
-// Previous frame luminance buffer (reused across calls)
 let prevLum = null;
 
-// Call this when video source changes to reset frame history
 export function resetFrameHistory() {
   prevLum = null;
 }
 
 /**
- * @param {ImageData} imageData  current frame
- * @param {number} threshold     luminance change sensitivity 0-100 (lower = more sensitive)
- * @param {number} maxBlobs      maximum blobs to return
+ * @param {ImageData}          imageData
+ * @param {number}             threshold  luma mode: brightness cutoff (0-255); motion: change delta
+ * @param {number}             maxBlobs   max blobs to return
+ * @param {'motion'|'luma'}    mode
  * @returns {Array<{x,y,w,h,cx,cy,area,score,index}>}
  */
-export function detectBlobs(imageData, threshold, maxBlobs) {
+export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion') {
   const { width, height, data } = imageData;
   const total = width * height;
 
-  // Compute current frame luminance
+  // Compute current luminance
   const curLum = new Float32Array(total);
   for (let i = 0; i < total; i++) {
-    const off = i * 4;
-    curLum[i] = 0.299 * data[off] + 0.587 * data[off + 1] + 0.114 * data[off + 2];
+    const p = i * 4;
+    curLum[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
   }
 
-  // Build foreground mask from frame difference
-  const mask = new Uint8Array(total);
-  if (prevLum !== null && prevLum.length === total) {
+  // Build strength map
+  const strength = new Float32Array(total);
+  if (mode === 'luma') {
     for (let i = 0; i < total; i++) {
-      mask[i] = Math.abs(curLum[i] - prevLum[i]) > threshold ? 1 : 0;
+      strength[i] = curLum[i] > threshold ? curLum[i] : 0;
+    }
+  } else {
+    // motion: frame difference
+    if (prevLum && prevLum.length === total) {
+      for (let i = 0; i < total; i++) {
+        const diff = Math.abs(curLum[i] - prevLum[i]);
+        strength[i] = diff > threshold ? diff : 0;
+      }
     }
   }
-  // On first frame (no prev): mask stays all zeros → no blobs detected yet
 
-  // Store current as previous for next frame
   prevLum = curLum;
 
-  // Two-pass connected component labeling with union-find
-  const labels = new Int32Array(total);
-  const parent = new Int32Array(total + 1);
-  let nextLabel = 1;
+  // Grid: cell size derived from desired blob count
+  // Use finer grid (×2 cells) then take top N by strength
+  const cellSize = Math.max(8, Math.floor(Math.min(width, height) / Math.sqrt(maxBlobs * 3)));
+  const candidates = [];
 
-  function find(x) {
-    while (parent[x] !== x) {
-      parent[x] = parent[parent[x]];
-      x = parent[x];
-    }
-    return x;
-  }
-  function union(a, b) {
-    a = find(a); b = find(b);
-    if (a !== b) parent[b] = a;
-  }
+  for (let cy = 0; cy < height; cy += cellSize) {
+    for (let cx = 0; cx < width; cx += cellSize) {
+      const cw = Math.min(cellSize, width  - cx);
+      const ch = Math.min(cellSize, height - cy);
 
-  for (let i = 0; i <= total; i++) parent[i] = i;
+      let maxVal = 0, maxX = cx + cw / 2, maxY = cy + ch / 2;
 
-  // First pass
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      if (!mask[idx]) continue;
-
-      const top  = y > 0 ? labels[(y - 1) * width + x] : 0;
-      const left = x > 0 ? labels[y * width + (x - 1)] : 0;
-
-      if (!top && !left) {
-        labels[idx] = nextLabel++;
-      } else if (top && !left) {
-        labels[idx] = top;
-      } else if (!top && left) {
-        labels[idx] = left;
-      } else {
-        const rootTop  = find(top);
-        const rootLeft = find(left);
-        labels[idx] = Math.min(rootTop, rootLeft);
-        union(rootTop, rootLeft);
+      for (let y = cy; y < cy + ch; y++) {
+        for (let x = cx; x < cx + cw; x++) {
+          const v = strength[y * width + x];
+          if (v > maxVal) { maxVal = v; maxX = x; maxY = y; }
+        }
       }
+
+      if (maxVal > 0) candidates.push({ cx: maxX, cy: maxY, val: maxVal, cw, ch });
     }
   }
 
-  // Second pass — collect blob stats
-  const blobMap = new Map();
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const lbl = labels[idx];
-      if (!lbl) continue;
-      const root = find(lbl);
-      let b = blobMap.get(root);
-      if (!b) {
-        b = { minX: x, minY: y, maxX: x, maxY: y, sumX: x, sumY: y, area: 0 };
-        blobMap.set(root, b);
-      }
-      if (x < b.minX) b.minX = x;
-      if (y < b.minY) b.minY = y;
-      if (x > b.maxX) b.maxX = x;
-      if (y > b.maxY) b.maxY = y;
-      b.sumX += x;
-      b.sumY += y;
-      b.area++;
-    }
-  }
+  // Sort by strength, take top maxBlobs
+  candidates.sort((a, b) => b.val - a.val);
+  const peaks = candidates.slice(0, maxBlobs);
+  if (peaks.length === 0) return [];
 
-  // Filter by min area, sort by area, take top N
-  const MIN_AREA = 300;
-  let blobs = [];
-  for (const [, b] of blobMap) {
-    if (b.area < MIN_AREA) continue;
-    blobs.push({
-      x: b.minX,
-      y: b.minY,
-      w: b.maxX - b.minX + 1,
-      h: b.maxY - b.minY + 1,
-      cx: b.sumX / b.area,
-      cy: b.sumY / b.area,
-      area: b.area,
-      score: 0,
-      index: 0,
-    });
-  }
+  const maxVal = peaks[0].val;
+  const hs = cellSize / 2;
 
-  blobs.sort((a, b) => b.area - a.area);
-  if (blobs.length > maxBlobs) blobs = blobs.slice(0, maxBlobs);
-
-  // Normalized score = area / maxArea (largest blob = 1.0)
-  if (blobs.length > 0) {
-    const maxArea = blobs[0].area;
-    blobs.forEach((b, i) => {
-      b.score = maxArea > 0 ? b.area / maxArea : 0;
-      b.index = i;
-    });
-  }
-
-  return blobs;
+  return peaks.map((p, i) => ({
+    x:     p.cx - hs,
+    y:     p.cy - hs,
+    w:     cellSize,
+    h:     cellSize,
+    cx:    p.cx,
+    cy:    p.cy,
+    area:  cellSize * cellSize,
+    score: maxVal > 0 ? p.val / maxVal : 0,
+    index: i,
+  }));
 }

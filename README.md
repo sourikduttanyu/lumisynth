@@ -1,6 +1,6 @@
-# ARTKITv2 — BabyTrack
+# FluxKit
 
-A browser-based motion detection art tool. Load a video or open your camera — it detects moving regions in real time and draws overlays on them. No account, no server, no upload. Everything runs in your browser.
+A browser-based video art tool. Load a video or open your camera — it detects motion in real time, tracks blobs with a Kalman filter, and applies GPU-accelerated visual effects. No account, no server, no upload. Everything runs locally in your browser.
 
 ---
 
@@ -9,48 +9,60 @@ A browser-based motion detection art tool. Load a video or open your camera — 
 ```
 Your video / webcam
         ↓
- Compares each frame to the previous one
+ Detects motion or luminance blobs (grid-based, works on any video)
         ↓
- Finds regions that changed (motion blobs)
+ Tracks blobs across frames with a Kalman filter (smooth, persistent)
         ↓
- Draws shapes around those regions
+ Draws overlays (shapes, labels, connection lines)
         ↓
- Applies art filters to only those regions
+ Applies WebGL2 effects to the full frame
         ↓
- You see the result live on screen
+ You see the result live
 ```
 
-Nothing leaves your computer. No data is sent anywhere.
+Nothing leaves your computer.
 
 ---
 
-## How the Code Is Organized
+## Effects
+
+| Effect | Description |
+|--------|-------------|
+| **Inv** | Invert RGB inside blob regions |
+| **Thermal** | Heat-map palette inside blob regions |
+| **Voronoi** | Jump-flood Voronoi diffusion (WebGL2, stateful) |
+| **Cellular** | Conway-style cellular automata seeded from video (WebGL2, stateful) |
+| **ASCII** | 5×7 bitmap font density ramp rendered in GLSL |
+| **Shatter** | Voronoi cell shatter with cracked edges |
+| **Erode** | Morphological erode / dilate |
+| **Wave** | 2D wave equation rippling from bright pixels (WebGL2, stateful) |
+| **Oxide** | Corroded metal patina — copper, iron, silver |
+| **Synth** | Luminance mapped to synesthetic frequency colors |
+| **BioLum** | Deep-sea bioluminescent glow |
+| **Thermo** | Full-frame thermal vision |
+| **FalseClr** | Switchable scientific palettes (thermal / neon / acid / ice) |
+
+---
+
+## Code Layout
 
 ```
-ARTKITv2/
-├── index.html          ← the page (sidebar + canvas layout)
+FluxKit/
+├── index.html          ← sidebar + canvas layout
 ├── src/
-│   ├── main.js         ← wires everything together, runs the render loop
-│   ├── blobDetector.js ← finds moving regions in the video frame
-│   ├── filters.js      ← applies color effects (invert, thermal) to blobs
-│   ├── overlays.js     ← draws shapes and lines on the canvas
+│   ├── main.js         ← render loop, state, control wiring
+│   ├── blobDetector.js ← grid-based local-maxima detection (luma + motion modes)
+│   ├── kalman.js       ← 1D Kalman filter, blob tracker, nearest-neighbour association
+│   ├── filters.js      ← CPU per-blob filters (inv, thermal)
+│   ├── overlays.js     ← shapes, labels, connection lines
+│   ├── voronoi.js      ← WebGL2 Voronoi diffusion (ping-pong FBOs)
+│   ├── cellular.js     ← WebGL2 cellular automata (ping-pong FBOs)
+│   ├── ascii.js        ← WebGL2 ASCII luma (single-pass)
+│   ├── glFilters.js    ← WebGL2 stateless filters (shatter, erode, oxide, synth, biolum, thermo, falsecolor)
+│   ├── wave.js         ← WebGL2 wave propagation (ping-pong FBOs, RGBA16F)
 │   └── style.css       ← all styling
-├── dist/               ← built/compiled output (auto-generated, ignore this)
-└── package.json        ← project config
+└── package.json
 ```
-
----
-
-## How It Works (Technical)
-
-| File | Job |
-|------|-----|
-| `blobDetector.js` | Compares brightness of each pixel between frames. Pixels that changed a lot get flagged. Groups nearby flagged pixels into "blobs" using connected-component labeling. |
-| `filters.js` | Takes the pixel data inside each blob's bounding box and recolors it — invert flips colors, thermal maps brightness to a heat-map palette. |
-| `overlays.js` | Draws the chosen shape (rect / circle / rounded / diamond) around each blob. Also draws lines connecting blobs if connection rate > 0. |
-| `main.js` | Reads the video frame 60× per second, sends it to the detector, scales blob coords back to display size, applies filters, calls overlays. |
-
-Detection runs at **50% resolution** for performance, then scales blob positions back up to full display size.
 
 ---
 
@@ -59,71 +71,58 @@ Detection runs at **50% resolution** for performance, then scales blob positions
 | Control | What it does |
 |---------|-------------|
 | Upload Video | Load a local video file |
-| Open Camera | Use your webcam as live input |
-| Video Speed | 1×–4× playback speed |
-| Shape | Bounding box shape: rectangle, circle, rounded rect, diamond |
-| Region Style | Basic (score number) / Label (Object 1, 2…) / Frame (handles) |
-| Filter | None / Invert / Thermal — applied only inside blob regions |
-| Connection Rate | How many lines to draw between blob centers (0 = none, 1 = all) |
-| Sensitivity | How much a pixel must change to be flagged (lower = more sensitive) |
-| Max Blobs | Cap on how many blobs to track at once |
-| Update Interval | Detect blobs every N frames (higher = cheaper but slower response) |
+| Open Camera | Use webcam as live input |
+| Video Speed | 1×–4× playback |
+| Shape | rect / circle / rounded / diamond bounding boxes |
+| Region Style | Basic (score) / Label (Object N) / Frame (handles) |
+| Filter | Effect to apply (see table above) |
+| Connection Rate | Fraction of inter-blob lines to draw |
+| Detect Mode | Motion (frame diff) or Luma (absolute brightness) |
+| Sensitivity | Change threshold for motion / brightness cutoff |
+| Max Blobs | Cap on tracked blobs |
+| Update Interval | Detect every N frames |
+| Stroke Width | Line/border width 0–4 px |
+| Blob Size | Bounding box scale: 0 / 32 / 64 / 128 / 256 |
+| Font Size | Label text size |
+| Overlay Color | Color of shapes and lines |
+
+Effect-specific sliders appear below Filter when an effect is selected.
 
 ---
 
-## How to Run This Project (No coding experience needed!)
+## How to Run
 
-### Step 1 — Install Node.js
+### 1 — Install Node.js
 
-1. Go to [https://nodejs.org](https://nodejs.org)
-2. Click the big **LTS** button to download
-3. Open the downloaded file and follow the installer — just keep clicking Next / Continue
-4. When done, open **Terminal** (Mac) or **Command Prompt** (Windows)
-5. Check it worked by typing this and pressing Enter:
-   ```
-   node --version
-   ```
-   You should see something like `v20.x.x`
-
-### Step 2 — Get the project
-
-If you received a ZIP file:
-1. Unzip it
-2. Open Terminal / Command Prompt
-3. Type `cd ` (with a space), drag the unzipped folder into the window, press Enter
-
-If you have Git:
+Download the **LTS** version from [nodejs.org](https://nodejs.org) and run the installer. Verify:
 ```
-git clone https://github.com/sourikduttanyu/ARTKITv2.git
-cd ARTKITv2
+node --version
 ```
 
-### Step 3 — Install dependencies
+### 2 — Get the project
+
+```
+git clone https://github.com/sourikduttanyu/fluxkit.git
+cd fluxkit
+```
+
+Or unzip the folder and `cd` into it.
+
+### 3 — Install and start
 
 ```
 npm install
-```
-
-Wait for it to finish (about a minute).
-
-### Step 4 — Start the app
-
-```
 npm run dev
 ```
 
-Then open your browser and go to the address shown in the terminal — usually **http://localhost:5173**
+Open the URL shown in the terminal — usually **http://localhost:5173**
 
 ---
 
 ## Troubleshooting
 
-**"command not found: node"** — Node.js didn't install. Redo Step 1.
+**Camera won't open** — Click Allow when the browser asks. If already denied: browser Settings → Site permissions → Camera → Allow.
 
-**"command not found: npm"** — Same fix.
+**Nothing detected** — Lower the Sensitivity slider. Try switching Detect Mode to Luma for videos without movement.
 
-**Camera won't open** — Browser needs permission. Click "Allow" when it asks. If you already denied it, go to browser settings → Site permissions → Camera → Allow.
-
-**Nothing detected on video** — Try lowering the Sensitivity slider. Some videos with slow or subtle motion need a lower threshold.
-
-**Anything else** — Screenshot the error and send it to Sourik.
+**WebGL effect not showing** — Check browser console for shader errors. WebGL2 is required (all modern browsers support it).
