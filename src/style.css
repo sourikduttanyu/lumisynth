@@ -412,7 +412,6 @@ label.section-label { cursor: pointer; }
   stroke: #ffffff;
   stroke-width: 2;
   stroke-linecap: round;
-  transform-origin: 24px 24px;
   filter: drop-shadow(0 0 2px rgba(247, 37, 133, 0.8));
 }
 .knob-cap {

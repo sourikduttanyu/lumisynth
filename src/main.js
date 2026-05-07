@@ -108,6 +108,8 @@ function initKnob(el) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'knob-svg');
   svg.setAttribute('viewBox', '0 0 48 48');
+  svg.setAttribute('width', '48');
+  svg.setAttribute('height', '48');
   svg.setAttribute('aria-hidden', 'true');
 
   const mkCircle = (cls, r, attrs = {}) => {
@@ -133,9 +135,7 @@ function initKnob(el) {
   pointer.setAttribute('class', 'knob-pointer');
   pointer.setAttribute('x1', '24'); pointer.setAttribute('y1', '24');
   pointer.setAttribute('x2', '24'); pointer.setAttribute('y2', '11');
-  pointer.style.transform = 'rotate(-135deg)';
-  pointer.style.transformOrigin = '24px 24px';
-  pointer.style.transformBox = 'fill-box';
+  pointer.setAttribute('transform', 'rotate(-135 24 24)');
 
   svg.appendChild(track);
   svg.appendChild(arc);
@@ -155,7 +155,7 @@ function initKnob(el) {
     const offset = KNOB_ARC_LEN * (1 - t);
     arc.setAttribute('stroke-dashoffset', String(offset));
     const angle = -135 + 270 * t;
-    pointer.style.transform = `rotate(${angle}deg)`;
+    pointer.setAttribute('transform', `rotate(${angle} 24 24)`);
     const display = formatValue(v, step);
     if (valEl) valEl.textContent = display;
     el.setAttribute('aria-valuenow', String(v));
