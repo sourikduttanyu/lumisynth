@@ -239,7 +239,6 @@ label.section-label { cursor: pointer; }
   flex-direction: column;
   gap: 10px;
   position: relative;
-  overflow: hidden;
 }
 .effect-card::before {
   content: "";
@@ -248,6 +247,7 @@ label.section-label { cursor: pointer; }
   height: 2px;
   background: var(--accent-grad);
   opacity: 0.7;
+  border-radius: 10px 10px 0 0;
 }
 .effect-card-title {
   font-size: 10px;
