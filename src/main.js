@@ -194,6 +194,24 @@ const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
 const DETECT_SCALE = 0.5;
 
+// Render-loop FPS cap. Capped at 60 regardless of source video frame rate
+// or display refresh rate. Reasoning:
+//  - Display refresh ≥ 60Hz: the cap throttles the render loop to ~60Hz so
+//    we don't burn CPU/GPU drawing identical pixels on a 120Hz/144Hz/240Hz
+//    monitor (the source video tops out at 24/30/60 fps anyway — there's
+//    no new input data at the higher cadence).
+//  - Display refresh < 60Hz: hardware ceiling applies; the cap is a no-op.
+//  - Source video at 24/30 fps: detect/track still runs every render frame,
+//    but with cached video pixels it's mostly a no-op until the video
+//    advances. The compositor still runs at 60 to keep UI overlays / blob
+//    smoothing animations feeling smooth.
+//
+// FRAME_BUDGET_MS is the per-frame time budget. Tracked via accumulator
+// (not raw "time since last frame") so the cap holds at exactly 60Hz on
+// any refresh rate ≥ 60Hz instead of degrading to 48Hz on 144Hz panels.
+const FPS_CAP        = 60;
+const FRAME_BUDGET_MS = 1000 / FPS_CAP;
+
 // ---- Toast ----
 function showToast(message, kind = 'info', timeoutMs = 4000) {
   const node = document.createElement('div');
@@ -1553,9 +1571,33 @@ function smoothBlobs(latest) {
 }
 
 // ---- Render loop ----
-function renderFrame() {
-  if (!state.hasSource) { rafHandle = 0; return; }
+// FPS-cap state (closure across frames). _accumMs accumulates real time
+// between RAF ticks; once it exceeds FRAME_BUDGET_MS, we render a frame
+// and subtract one budget. Clamped to one budget on accumulator overflow
+// so background-tab-throttled bursts don't cause a render storm on
+// resume (RAF goes silent in background tabs, then fires immediately
+// when the tab returns; without the clamp _accumMs could be 5+ seconds).
+let _fpsLastT  = 0;
+let _fpsAccumMs = 0;
+function renderFrame(nowDOMHi) {
+  if (!state.hasSource) { rafHandle = 0; _fpsLastT = 0; _fpsAccumMs = 0; return; }
   rafHandle = requestAnimationFrame(renderFrame);
+
+  // FPS cap. RAF will keep firing at the display refresh rate; we just
+  // skip the render work when the accumulated time hasn't reached one
+  // frame budget yet. nowDOMHi is the DOMHighResTimeStamp passed by RAF.
+  const now = nowDOMHi || performance.now();
+  if (_fpsLastT === 0) {
+    _fpsLastT = now;
+    _fpsAccumMs = FRAME_BUDGET_MS; // render the very first frame immediately
+  } else {
+    _fpsAccumMs += (now - _fpsLastT);
+    _fpsLastT = now;
+    if (_fpsAccumMs > FRAME_BUDGET_MS * 4) _fpsAccumMs = FRAME_BUDGET_MS; // tab-resume clamp
+  }
+  if (_fpsAccumMs < FRAME_BUDGET_MS) return;
+  _fpsAccumMs -= FRAME_BUDGET_MS;
+
   if (video.readyState < 2 || video.videoWidth === 0) return;
 
   const cw = canvas.width;
