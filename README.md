@@ -60,6 +60,7 @@ FluxKit/
 │   ├── ascii.js        ← WebGL2 ASCII luma (single-pass)
 │   ├── glFilters.js    ← WebGL2 stateless filters (shatter, erode, oxide, synth, biolum, thermo, falsecolor)
 │   ├── wave.js         ← WebGL2 wave propagation (ping-pong FBOs, RGBA16F)
+│   ├── glUtil.js       ← shared WebGL2 helpers (allocate-once video texture upload)
 │   └── style.css       ← all styling
 └── package.json
 ```
@@ -81,6 +82,7 @@ FluxKit/
 | Sensitivity | Change threshold for motion / brightness cutoff |
 | Max Blobs | Cap on tracked blobs |
 | Update Interval | Detect every N frames |
+| Smooth | Lerps tracked blob positions toward detections each render frame (0 = snap, 1 = max smoothing) |
 | Stroke Width | Line/border width 0–4 px |
 | Blob Size | Bounding box scale: 0 / 32 / 64 / 128 / 256 |
 | Font Size | Label text size |
