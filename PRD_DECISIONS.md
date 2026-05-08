@@ -136,6 +136,39 @@ All three confirmed for inclusion in `DESIGN.md`:
 
 ---
 
+## 🎨 <span style="color:#a896d6">DESIGN SYSTEM Q&A — Round 2 (colorize)</span>
+
+Captured during `/impeccable colorize` (May 2026), after the polish pass that pushed the chrome to maximum restraint. The colorize lanes were five pre-vetted options that all respect the locked DESIGN.md (no walking back the polish).
+
+### Lanes offered
+
+| # | Lane | What it adds |
+|---|---|---|
+| **A** ✅ | **Disambiguate the two pinks + add `state-info` cyan** | `pink-signal` (#f72585 magenta) and `state-danger` (#ff6b8b red-pink) currently look identical at a glance. Slide danger to true coral (`oklch(70% 0.21 25)`); add `state-info` (`oklch(72% 0.15 220)`, cyan) for informational status. Reassign the modified-from-default dot from pink to cyan (modified is informational, not signal). |
+| B | Per-effect category colors on cards | Group 14 effects into 4 categories; each `effect-card::before` 2px top strip becomes its category color. |
+| **C** ✅ | **Signal-flow color on stage dividers** | OSC = amber, FILTER = violet, FX = teal. Eye reads warm → cool top-to-bottom as input → output. Hairline rule line stays neutral. |
+| **D** ✅ | **Warm the dim-studio one degree** | Shift neutral hue from 290 (indigo-violet, cool) to 310 (warm magenta-violet). Imperceptible per surface, cumulative across the chrome. The dim studio reads less clinical, more lounge. CSS adopts OKLCH-canonical for neutrals. |
+| E | Walk back the polish | Re-introduce some glow/gradient (would have meant amending DESIGN.md to relax the bans). |
+
+**Picked**: A + C + D.
+
+### Ripple to DESIGN.md / DESIGN.json
+
+- All ten neutral tokens recomputed at hue 310. CSS uses `oklch()` directly; frontmatter hex updated to rendered approximations.
+- `--state-danger` switched to true coral `oklch(70% 0.21 25)`; new `--state-info` `oklch(72% 0.15 220)`.
+- Three new `--stage-osc / --stage-filter / --stage-fx` tokens added; only ever used on `.stage-divider[data-stage="..."]` labels.
+- New rules added: **The Signal-Flow Rule** and **The Three-Pinks Rule**. Pink-Is-Signal Rule narrowed: pink is now reserved for change/active only; destructive confirms moved to state-danger; informational status moved to state-info.
+- Three new Don'ts: don't use stage colors anywhere but dividers; don't use pink-signal for destructive confirms; don't use pink-signal for informational status.
+
+### Files touched
+
+- `src/style.css` (token block + stage rules + modified dot + scrim tints + help backdrop)
+- `index.html` (3 `data-stage` attributes on dividers)
+- `DESIGN.md` (frontmatter + Colors section + Components knob description + Do/Don't list)
+- `DESIGN.json` (full sidecar regen with hue 310 ramps, new colorMeta entries, new narrative rules)
+
+---
+
 ## Notes
 
 - Inline color spans render in Cursor / VS Code preview. GitHub strips `style` attributes — emoji prefixes carry the signal there.

@@ -10,30 +10,39 @@
    Tokens — see DESIGN.md ("Dim-Studio Palette" + flat-by-default).
    Surface ladder dark→light: bg-stage < bg-room < surface-card
    < surface-raised < surface-hover. Depth is tonal, not blurred.
+
+   Neutrals are OKLCH-canonical at hue 310 (one warm step from the
+   first dim-studio at hue 290). Brand-fixed signals stay hex.
    ============================================================ */
 :root {
-  /* Surface ladder */
-  --bg-stage:        #050210;
-  --bg-room:         #0a0418;
-  --surface-card:    #180a30;
-  --surface-raised:  #241245;
-  --surface-hover:   #341c5c;
-  --border-hairline: #2a1a4a;
+  /* Surface ladder (hue 310) */
+  --bg-stage:        oklch(5%  0.03 310);
+  --bg-room:         oklch(8%  0.04 310);
+  --surface-card:    oklch(15% 0.07 310);
+  --surface-raised:  oklch(20% 0.10 310);
+  --surface-hover:   oklch(28% 0.12 310);
+  --border-hairline: oklch(22% 0.08 310);
 
-  /* Text (lavender ladder, all tinted toward hue 290) */
-  --text-key:    #f0eaff;
-  --text-body:   #d8d0f0;
-  --text-muted:  #b09fd8;
-  --text-faint:  #7a6aa8;
+  /* Text ladder (hue 310) */
+  --text-key:    oklch(94% 0.02 310);
+  --text-body:   oklch(85% 0.03 310);
+  --text-muted:  oklch(72% 0.06 310);
+  --text-faint:  oklch(55% 0.09 310);
 
-  /* Signal */
+  /* Signal (brand-fixed, hex canonical) */
   --pink-signal:  #f72585;
   --purple-deep:  #7e2bc7;
   --indigo-cool:  #4361ee;
 
-  /* State */
+  /* State (semantic) */
   --state-ok:     #5be7a6;
-  --state-danger: #ff6b8b;
+  --state-danger: oklch(70% 0.21 25);    /* true coral, not pink — disambiguates from --pink-signal */
+  --state-info:   oklch(72% 0.15 220);   /* cyan-blue, used for informational status (e.g. modified-from-default) */
+
+  /* Stage flow (signal-flow direction across OSC → FILTER → FX) */
+  --stage-osc:    oklch(75% 0.15 70);    /* warm amber: input, source */
+  --stage-filter: oklch(68% 0.20 290);   /* bright violet: transformation */
+  --stage-fx:     oklch(72% 0.13 195);   /* cool teal: output */
 
   /* Motion */
   --ease-out:       cubic-bezier(0.25, 1, 0.5, 1);
@@ -45,7 +54,7 @@
   --sidebar-width: 240px;
 
   /* The single justified ambient shadow */
-  --modal-lift: 0 12px 48px rgba(5, 2, 16, 0.6);
+  --modal-lift: 0 12px 48px oklch(5% 0.03 310 / 0.6);
 }
 
 html, body {
@@ -156,13 +165,14 @@ html, body {
 .icon-btn:active { transform: translateY(1px); }
 .icon-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 .icon-btn.confirming {
-  background: oklch(28% 0.18 15);
+  background: oklch(28% 0.18 25);
   border-color: var(--state-danger);
   color: var(--state-danger);
 }
 
 /* ============================================================
-   STAGE DIVIDERS — quiet monochrome lavender, hairline rule.
+   STAGE DIVIDERS — signal-flow color coding (warm → cool).
+   Label tints by stage; hairline rule line stays neutral.
    ============================================================ */
 .stage-divider {
   display: flex;
@@ -175,6 +185,9 @@ html, body {
   text-transform: uppercase;
   color: var(--text-muted);
 }
+.stage-divider[data-stage="osc"]    { color: var(--stage-osc); }
+.stage-divider[data-stage="filter"] { color: var(--stage-filter); }
+.stage-divider[data-stage="fx"]     { color: var(--stage-fx); }
 .stage-divider::after {
   content: "";
   flex: 1;
@@ -384,7 +397,7 @@ label.section-label { cursor: pointer; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.6));
+  background: linear-gradient(180deg, oklch(5% 0.03 310 / 0.15), oklch(5% 0.03 310 / 0.6));
   z-index: 1;
   transition: background var(--duration-base) var(--ease-out);
 }
@@ -413,7 +426,7 @@ label.section-label { cursor: pointer; }
 }
 #filter-group .toggle-btn.active::before,
 #filter-group .toggle-btn[aria-checked="true"]::before {
-  background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45));
+  background: linear-gradient(180deg, oklch(5% 0.03 310 / 0.05), oklch(5% 0.03 310 / 0.45));
 }
 
 /* ============================================================
@@ -488,14 +501,15 @@ label.section-label { cursor: pointer; }
   hyphens: auto;
 }
 
-/* Modified-from-default dot — flat 4px pink, no glow */
+/* Modified-from-default dot — informational status, not active signal.
+   Cyan (--state-info), reserves --pink-signal for the act of changing. */
 .knob.modified .knob-label::after {
   content: "";
   display: inline-block;
   width: 4px; height: 4px;
   margin-left: 4px;
   border-radius: 50%;
-  background: var(--pink-signal);
+  background: var(--state-info);
   vertical-align: middle;
 }
 
@@ -805,7 +819,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 #help-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 2, 16, 0.85);
+  background: oklch(5% 0.03 310 / 0.85);
   z-index: 500;
   display: flex;
   align-items: center;

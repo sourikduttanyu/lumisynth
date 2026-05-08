@@ -5,18 +5,22 @@ colors:
   pink-signal:      "#f72585"
   purple-deep:      "#7e2bc7"
   indigo-cool:      "#4361ee"
-  bg-stage:         "#050210"
-  bg-room:          "#0a0418"
-  surface-card:     "#180a30"
-  surface-raised:   "#241245"
-  surface-hover:    "#341c5c"
-  border-hairline:  "#2a1a4a"
-  text-key:         "#f0eaff"
-  text-body:        "#d8d0f0"
-  text-muted:       "#b09fd8"
-  text-faint:       "#7a6aa8"
+  bg-stage:         "#0a0510"
+  bg-room:          "#110620"
+  surface-card:     "#220a35"
+  surface-raised:   "#2f1148"
+  surface-hover:    "#461d63"
+  border-hairline:  "#321a4d"
+  text-key:         "#f0e8f4"
+  text-body:        "#d6cee4"
+  text-muted:       "#b39bcc"
+  text-faint:       "#84649a"
   state-ok:         "#5be7a6"
-  state-danger:     "#ff6b8b"
+  state-danger:     "#f5654b"
+  state-info:       "#45a5d6"
+  stage-osc:        "#d6a045"
+  stage-filter:     "#b06ad8"
+  stage-fx:         "#45c0c8"
 typography:
   headline:
     fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -134,7 +138,7 @@ Density is high on purpose. Power users need every knob visible at once, newcome
 
 ## 2. Colors: The Dim-Studio Palette
 
-Every neutral is tinted toward indigo (hue ~290) so the eye relaxes in low ambient light. One accent (`pink-signal`) carries every change-of-state moment; the rest of the surface is silent.
+Every neutral is tinted toward magenta-violet (hue 310, one warm step from the original hue 290) so the eye relaxes in low ambient light without reading clinical or cold. One accent (`pink-signal`) carries every change-of-state moment; semantic state colors carry meaning; three stage colors carry signal-flow direction across OSC → FILTER → FX. The rest of the surface is silent.
 
 ### Primary
 
@@ -145,26 +149,47 @@ Every neutral is tinted toward indigo (hue ~290) so the eye relaxes in low ambie
 - **Purple Deep** (`#7e2bc7`, `oklch(46% 0.22 305)`): Used inside the knob arc gradient and as the accent ramp midpoint. Never used as a flat surface on its own. Background to nothing, foreground to nothing.
 - **Indigo Cool** (`#4361ee`, `oklch(54% 0.24 270)`): The cold end of the knob arc gradient. Same restriction as Purple Deep: not a surface, not a foreground, only inside the SVG knob arc.
 
-### Neutral (the dim-studio ladder, dark to light)
+### Neutral (the dim-studio ladder, dark to light, OKLCH-canonical at hue 310)
 
-- **Bg Stage** (`#050210`, `oklch(5% 0.03 285)`): Canvas-area background. The deepest surface in the system. The video output sits IN this surface; everything else floats above it.
-- **Bg Room** (`#0a0418`, `oklch(8% 0.04 285)`): Sidebar and top bar background. One step lighter than `Bg Stage` so the chrome reads as a layer above the canvas without box-shadow.
-- **Surface Card** (`#180a30`, `oklch(15% 0.07 290)`): Effect-card and toast background. One step lighter than `Bg Room`. The card is felt as raised by tonal contrast alone, not by shadow.
-- **Surface Raised** (`#241245`, `oklch(20% 0.10 290)`): Default button background, toggle inactive background, swatch container. The interactive layer.
-- **Surface Hover** (`#341c5c`, `oklch(28% 0.12 290)`): Hover state for any `Surface Raised` surface. One tonal step lighter signals "ready to be pressed".
-- **Border Hairline** (`#2a1a4a`, `oklch(22% 0.08 290)`): All 1px borders in the chrome. Tinted exactly between `Surface Card` and `Surface Raised` so it disappears at the surface boundary and only shows where surfaces meet.
+The CSS uses `oklch()` directly for these values; the hex shown is the rendered sRGB approximation for tooling that cannot consume OKLCH (e.g. Stitch's hex-only frontmatter validator).
 
-### Text (lavender ladder, all tinted toward hue 290)
+- **Bg Stage** (`oklch(5% 0.03 310)`, ≈`#0a0510`): Canvas-area background. The deepest surface in the system. The video output sits IN this surface; everything else floats above it.
+- **Bg Room** (`oklch(8% 0.04 310)`, ≈`#110620`): Sidebar and top bar background. One step lighter than `Bg Stage` so the chrome reads as a layer above the canvas without box-shadow.
+- **Surface Card** (`oklch(15% 0.07 310)`, ≈`#220a35`): Effect-card and toast background. One step lighter than `Bg Room`. The card is felt as raised by tonal contrast alone, not by shadow.
+- **Surface Raised** (`oklch(20% 0.10 310)`, ≈`#2f1148`): Default button background, toggle inactive background, swatch container. The interactive layer.
+- **Surface Hover** (`oklch(28% 0.12 310)`, ≈`#461d63`): Hover state for any `Surface Raised` surface. One tonal step lighter signals "ready to be pressed".
+- **Border Hairline** (`oklch(22% 0.08 310)`, ≈`#321a4d`): All 1px borders in the chrome. Tinted exactly between `Surface Card` and `Surface Raised` so it disappears at the surface boundary and only shows where surfaces meet.
 
-- **Text Key** (`#f0eaff`, `oklch(94% 0.02 290)`): Primary text on dark surfaces. Headlines, knob value tooltip, active button label.
-- **Text Body** (`#d8d0f0`, `oklch(85% 0.03 290)`): Default body color. Inactive toggle label, card body copy.
-- **Text Muted** (`#b09fd8`, `oklch(72% 0.06 290)`): Section labels, file status, knob labels.
-- **Text Faint** (`#7a6aa8`, `oklch(55% 0.09 285)`): Empty-state copy, footer, divider sublabels, FPS overlay. The dimmest legible text.
+### Text (lavender ladder, all tinted toward hue 310)
 
-### State
+- **Text Key** (`oklch(94% 0.02 310)`, ≈`#f0e8f4`): Primary text on dark surfaces. Headlines, knob value tooltip, active button label.
+- **Text Body** (`oklch(85% 0.03 310)`, ≈`#d6cee4`): Default body color. Inactive toggle label, card body copy.
+- **Text Muted** (`oklch(72% 0.06 310)`, ≈`#b39bcc`): Section labels, file status, knob labels.
+- **Text Faint** (`oklch(55% 0.09 310)`, ≈`#84649a`): Empty-state copy, footer, divider sublabels, FPS overlay. The dimmest legible text.
 
-- **State OK** (`#5be7a6`, `oklch(85% 0.18 155)`): Toast success border tint. Used as a left/top tonal background tint on confirm-style toasts; never as a side-stripe.
-- **State Danger** (`#ff6b8b`, `oklch(72% 0.21 15)`): Reset-confirm pending state, error toast tint. Used as a full background tint on the `Reset` button when in two-stage confirm mode.
+### State (semantic, three roles)
+
+- **State OK** (`#5be7a6`, `oklch(85% 0.18 155)`): Toast success border tint. Mint green; reads as confirm/done.
+- **State Danger** (`oklch(70% 0.21 25)`, ≈`#f5654b`): True coral red. Used on the `Reset` button when in two-stage confirm mode (full background + border + text), and on toast error border. Disambiguated from `pink-signal` on purpose: pink is **active state**, danger is **destructive action**. They look different at a glance.
+- **State Info** (`oklch(72% 0.15 220)`, ≈`#45a5d6`): Cyan-blue. Used for **informational status** that is neither active nor destructive. Currently: the modified-from-default dot on knobs (a value differs from default; passive observation, not active change). Reserves `pink-signal` for the act of changing.
+
+### Stage Flow (signal-flow color coding, warm → cool)
+
+The three sidebar dividers (OSC, FILTER, FX) carry their own colors to communicate signal direction. Eye reads warm (input) → cool (output) like an audio chain. The hairline rule line beside each label stays neutral; only the uppercase label takes the stage color.
+
+- **Stage OSC** (`oklch(75% 0.15 70)`, ≈`#d6a045`): Warm amber. The input stage. Source video, blob detection, the energy entering the system.
+- **Stage Filter** (`oklch(68% 0.20 290)`, ≈`#b06ad8`): Bright violet. The transformation stage. Effect picker plus per-effect knob grids. Distinct from `pink-signal` (different hue, lower chroma) so it never collides with the active-state pink.
+- **Stage FX** (`oklch(72% 0.13 195)`, ≈`#45c0c8`): Cool teal. The output stage. Region style, shape, overlay color, blob size, font, connection rate.
+
+### Named Rules
+
+**The Pink-Is-Signal Rule.** Pink (`#f72585`) appears only where a value is being changed, an effect is active, or an action is destructive (NOTE: the destructive case has been moved to `state-danger`; pink now reserved for change/active only). The logo, card titles, dividers, and any decorative element must be a neutral or stage-coded tone. Test: take a screenshot of the app at rest with no interaction. If pink is visible anywhere except the visible effect-card top accent and the active toggle button, the rule is violated.
+
+**The Tinted-Neutral Rule.** Every neutral must carry chroma 0.02–0.12 toward hue 310 (warm magenta-violet). Pure greys (`oklch(L 0 0)`) are forbidden. `#000` and `#fff` are forbidden everywhere in the chrome. The dim-studio palette only works because the eye reads the warm tint as inviting-by-comparison-to-pure-grey, even at low ambient brightness.
+
+**The Signal-Flow Rule.** The three stage dividers are color-coded to signal flow direction: amber (OSC, source) → violet (FILTER, transformation) → teal (FX, output). The eye should be able to scan the sidebar top-to-bottom and feel the input-to-output journey without reading any words. Stage colors appear ONLY on stage-divider labels; using them on any other surface dilutes their meaning.
+
+**The Three-Pinks Rule.** FluxKit has three colors that read as "pink-ish" at a glance, and they must stay distinguishable: `pink-signal` (#f72585, magenta, signals change/active), `state-danger` (true coral, signals destructive action), and `stage-filter` (bright violet, signals the FILTER section). Each lives in its own role. If two of them appear adjacent, audit which roles you have collided.
 
 ### Named Rules
 
@@ -268,7 +293,7 @@ Custom 40×40 SVG. The most-touched control in the system.
 - **Cap:** `Bg Room` fill (`#0a0418`), 1px `Border Hairline` stroke. The cap reads as a punched hole in the surface.
 - **Label** (below): Mono-Num, `Text Muted`, max 2 lines, wrap not truncate.
 - **Value tooltip** (on hover/focus/drag): Mono-Num, `Text Key`, background `Surface Card`, 1px `Pink Signal` border, padding `2px 7px`, rounded 4px, positioned 16px below the SVG. Only visible during interaction.
-- **Modified-from-default indicator:** 4px `Pink Signal` dot, inline after the label, only when current value differs from `data-default`.
+- **Modified-from-default indicator:** 4px `State Info` (cyan) dot, inline after the label, only when current value differs from `data-default`. Cyan because "this value differs from default" is informational status, not active change. Pink stays reserved for the act of changing.
 - **States:** hover background `oklch(15% 0.10 5 / 0.05)` (faint pink wash), focus-visible 2px `Pink Signal` ring, dragging same as hover plus tooltip held visible.
 - **Interactions:** vertical pointer drag, Shift = 10× fine, double-click = reset to default, keyboard (`↑` `↓` `←` `→` step, `PgUp` `PgDn` 10×, `Home` `End` min/max), mouse wheel.
 
@@ -349,6 +374,8 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 - **Do** respect `prefers-reduced-motion` on every transition (toast enter, knob arc transition, card hover). Already partially implemented; audit any new motion against this.
 - **Do** keep the active state of each radio group to exactly one button. The single pink rectangle IS the affordance.
 - **Do** use `font-variant-numeric: tabular-nums` on every numeric value (knob value, FPS, timecode). Digits must not jitter.
+- **Do** color-code the three stage dividers by signal-flow direction: amber (OSC) → violet (FILTER) → teal (FX). One color per stage label, hairline rule line stays neutral.
+- **Do** use `state-info` (cyan) for informational status (modified-from-default dot, future "live recording" indicator). Reserve `pink-signal` for the act of changing.
 
 ### Don't
 
@@ -363,3 +390,6 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 - **Don't** introduce a second typeface family. Inter only. Tabular-nums on Inter is the mono role; do not reach for IBM Plex Mono or JetBrains Mono.
 - **Don't** put pink on more than one button per radio group at a time. Exactly one pink rectangle per group is the rule.
 - **Don't** use a modal for anything except help (current) and future confirm-destructive flows. Modals are usually laziness; exhaust inline alternatives first. The two-stage `Reset` button is the canonical example of a confirm without a modal.
+- **Don't** use stage colors (amber, violet, teal) on any surface other than the three stage-divider labels. Diluting them onto buttons, cards, or borders kills the signal-flow read.
+- **Don't** use `pink-signal` for destructive confirms. That's `state-danger` (true coral). The two pinks are intentionally different so the user can tell active-state apart from about-to-destroy at a glance.
+- **Don't** use `pink-signal` for informational status. That's `state-info` (cyan). The modified-from-default dot is information, not signal.
