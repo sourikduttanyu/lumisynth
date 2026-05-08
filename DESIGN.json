@@ -1,0 +1,471 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-07T20:13:00Z",
+  "title": "Design System: FluxKit",
+  "extensions": {
+    "colorMeta": {
+      "pink-signal": {
+        "role": "primary",
+        "displayName": "Pink Signal",
+        "canonical": "oklch(63% 0.27 5)",
+        "tonalRamp": [
+          "oklch(15% 0.08 5)",
+          "oklch(25% 0.14 5)",
+          "oklch(38% 0.22 5)",
+          "oklch(50% 0.27 5)",
+          "oklch(63% 0.27 5)",
+          "oklch(74% 0.22 5)",
+          "oklch(85% 0.14 5)",
+          "oklch(94% 0.05 5)"
+        ]
+      },
+      "purple-deep": {
+        "role": "secondary",
+        "displayName": "Purple Deep",
+        "canonical": "oklch(46% 0.22 305)",
+        "tonalRamp": [
+          "oklch(12% 0.06 305)",
+          "oklch(22% 0.12 305)",
+          "oklch(34% 0.18 305)",
+          "oklch(46% 0.22 305)",
+          "oklch(58% 0.22 305)",
+          "oklch(70% 0.18 305)",
+          "oklch(82% 0.12 305)",
+          "oklch(93% 0.04 305)"
+        ]
+      },
+      "indigo-cool": {
+        "role": "secondary",
+        "displayName": "Indigo Cool",
+        "canonical": "oklch(54% 0.24 270)",
+        "tonalRamp": [
+          "oklch(14% 0.06 270)",
+          "oklch(24% 0.12 270)",
+          "oklch(38% 0.20 270)",
+          "oklch(54% 0.24 270)",
+          "oklch(66% 0.22 270)",
+          "oklch(76% 0.16 270)",
+          "oklch(86% 0.10 270)",
+          "oklch(94% 0.04 270)"
+        ]
+      },
+      "bg-stage": {
+        "role": "neutral",
+        "displayName": "Bg Stage",
+        "canonical": "oklch(5% 0.03 285)",
+        "tonalRamp": [
+          "oklch(5% 0.03 285)",
+          "oklch(8% 0.04 285)",
+          "oklch(15% 0.07 290)",
+          "oklch(20% 0.10 290)",
+          "oklch(28% 0.12 290)",
+          "oklch(45% 0.10 290)",
+          "oklch(72% 0.06 290)",
+          "oklch(94% 0.02 290)"
+        ]
+      },
+      "bg-room": {
+        "role": "neutral",
+        "displayName": "Bg Room",
+        "canonical": "oklch(8% 0.04 285)",
+        "tonalRamp": [
+          "oklch(5% 0.03 285)",
+          "oklch(8% 0.04 285)",
+          "oklch(15% 0.07 290)",
+          "oklch(22% 0.08 290)",
+          "oklch(32% 0.09 290)",
+          "oklch(50% 0.08 290)",
+          "oklch(75% 0.05 290)",
+          "oklch(94% 0.02 290)"
+        ]
+      },
+      "surface-card": {
+        "role": "neutral",
+        "displayName": "Surface Card",
+        "canonical": "oklch(15% 0.07 290)",
+        "tonalRamp": [
+          "oklch(8% 0.04 290)",
+          "oklch(15% 0.07 290)",
+          "oklch(22% 0.08 290)",
+          "oklch(30% 0.10 290)",
+          "oklch(42% 0.11 290)",
+          "oklch(58% 0.10 290)",
+          "oklch(78% 0.06 290)",
+          "oklch(94% 0.02 290)"
+        ]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Surface Raised",
+        "canonical": "oklch(20% 0.10 290)",
+        "tonalRamp": [
+          "oklch(10% 0.05 290)",
+          "oklch(20% 0.10 290)",
+          "oklch(28% 0.12 290)",
+          "oklch(38% 0.13 290)",
+          "oklch(50% 0.13 290)",
+          "oklch(66% 0.10 290)",
+          "oklch(82% 0.06 290)",
+          "oklch(94% 0.02 290)"
+        ]
+      },
+      "surface-hover": {
+        "role": "neutral",
+        "displayName": "Surface Hover",
+        "canonical": "oklch(28% 0.12 290)",
+        "tonalRamp": [
+          "oklch(12% 0.06 290)",
+          "oklch(22% 0.10 290)",
+          "oklch(28% 0.12 290)",
+          "oklch(40% 0.13 290)",
+          "oklch(54% 0.13 290)",
+          "oklch(70% 0.10 290)",
+          "oklch(84% 0.06 290)",
+          "oklch(94% 0.02 290)"
+        ]
+      },
+      "border-hairline": {
+        "role": "neutral",
+        "displayName": "Border Hairline",
+        "canonical": "oklch(22% 0.08 290)",
+        "tonalRamp": [
+          "oklch(10% 0.04 290)",
+          "oklch(22% 0.08 290)",
+          "oklch(34% 0.10 290)",
+          "oklch(46% 0.10 290)",
+          "oklch(60% 0.08 290)",
+          "oklch(74% 0.06 290)",
+          "oklch(86% 0.04 290)",
+          "oklch(95% 0.02 290)"
+        ]
+      },
+      "text-key": {
+        "role": "neutral",
+        "displayName": "Text Key",
+        "canonical": "oklch(94% 0.02 290)",
+        "tonalRamp": [
+          "oklch(20% 0.04 290)",
+          "oklch(40% 0.05 290)",
+          "oklch(58% 0.06 290)",
+          "oklch(72% 0.05 290)",
+          "oklch(82% 0.04 290)",
+          "oklch(88% 0.03 290)",
+          "oklch(94% 0.02 290)",
+          "oklch(98% 0.01 290)"
+        ]
+      },
+      "text-body": {
+        "role": "neutral",
+        "displayName": "Text Body",
+        "canonical": "oklch(85% 0.03 290)",
+        "tonalRamp": [
+          "oklch(20% 0.04 290)",
+          "oklch(38% 0.06 290)",
+          "oklch(54% 0.06 290)",
+          "oklch(68% 0.05 290)",
+          "oklch(78% 0.04 290)",
+          "oklch(85% 0.03 290)",
+          "oklch(91% 0.02 290)",
+          "oklch(96% 0.01 290)"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Text Muted",
+        "canonical": "oklch(72% 0.06 290)",
+        "tonalRamp": [
+          "oklch(18% 0.06 290)",
+          "oklch(32% 0.08 290)",
+          "oklch(48% 0.08 290)",
+          "oklch(60% 0.07 290)",
+          "oklch(72% 0.06 290)",
+          "oklch(82% 0.05 290)",
+          "oklch(90% 0.03 290)",
+          "oklch(96% 0.02 290)"
+        ]
+      },
+      "text-faint": {
+        "role": "neutral",
+        "displayName": "Text Faint",
+        "canonical": "oklch(55% 0.09 285)",
+        "tonalRamp": [
+          "oklch(15% 0.06 285)",
+          "oklch(28% 0.09 285)",
+          "oklch(42% 0.10 285)",
+          "oklch(55% 0.09 285)",
+          "oklch(68% 0.08 285)",
+          "oklch(80% 0.06 285)",
+          "oklch(90% 0.04 285)",
+          "oklch(96% 0.02 285)"
+        ]
+      },
+      "state-ok": {
+        "role": "tertiary",
+        "displayName": "State OK",
+        "canonical": "oklch(85% 0.18 155)",
+        "tonalRamp": [
+          "oklch(20% 0.10 155)",
+          "oklch(34% 0.16 155)",
+          "oklch(50% 0.20 155)",
+          "oklch(64% 0.20 155)",
+          "oklch(74% 0.20 155)",
+          "oklch(85% 0.18 155)",
+          "oklch(92% 0.10 155)",
+          "oklch(97% 0.04 155)"
+        ]
+      },
+      "state-danger": {
+        "role": "tertiary",
+        "displayName": "State Danger",
+        "canonical": "oklch(72% 0.21 15)",
+        "tonalRamp": [
+          "oklch(18% 0.08 15)",
+          "oklch(32% 0.14 15)",
+          "oklch(48% 0.20 15)",
+          "oklch(60% 0.22 15)",
+          "oklch(72% 0.21 15)",
+          "oklch(82% 0.16 15)",
+          "oklch(90% 0.09 15)",
+          "oklch(96% 0.04 15)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Modal title only (help panel). The largest text in the system at 13px. Used once per modal context, never on the main app surface."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Effect-card title (Voronoi, Cellular, ASCII). The card name. Always solid color, never gradient."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default body copy. Action button label, toast body, help-panel list items. Cap line length at 60ch in any prose surface."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section labels, stage dividers, icon-button text, logo. Letter-spacing widens with importance: 0.10em for icon-btn, 0.14em for section-label, 0.22em for stage-divider."
+      },
+      "mono-num": {
+        "displayName": "Mono-Num",
+        "purpose": "Knob value tooltip, FPS overlay, video timecode. Inter with font-variant-numeric: tabular-nums so digits don't jitter as values change."
+      }
+    },
+    "shadows": [
+      {
+        "name": "modal-lift",
+        "value": "0 12px 48px rgba(5, 2, 16, 0.6)",
+        "purpose": "Help panel and drop-zone overlay only. The single justified ambient shadow. Modals are the only chrome elements allowed depth-via-shadow."
+      },
+      {
+        "name": "focus-ring",
+        "value": "outline: 2px solid #f72585; outline-offset: 2px",
+        "purpose": "Keyboard focus indicator. Always pink, always 2px, always with 2px offset. Never use box-shadow as a focus indicator."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Default easing for all state transitions (toast enter, card hover, knob arc fill). Exponential ease-out, no bounce, no elastic."
+      },
+      {
+        "name": "duration-fast",
+        "value": "120ms",
+        "purpose": "Hover-state changes, value-tooltip fade in/out."
+      },
+      {
+        "name": "duration-base",
+        "value": "150ms",
+        "purpose": "Default for background, border, color transitions on buttons."
+      },
+      {
+        "name": "duration-slow",
+        "value": "200ms",
+        "purpose": "Toast enter, modal open."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }",
+        "purpose": "Respected on every transition. Toast animation, knob arc transition, card transitions all gated."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "640px",
+        "purpose": "Below this, sidebar collapses to top stack, filter buttons go to 4-up grid. The only responsive breakpoint; FluxKit is desktop-first by design."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Knob",
+      "kind": "custom",
+      "refersTo": "knob",
+      "description": "Signature instrument component. 40x40 SVG with 270deg arc, hairline track, gradient pink->purple->indigo arc fill, white pointer, value tooltip on hover.",
+      "html": "<div class=\"ds-knob\" tabindex=\"0\" role=\"slider\" aria-valuemin=\"0\" aria-valuemax=\"1\" aria-valuenow=\"0.65\" aria-valuetext=\"0.65\" aria-label=\"Knob example\"><svg class=\"ds-knob-svg\" viewBox=\"0 0 48 48\" width=\"40\" height=\"40\" aria-hidden=\"true\"><defs><linearGradient id=\"dsKnobGrad\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\"><stop offset=\"0%\" stop-color=\"#f72585\"/><stop offset=\"50%\" stop-color=\"#7e2bc7\"/><stop offset=\"100%\" stop-color=\"#4361ee\"/></linearGradient></defs><circle class=\"ds-knob-track\" cx=\"24\" cy=\"24\" r=\"18\" pathLength=\"100\" stroke-dasharray=\"75 25\" stroke-dashoffset=\"0\" transform=\"rotate(135 24 24)\"/><circle class=\"ds-knob-arc\" cx=\"24\" cy=\"24\" r=\"18\" pathLength=\"100\" stroke-dasharray=\"75 25\" stroke-dashoffset=\"26\" transform=\"rotate(135 24 24)\"/><circle class=\"ds-knob-cap\" cx=\"24\" cy=\"24\" r=\"11\"/><line class=\"ds-knob-pointer\" x1=\"24\" y1=\"24\" x2=\"24\" y2=\"11\" transform=\"rotate(40 24 24)\"/></svg><span class=\"ds-knob-label\">Threshold</span><span class=\"ds-knob-val\">0.65</span></div>",
+      "css": ".ds-knob { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 3px; cursor: ns-resize; user-select: none; outline: none; padding: 2px 4px; border-radius: 6px; transition: background 150ms cubic-bezier(0.25,1,0.5,1); color: #b09fd8; font-family: Inter, sans-serif; } .ds-knob:hover { background: rgba(247, 37, 133, 0.05); } .ds-knob:focus-visible { background: rgba(247, 37, 133, 0.08); outline: 2px solid #f72585; outline-offset: 2px; } .ds-knob-svg { width: 40px; height: 40px; display: block; overflow: visible; } .ds-knob-track { fill: none; stroke: #2a1a4a; stroke-width: 3; stroke-linecap: round; } .ds-knob-arc { fill: none; stroke: url(#dsKnobGrad); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 50ms linear; } .ds-knob-pointer { stroke: #f0eaff; stroke-width: 2; stroke-linecap: round; } .ds-knob-cap { fill: #0a0418; stroke: #2a1a4a; stroke-width: 1; } .ds-knob-label { font-size: 9px; font-weight: 500; letter-spacing: 0.04em; color: #b09fd8; text-transform: uppercase; text-align: center; line-height: 1.15; max-width: 100%; white-space: normal; overflow-wrap: break-word; } .ds-knob-val { font-size: 10px; color: #f0eaff; font-variant-numeric: tabular-nums; font-weight: 600; opacity: 0; transition: opacity 120ms cubic-bezier(0.25,1,0.5,1); position: absolute; bottom: -16px; background: #180a30; padding: 2px 7px; border-radius: 4px; border: 1px solid #f72585; white-space: nowrap; pointer-events: none; } .ds-knob:hover .ds-knob-val, .ds-knob:focus-visible .ds-knob-val { opacity: 1; }"
+    },
+    {
+      "name": "Toggle Button (active)",
+      "kind": "button",
+      "refersTo": "toggle-active",
+      "description": "Active radio state. Solid pink-signal background, white text. Exactly one per radio group at any time.",
+      "html": "<button class=\"ds-toggle ds-toggle-active\" type=\"button\" aria-checked=\"true\" role=\"radio\">Motion</button>",
+      "css": ".ds-toggle { background: #241245; border: 1px solid #2a1a4a; color: #d8d0f0; padding: 6px 8px; font-family: Inter, sans-serif; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; cursor: pointer; min-height: 28px; min-width: 60px; text-align: center; border-radius: 5px; transition: background 150ms cubic-bezier(0.25,1,0.5,1), color 150ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1); white-space: nowrap; } .ds-toggle:hover { background: #341c5c; color: #f0eaff; border-color: #f72585; } .ds-toggle:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; } .ds-toggle-active { background: #f72585; color: #f0eaff; border-color: transparent; font-weight: 700; } .ds-toggle-active:hover { background: #f72585; }"
+    },
+    {
+      "name": "Toggle Button (inactive)",
+      "kind": "button",
+      "refersTo": "toggle-inactive",
+      "description": "Inactive radio state. Surface-raised background, body text. The non-selected siblings of the active toggle.",
+      "html": "<button class=\"ds-toggle\" type=\"button\" aria-checked=\"false\" role=\"radio\">Luma</button>",
+      "css": ".ds-toggle { background: #241245; border: 1px solid #2a1a4a; color: #d8d0f0; padding: 6px 8px; font-family: Inter, sans-serif; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; cursor: pointer; min-height: 28px; min-width: 60px; text-align: center; border-radius: 5px; transition: background 150ms cubic-bezier(0.25,1,0.5,1), color 150ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1); white-space: nowrap; } .ds-toggle:hover { background: #341c5c; color: #f0eaff; border-color: #f72585; } .ds-toggle:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; }"
+    },
+    {
+      "name": "Filter Button (signature swatch)",
+      "kind": "button",
+      "refersTo": null,
+      "description": "Per-effect picker. Full-bleed gradient swatch approximating the effect's output palette. Label sits over the swatch with text-shadow. Active state = 2px pink border, no glow.",
+      "html": "<button class=\"ds-filter-btn ds-filter-thermal\" type=\"button\" aria-checked=\"false\" role=\"radio\"><span>Thermal</span></button>",
+      "css": ".ds-filter-btn { position: relative; padding: 0; min-height: 42px; width: 110px; border: 1px solid #2a1a4a; color: #f0eaff; cursor: pointer; border-radius: 5px; overflow: hidden; font-family: Inter, sans-serif; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.6); transition: border-color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-filter-btn::before { content: \"\"; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.6)); z-index: 1; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-filter-btn > * { position: relative; z-index: 2; } .ds-filter-thermal { background: linear-gradient(90deg, #000, #6a0dad, #ff4500, #ffea00, #fff); } .ds-filter-btn:hover { border-color: #f72585; } .ds-filter-btn:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; } .ds-filter-btn[aria-checked=\"true\"] { border: 2px solid #f72585; font-weight: 700; } .ds-filter-btn[aria-checked=\"true\"]::before { background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45)); }"
+    },
+    {
+      "name": "Action Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Deliberate-action button. Upload Video, Open Camera. The longer text + 8x12 padding signals 'this commits to a multi-second action'.",
+      "html": "<button class=\"ds-action-btn\" type=\"button\">Upload Video</button>",
+      "css": ".ds-action-btn { background: #241245; border: 1px solid #2a1a4a; color: #f0eaff; padding: 8px 12px; font-family: Inter, sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; cursor: pointer; text-align: left; min-height: 30px; border-radius: 6px; transition: background 150ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-action-btn:hover { background: #341c5c; border-color: #f72585; } .ds-action-btn:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; } .ds-action-btn:active { transform: translateY(1px); } .ds-action-btn[disabled] { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Compact button. Reset, Snap, FPS, ?. Uppercase label, high-density. Sidebar header and canvas top bar only.",
+      "html": "<button class=\"ds-icon-btn\" type=\"button\">Reset</button>",
+      "css": ".ds-icon-btn { background: #241245; border: 1px solid #2a1a4a; color: #f0eaff; font-family: Inter, sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 10px; cursor: pointer; min-height: 26px; border-radius: 4px; transition: background 150ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1), color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-icon-btn:hover { background: #341c5c; border-color: #f72585; } .ds-icon-btn:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; } .ds-icon-btn:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Effect Card",
+      "kind": "card",
+      "refersTo": "card-effect",
+      "description": "Per-effect knob container. Solid surface-card background (NOT glass), 1px hairline border, 2px pink top accent rendered via ::before to indicate active filter context.",
+      "html": "<section class=\"ds-effect-card\" aria-label=\"Voronoi parameters\"><div class=\"ds-effect-card-header\"><div class=\"ds-effect-card-title\">Voronoi</div><button class=\"ds-card-reset\" type=\"button\" aria-label=\"Reset Voronoi knobs\">×</button></div><div class=\"ds-card-body\">Knob grid would render here.</div></section>",
+      "css": ".ds-effect-card { padding: 12px 12px 14px; background: #180a30; border: 1px solid #2a1a4a; border-radius: 10px; display: flex; flex-direction: column; gap: 10px; position: relative; min-width: 220px; } .ds-effect-card::before { content: \"\"; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #f72585; border-radius: 10px 10px 0 0; } .ds-effect-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; } .ds-effect-card-title { font-family: Inter, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #f0eaff; } .ds-card-reset { background: transparent; border: 1px solid transparent; color: #7a6aa8; font-size: 12px; cursor: pointer; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 3px; line-height: 1; transition: color 150ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-card-reset:hover { color: #f72585; border-color: rgba(247, 37, 133, 0.4); } .ds-card-body { font-family: Inter, sans-serif; font-size: 11px; color: #d8d0f0; }"
+    },
+    {
+      "name": "Empty Card",
+      "kind": "card",
+      "refersTo": "empty-card",
+      "description": "Placeholder shown when no effect is selected. Dashed border signals 'empty by design', not 'failed to load'.",
+      "html": "<div class=\"ds-empty-card\">Pick an effect to shape the signal.</div>",
+      "css": ".ds-empty-card { padding: 18px 14px; border: 1px dashed #2a1a4a; background: #0a0418; border-radius: 10px; text-align: center; font-family: Inter, sans-serif; font-size: 10px; color: #7a6aa8; letter-spacing: 0.06em; font-style: italic; min-width: 220px; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Bottom-center transient notification. Solid background (NOT glass), full 1px border (NOT side-stripe), tone variant by tinting the entire border. Stacks with newer entries below.",
+      "html": "<div class=\"ds-toast ds-toast-ok\" role=\"status\">Reset to defaults</div>",
+      "css": ".ds-toast { background: #180a30; border: 1px solid #2a1a4a; color: #f0eaff; padding: 10px 14px; font-family: Inter, sans-serif; font-size: 11px; letter-spacing: 0.03em; line-height: 1.4; border-radius: 6px; max-width: 420px; min-width: 180px; } .ds-toast-ok { border-color: #5be7a6; } .ds-toast-error { border-color: #ff6b8b; }"
+    },
+    {
+      "name": "Swatch Button",
+      "kind": "chip",
+      "refersTo": "swatch-btn",
+      "description": "Overlay-color palette item. 1:1 square, the swatch background IS the color choice. Active = pink border, no glow.",
+      "html": "<div style=\"display:flex;gap:4px;\"><button class=\"ds-swatch-btn ds-swatch-active\" type=\"button\" style=\"background:#f72585\" aria-label=\"Pink\"></button><button class=\"ds-swatch-btn\" type=\"button\" style=\"background:#5be7a6\" aria-label=\"Mint\"></button><button class=\"ds-swatch-btn\" type=\"button\" style=\"background:#4cc9f0\" aria-label=\"Cyan\"></button><button class=\"ds-swatch-btn\" type=\"button\" style=\"background:#ffea00\" aria-label=\"Yellow\"></button></div>",
+      "css": ".ds-swatch-btn { width: 28px; height: 28px; border: 1px solid #2a1a4a; border-radius: 4px; cursor: pointer; padding: 0; transition: transform 100ms cubic-bezier(0.25,1,0.5,1), border-color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-swatch-btn:hover { transform: scale(1.1); border-color: #f0eaff; } .ds-swatch-btn:focus-visible { outline: 2px solid #f72585; outline-offset: 2px; } .ds-swatch-active { border-color: #f72585; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Late-Night Patch",
+    "overview": "FluxKit is built for a VJ booth at 1am. The room is dim, the operator is in the work, the canvas is the only thing the eye should land on. Every chrome element earns its visual weight by serving the canvas, not competing with it. Knobs are felt by muscle memory, not read. Pink appears only when something is changing, active, or destructive; everywhere else, the surface is a tinted indigo neutral that the eye relaxes into.\n\nThe aesthetic family is browser shader playground crossed with hardware synth UI, with named references to Lumen, Cables.gl, and Ableton Push. FluxKit explicitly rejects three other families it could be mistaken for: generic SaaS dashboard, AI tool cliché, and hobbyist demo.\n\nDensity is high on purpose. Power users need every knob visible at once, newcomers learn the controls by touching them, and there is no tutorial layer to fall back on. The chrome must be tight enough to fit, terse enough to read at a glance, and consistent enough that muscle memory pays off.",
+    "keyCharacteristics": [
+      "One signal color (pink-signal), reserved for change, active, or destructive states.",
+      "One neutral family, every step tinted toward indigo so the eye relaxes in low light.",
+      "Flat surfaces. No backdrop-filter blur, no ambient box-shadow on chrome at rest.",
+      "Knob is the signature component; everything else is supporting cast.",
+      "Canvas occupies the loudest cell; chrome recedes."
+    ],
+    "rules": [
+      {
+        "name": "The Pink-Is-Signal Rule",
+        "section": "colors",
+        "body": "Pink (#f72585) appears only where a value is being changed, an effect is active, or an action is destructive. Pink in chrome at rest is forbidden. The logo, card titles, dividers, and any decorative element must be a neutral or muted tone. Test: take a screenshot of the app at rest with no interaction. If pink is visible anywhere, the rule is violated."
+      },
+      {
+        "name": "The Tinted-Neutral Rule",
+        "section": "colors",
+        "body": "Every neutral must carry chroma 0.02 to 0.10 toward hue 290 (indigo-violet). Pure greys are forbidden. #000 and #fff are forbidden everywhere in the chrome. The dim-studio palette only works because the eye reads the indigo tint as warm-by-comparison-to-pure-grey, even though it's technically cool."
+      },
+      {
+        "name": "The Single-Family Rule",
+        "section": "typography",
+        "body": "Inter only. No serif accents, no monospace family, no display face. The Mono-Num role is achieved with font-variant-numeric: tabular-nums on Inter, not by switching family."
+      },
+      {
+        "name": "The Letter-Spacing-As-Weight Rule",
+        "section": "typography",
+        "body": "Letter-spacing widens with hierarchy importance for uppercase text (0.10em then 0.14em then 0.22em). Use spacing, not size, to differentiate sibling uppercase labels."
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "section": "elevation",
+        "body": "Surfaces at rest have no box-shadow and no backdrop-filter. Depth is tonal, not blurred. If a designer reaches for a shadow to make a card feel elevated, they have failed to use the surface ladder. Re-tint the surface one step lighter instead."
+      },
+      {
+        "name": "The Modal-Only Shadow Rule",
+        "section": "elevation",
+        "body": "Only modals (help panel, drop-zone overlay, future confirm dialogs) may carry ambient box-shadow. Toast, cards, sidebar, and top bar must remain flat. A shadow on a non-modal surface is a violation."
+      },
+      {
+        "name": "The Canvas-Is-Loudest Rule",
+        "section": "components",
+        "body": "No chrome element on screen may visually outweigh the canvas output. Test: squint at the screen; if your eye lands on a sidebar control before the canvas, the chrome is too loud."
+      },
+      {
+        "name": "The One-Active-Per-Group Rule",
+        "section": "components",
+        "body": "Pink may appear on at most one button per radio group at a time. Speed = 4 buttons, exactly one pink. Detect Mode = 2 buttons, exactly one pink. The user always knows which one is selected by scanning for the single pink rectangle."
+      },
+      {
+        "name": "The Knob-Is-The-Signature Rule",
+        "section": "components",
+        "body": "All other components recede in the design hierarchy. If a new component competes with the knob for visual attention, the new component is wrong. The knob is the only place where chroma + arc + pointer + tooltip all converge."
+      },
+      {
+        "name": "The No-Save Rule",
+        "section": "components",
+        "body": "Knobs commit on touch. There is no Save button. The only commit-shaped affordance is Reset, which is two-stage on purpose."
+      }
+    ],
+    "dos": [
+      "Do use Pink Signal (#f72585) only when something is changing, active, or destructive. Logo, card titles, dividers, and any decorative element must use a neutral.",
+      "Do layer surfaces tonally (Bg Stage, Bg Room, Surface Card, Surface Raised, Surface Hover). The lightness ladder IS the depth system.",
+      "Do tint every neutral toward indigo (hue 290, chroma 0.02 to 0.10). The dim-studio relaxation only works with the tint.",
+      "Do keep the canvas the loudest element on screen. Test by squinting; if your eye lands on a sidebar control before the canvas, the chrome is too loud.",
+      "Do use full-bleed gradient swatches on the filter buttons. The gradient IS the identity; this is the one place visual variety serves recognition over decoration.",
+      "Do wrap long knob labels to 2 lines instead of truncating. The label is a rare moment of legibility in a knob-dense surface.",
+      "Do respect prefers-reduced-motion on every transition. Already partially implemented; audit any new motion against this.",
+      "Do keep the active state of each radio group to exactly one button. The single pink rectangle IS the affordance.",
+      "Do use font-variant-numeric: tabular-nums on every numeric value (knob value, FPS, timecode). Digits must not jitter."
+    ],
+    "donts": [
+      "Don't use #000 or #fff in the chrome. Even the deepest background is oklch(5% 0.03 285), not pure black. Pure black at scale reads as a hole, not a surface. (Swatch palette swatches are user-selectable canvas colors and are exempt.)",
+      "Don't use border-left (or any side-stripe border-* greater than 1px) as a colored accent on toasts, cards, list items, or callouts. Current .toast violates with border-left: 3px solid pink; replace with full-border tonal variant.",
+      "Don't use background-clip: text to apply a gradient to type. Current .logo, .effect-card-title, #help-panel h2, and .placeholder-icon all violate. Use a single solid color and let weight or size carry the emphasis.",
+      "Don't use backdrop-filter: blur on chrome at rest. Current #sidebar, .sidebar-header, #canvas-topbar, #video-controls, #help-panel, and .toast all violate. Replace with solid tinted surfaces from the dim-studio ladder.",
+      "Don't apply filter: drop-shadow or box-shadow ambient glow on chrome at rest. The arc gradient and the pointer are crisp on their own; depth is conveyed tonally. Modal-lift is the single justified shadow.",
+      "Don't add a SaaS dashboard look. No soft greys, no identical 12-column card grids, no blue-primary CTA, no 'modern' in the boring sense. FluxKit is not a productivity tool.",
+      "Don't add an AI tool look. No gradient orb hero, no beige-and-violet 'soft AI' palette, no large sans-serif marketing voice, no emoji status indicators, no chat-shaped affordances.",
+      "Don't ship raw form controls. No untreated browser <input type=range>, no default <select> styling, no Bootstrap-grade defaults. The instrument has to feel built.",
+      "Don't introduce a second typeface family. Inter only. Tabular-nums on Inter is the mono role.",
+      "Don't put pink on more than one button per radio group at a time. Exactly one pink rectangle per group is the rule.",
+      "Don't use a modal for anything except help and future confirm-destructive flows. Modals are usually laziness; exhaust inline alternatives first."
+    ]
+  }
+}

@@ -66,6 +66,76 @@ Real ideas. Real value. Out of this sprint's scope. Track them so they don't get
 
 ---
 
+---
+
+## 🎨 <span style="color:#a896d6">DESIGN SYSTEM Q&A — Round 1</span>
+
+Captured during `/impeccable document` (May 2026). These answers seed `DESIGN.md` and bind future `polish` / `colorize` / `typeset` runs.
+
+### Q1. Creative North Star
+
+> A single named metaphor for the whole visual system.
+
+| # | Name | Vibe |
+|---|---|---|
+| A | **The Modular Rack** | Synth-instrument discipline. Signal flow visible. Ambient color encodes state. Ableton Push crossed with VCV Rack. |
+| **B** ✅ | **The Late-Night Patch** | VJ booth at 1am. Dim purple glow, the canvas is the only loud thing, knobs felt by muscle memory. The room is dark, the work is alive. |
+| C | **The Lab Bench** | Research-grade instrument. Terse labels, every control deliberate, unapologetic about complexity. Cables.gl crossed with an oscilloscope. |
+
+**Picked**: B, "The Late-Night Patch".
+
+### Q2. Color palette name
+
+| # | Name | Reasoning |
+|---|---|---|
+| A | The Patchbay Palette | Purples are the chassis, pink is the signal LED. |
+| **B** ✅ | **The Dim-Studio Palette** | Every neutral is tinted toward indigo so the eye relaxes in low light. |
+| C | The Aurora Palette | Pink-magenta-indigo as a tight gradient family, lavender as the rest state. |
+
+**Picked**: B, "The Dim-Studio Palette".
+
+### Q3. Elevation philosophy
+
+| # | Approach | Notes |
+|---|---|---|
+| a | Glass everywhere | Honest to current code, but violates skill bans. |
+| b | Glass only on transient surfaces (help, drop-zone) | Compromise. |
+| **c** ✅ | **Flat-by-default, no glass** | Replace all `backdrop-filter: blur` with solid tinted surfaces. Most aligned with skill + "canvas is the product". |
+
+**Picked**: c, flat-by-default. Current code uses `backdrop-filter: blur` on sidebar / topbar / video-controls / help-panel / toast and is in violation. Cleanup is a follow-up `polish` job.
+
+### Q4. Knob character (signature component)
+
+| # | Phrase | Treatment |
+|---|---|---|
+| a | Felt, not pressed | Tactile, instant, tooltip is the only feedback. |
+| b | Quietly luminous | Knob arc glows pink, everything else recedes. |
+| **c** ✅ | **Instrument-grade precision** | Crisp arc, hairline track, no ambient glow, drop-shadow on pointer for depth. |
+
+**Picked**: c. Current implementation has an ambient `filter: drop-shadow` on the arc and pointer; that gets stripped in `polish`.
+
+### Q5. Three named rules
+
+All three confirmed for inclusion in `DESIGN.md`:
+
+1. **The Canvas-Is-Loudest Rule.** No chrome element on screen may visually outweigh the canvas output. Test: squint at the screen; if your eye lands on a sidebar control before the canvas, the chrome is too loud.
+2. **The Pink-Is-Signal Rule.** Pink (`#f72585`) appears only where a value is being changed, an effect is active, or an action is destructive. Pink in chrome at rest is forbidden. (Forces fix of gradient-text logo, card titles, help h2, placeholder icon.)
+3. **The No-Save Rule.** Knobs commit on touch. There is no Save button. The only commit-shaped affordance is `Reset`, which is two-stage on purpose.
+
+### Code-vs-doc deltas captured
+
+`DESIGN.md` documents the **target**, not the current state. The following live-code violations need a follow-up `polish` pass:
+
+| Violation | Where | Rule broken |
+|---|---|---|
+| Side-stripe `border-left: 3px solid pink` | `.toast` | Skill absolute ban |
+| `background-clip: text` gradient | `.logo`, `.effect-card-title`, `#help-panel h2`, `.placeholder-icon` | Skill absolute ban + Pink-Is-Signal |
+| `backdrop-filter: blur` as default chrome | `#sidebar`, `.sidebar-header`, `#canvas-topbar`, `#video-controls`, `#help-panel`, `.toast` | Skill absolute ban (glass = rare/purposeful only) + Q3 |
+| `filter: drop-shadow` ambient glow on knob arc + pointer | `.knob-arc`, `.knob-pointer` | Q4 ("no ambient glow") |
+| `box-shadow` on toast + help-panel ambient glow | `.toast`, `#help-panel` | Q3 (flat-by-default) |
+
+---
+
 ## Notes
 
 - Inline color spans render in Cursor / VS Code preview. GitHub strips `style` attributes — emoji prefixes carry the signal there.
