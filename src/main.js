@@ -27,6 +27,7 @@ const DEFAULTS = Object.freeze({
   maxBlobs: 12,
   detectMode: 'motion',
   updateInterval: 1,
+  blobSmooth: 0,
   strokeWidth: 1,
   blobSize: 64,
   fontSize: 11,
@@ -690,6 +691,50 @@ const _ro = new ResizeObserver(resizeCanvas);
 _ro.observe(canvasArea);
 window.addEventListener('resize', resizeCanvas);
 
+// ---- Per-render-frame blob smoothing (EMA on tracker-id-keyed positions) ----
+// state.blobSmooth = 0 → bypass (instant response, current behaviour).
+// state.blobSmooth → 1 → strong EMA, blobs lag for visual smoothness.
+// Solves both: per-frame jitter at updateInterval=1, and the freeze+snap
+// at updateInterval>1 (between detections, displayed positions interpolate
+// toward the cached target instead of sitting still).
+const _displayBlobs = new Map(); // id → smoothed blob
+
+function smoothBlobs(latest) {
+  const smooth = state.blobSmooth;
+  if (smooth <= 0.001) {
+    if (_displayBlobs.size) _displayBlobs.clear();
+    return latest;
+  }
+  // alpha is the per-frame pull toward the target.
+  // smooth=0   → alpha=1.0   (instant, but bypassed above)
+  // smooth=0.5 → alpha=0.525 (responsive)
+  // smooth=1   → alpha=0.05  (very smooth, ~14-frame half-life @ 60fps)
+  const alpha = 1 - smooth * 0.95;
+  const next = new Map();
+  const out = new Array(latest.length);
+  for (let i = 0; i < latest.length; i++) {
+    const b = latest[i];
+    const prev = _displayBlobs.get(b.id);
+    let d;
+    if (!prev) {
+      d = { ...b };
+    } else {
+      const x  = prev.x  + (b.x  - prev.x ) * alpha;
+      const y  = prev.y  + (b.y  - prev.y ) * alpha;
+      const w  = prev.w  + (b.w  - prev.w ) * alpha;
+      const h  = prev.h  + (b.h  - prev.h ) * alpha;
+      const cx = prev.cx + (b.cx - prev.cx) * alpha;
+      const cy = prev.cy + (b.cy - prev.cy) * alpha;
+      d = { ...b, x, y, w, h, cx, cy };
+    }
+    next.set(b.id, d);
+    out[i] = d;
+  }
+  _displayBlobs.clear();
+  for (const [k, v] of next) _displayBlobs.set(k, v);
+  return out;
+}
+
 // ---- Render loop ----
 function renderFrame() {
   if (!state.hasSource) { rafHandle = 0; return; }
@@ -717,7 +762,7 @@ function renderFrame() {
     }));
     cachedBlobs = trackBlobs(scaledRaw, cw, state.maxBlobs);
   }
-  const blobs = cachedBlobs;
+  const blobs = smoothBlobs(cachedBlobs);
 
   const f = state.filter;
   if (f === 'voronoi') {

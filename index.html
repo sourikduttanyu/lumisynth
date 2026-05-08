@@ -64,9 +64,10 @@
 
         <section class="control-section">
           <div class="knob-grid">
-            <div class="knob" id="sensitivity"     data-knob data-min="10" data-max="100" data-step="1" data-default="30" aria-label="Sensitivity" tabindex="0"><span class="knob-label">Sensitivity</span><span class="knob-val" id="sensitivity-val">30</span></div>
-            <div class="knob" id="max-blobs"       data-knob data-min="5"  data-max="30"  data-step="1" data-default="12" aria-label="Max Blobs" tabindex="0"><span class="knob-label">Max Blobs</span><span class="knob-val" id="max-blobs-val">12</span></div>
-            <div class="knob" id="update-interval" data-knob data-min="1"  data-max="30"  data-step="1" data-default="1"  aria-label="Update Interval (frames)" tabindex="0"><span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
+            <div class="knob" id="sensitivity"     data-knob data-state="threshold" data-min="10" data-max="100" data-step="1"    data-default="30" aria-label="Sensitivity (detection threshold)" tabindex="0"><span class="knob-label">Sensitivity</span><span class="knob-val" id="sensitivity-val">30</span></div>
+            <div class="knob" id="max-blobs"       data-knob data-min="5"  data-max="30"  data-step="1"    data-default="12" aria-label="Max Blobs" tabindex="0"><span class="knob-label">Max Blobs</span><span class="knob-val" id="max-blobs-val">12</span></div>
+            <div class="knob" id="update-interval" data-knob data-min="1"  data-max="30"  data-step="1"    data-default="1"  aria-label="Update Interval (frames)" tabindex="0"><span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
+            <div class="knob" id="blob-smooth"     data-knob data-min="0"  data-max="1"   data-step="0.01" data-default="0"  aria-label="Blob smoothing — lerps tracked blob positions toward detections each render frame" tabindex="0"><span class="knob-label">Smooth</span><span class="knob-val" id="blob-smooth-val">0</span></div>
           </div>
         </section>
 

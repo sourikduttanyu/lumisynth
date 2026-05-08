@@ -94,6 +94,7 @@ class BlobTracker {
       area:  this.lastBlob.area,
       score: this.lastBlob.score,
       index,
+      id:    this.id,
     };
   }
 }
