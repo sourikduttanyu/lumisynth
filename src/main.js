@@ -915,6 +915,50 @@ document.addEventListener('mouseleave', hideHelpTip);
 document.addEventListener('mousedown', hideHelpTip);
 window.addEventListener('blur', hideHelpTip);
 
+// Convention guard: future filter buttons (in #filter-group) and future
+// effect-card controls (knobs + toggles inside .effect-card) must ship with
+// a data-tip describing them. The hover-tip system is the only inline help
+// users get, so a missing tip is a real regression. Scope intentionally
+// excludes top-bar controls and other sidebar groups (Speed, Source) that
+// the help-tip system was not asked to cover.
+// Coverage is granted if the element OR any ancestor up to its scope root
+// carries data-tip (lets a parent describe a group of children at once).
+if (import.meta.env.DEV) {
+  queueMicrotask(() => {
+    const scopes = [
+      { root: document.getElementById('filter-group'), sel: '.toggle-btn' },
+      ...Array.from(document.querySelectorAll('.effect-card')).map((c) => ({
+        root: c,
+        sel: '.toggle-btn, .knob',
+      })),
+    ];
+    const missing = [];
+    for (const { root, sel } of scopes) {
+      if (!root) continue;
+      for (const el of root.querySelectorAll(sel)) {
+        let n = el;
+        let covered = false;
+        while (n && n !== root.parentElement) {
+          if (n.dataset && n.dataset.tip) { covered = true; break; }
+          n = n.parentElement;
+        }
+        if (!covered) {
+          const tag = el.tagName.toLowerCase();
+          const id  = el.id ? `#${el.id}` : '';
+          const txt = (el.textContent || el.dataset.value || '').trim().slice(0, 24);
+          missing.push(`${tag}${id} "${txt}" (in #${root.id || root.dataset.cardEffect || '?'})`);
+        }
+      }
+    }
+    if (missing.length) {
+      console.warn(
+        '[help-tooltip] filter / effect-card controls missing data-tip:',
+        missing
+      );
+    }
+  });
+}
+
 // ---- Init ----
 loadPersistedState();
 applyStateToUI();
