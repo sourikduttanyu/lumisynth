@@ -62,6 +62,7 @@ rounded:
   2xl: "10px"
   3xl: "12px"
 spacing:
+  2xs: "2px"
   xs:  "4px"
   sm:  "6px"
   md:  "8px"
@@ -237,7 +238,37 @@ Shadows appear only as state transitions, never as chrome decoration. The single
 
 **The Modal-Only Shadow Rule.** Only modals (help panel, drop-zone overlay, future confirm dialogs) may carry ambient `box-shadow`. Toast, cards, sidebar, and top bar must remain flat. A shadow on a non-modal surface is a violation.
 
-## 5. Components
+## 5. Spacing
+
+A single spacing scale is the source of truth for every padding, margin, and gap value in the chrome. The scale is exposed as CSS custom properties in `:root` and is used everywhere; raw px values for spacing are forbidden in component rules.
+
+### The scale
+
+| Token | Value | Use |
+|---|---|---|
+| `--space-2xs` | `2px` | Tight chrome only — knob value-tooltip padding-y, file-status padding-top. Not for general layout. |
+| `--space-xs`  | `4px` | Smallest gap between sibling controls — toggle group buttons, swatch grid cells, knob modified-dot offset. |
+| `--space-sm`  | `6px` | Compact paddings — toggle button padding-y, top bar action gaps, help-panel kbd padding-x, list-item gap. |
+| `--space-md`  | `8px` | Default gap and compact padding — control-section padding-y/gap, action-button padding-y, sidebar-header gap, video-controls gap. |
+| `--space-lg`  | `12px` | Default surface padding — control-section padding-x, effect-card padding, action-button padding-x, top bar gap, video-controls padding-x. |
+| `--space-xl`  | `16px` | Generous surface padding — sidebar-header padding-x, top bar padding-x, stage-divider padding-x, empty-card padding-y, toast bottom offset, sidebar bottom padding. |
+| `--space-2xl` | `22px` | The breath token — knob-grid row gap (holds the value-tooltip drop), help-panel padding (modal generosity). |
+
+### Architecture rules for the sidebar
+
+The sidebar is a vertical stack of stage groups. Three stages, color-coded dividers, no per-section dividers.
+
+- **Stage divider** owns staging. `padding: var(--space-xl) var(--space-xl) var(--space-sm)` — generous breath above, hairline rule line below the label, then control sections begin tight under it.
+- **Control sections within a stage** are quiet. `padding: var(--space-md) var(--space-lg)` and **no `border-bottom`** — sections inside one stage read as a single tonal group, not as eight equally-weighted rows. The stage-divider is the only horizontal seam.
+- **Effect cards** are tonal stand-outs. `margin: var(--space-md) var(--space-lg)`, `padding: var(--space-lg)`, `background: Surface Card`. The card layer above sidebar is achieved by tonal contrast (Surface Card sits one step lighter than Bg Room) plus inset margin, not by elevation.
+
+### Named Rules
+
+**The Spacing-Token Rule.** Every `padding`, `margin`, and `gap` value in component CSS must come from a `--space-*` token. Raw px values for spacing are forbidden in chrome rules. Exceptions: borders (always `1px solid`), focus-ring offsets (locked at `2px`), the universal reset (`margin: 0; padding: 0;`), intra-component micro-spacing where the value is part of the component's geometric definition (knob's intra-stack `gap: 3px`, sidebar-header-text's tight `gap: 1px`).
+
+**The Stage-Owns-Staging Rule.** Within a stage (OSC, FILTER, FX), control sections do not draw their own bottom borders. The stage-divider is the only horizontal seam in the sidebar. Adding a `border-bottom` to `.control-section` over-segments the sidebar and dilutes the three-stage architecture; the eye should read three groups, not eight rows.
+
+## 6. Components
 
 For each component: short character line, then shape, color, states, and any distinctive behavior.
 
@@ -361,7 +392,7 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 
 **The Knob-Is-The-Signature Rule.** All other components recede in the design hierarchy. If a new component competes with the knob for visual attention, the new component is wrong. The knob is the only place where chroma + arc + pointer + tooltip all converge.
 
-## 6. Do's and Don'ts
+## 7. Do's and Don'ts
 
 ### Do
 
@@ -376,6 +407,8 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 - **Do** use `font-variant-numeric: tabular-nums` on every numeric value (knob value, FPS, timecode). Digits must not jitter.
 - **Do** color-code the three stage dividers by signal-flow direction: amber (OSC) → violet (FILTER) → teal (FX). One color per stage label, hairline rule line stays neutral.
 - **Do** use `state-info` (cyan) for informational status (modified-from-default dot, future "live recording" indicator). Reserve `pink-signal` for the act of changing.
+- **Do** use `--space-*` tokens for every padding, margin, and gap. The scale is the source of truth; raw px values for spacing belong in border widths, focus-ring offsets, or intra-component micro-geometry only.
+- **Do** let the stage-divider own all horizontal staging in the sidebar. Sections within a stage stay quiet (no bottom border) so the three-stage architecture reads cleanly.
 
 ### Don't
 
@@ -393,3 +426,5 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 - **Don't** use stage colors (amber, violet, teal) on any surface other than the three stage-divider labels. Diluting them onto buttons, cards, or borders kills the signal-flow read.
 - **Don't** use `pink-signal` for destructive confirms. That's `state-danger` (true coral). The two pinks are intentionally different so the user can tell active-state apart from about-to-destroy at a glance.
 - **Don't** use `pink-signal` for informational status. That's `state-info` (cyan). The modified-from-default dot is information, not signal.
+- **Don't** use raw px values for `padding`, `margin`, or `gap` in chrome rules. Pull from the `--space-*` scale. If the scale doesn't have what you need, the answer is almost always "round to the nearest token", not "introduce a new literal".
+- **Don't** add `border-bottom` to `.control-section` (or any per-section divider inside a stage). The stage-divider is the only horizontal seam in the sidebar; per-section borders over-segment and break the three-stage read.

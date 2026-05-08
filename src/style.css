@@ -53,6 +53,17 @@
   /* Geometry */
   --sidebar-width: 240px;
 
+  /* Spacing scale — single source of truth for all padding/margin/gap.
+     2xs (2px) added for tight chrome (knob-val, file-status); the rest
+     mirror DESIGN.md's spacing scale. */
+  --space-2xs: 2px;
+  --space-xs:  4px;
+  --space-sm:  6px;
+  --space-md:  8px;
+  --space-lg:  12px;
+  --space-xl:  16px;
+  --space-2xl: 22px;
+
   /* The single justified ambient shadow */
   --modal-lift: 0 12px 48px oklch(5% 0.03 310 / 0.6);
 }
@@ -105,7 +116,7 @@ html, body {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 0 16px 0;
+  padding: 0 0 var(--space-xl) 0;
 }
 #sidebar::-webkit-scrollbar { width: 6px; }
 #sidebar::-webkit-scrollbar-track { background: transparent; }
@@ -113,12 +124,12 @@ html, body {
 #sidebar::-webkit-scrollbar-thumb:hover { background: var(--surface-hover); }
 
 .sidebar-header {
-  padding: 12px 16px 10px;
+  padding: var(--space-lg) var(--space-xl);
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-md);
   position: sticky;
   top: 0;
   background: var(--bg-room);
@@ -152,7 +163,7 @@ html, body {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 5px 10px;
+  padding: var(--space-sm) var(--space-lg);
   cursor: pointer;
   min-height: 26px;
   border-radius: 4px;
@@ -177,8 +188,8 @@ html, body {
 .stage-divider {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 16px 6px;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-xl) var(--space-sm);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -203,14 +214,16 @@ html, body {
 }
 
 /* ============================================================
-   CONTROL SECTIONS
+   CONTROL SECTIONS — quiet inside a stage. The stage-divider above
+   does the staging work (label + colored hairline rule). Per-section
+   bottom borders would over-segment the sidebar and dilute the OSC
+   / FILTER / FX read; intentionally omitted.
    ============================================================ */
 .control-section {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-hairline);
+  padding: var(--space-md) var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .section-label {
@@ -234,14 +247,14 @@ label.section-label { cursor: pointer; }
 
 /* Per-effect cards — flat, tonal layer above sidebar */
 .effect-card {
-  margin: 8px 12px;
-  padding: 12px 12px 14px;
+  margin: var(--space-md) var(--space-lg);
+  padding: var(--space-lg);
   background: var(--surface-card);
   border: 1px solid var(--border-hairline);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-md);
   position: relative;
   transition: border-color var(--duration-base) var(--ease-out);
 }
@@ -262,7 +275,7 @@ label.section-label { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-md);
 }
 .effect-card-title {
   font-size: 10px;
@@ -300,8 +313,8 @@ label.section-label { cursor: pointer; }
 }
 
 .empty-card {
-  margin: 8px 12px;
-  padding: 18px 14px;
+  margin: var(--space-md) var(--space-lg);
+  padding: var(--space-xl) var(--space-lg);
   background: var(--bg-room);
   border: 1px dashed var(--border-hairline);
   border-radius: 10px;
@@ -319,7 +332,7 @@ label.section-label { cursor: pointer; }
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   color: var(--text-key);
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   font-family: inherit;
   font-size: 11px;
   font-weight: 500;
@@ -338,14 +351,14 @@ label.section-label { cursor: pointer; }
 
 .toggle-group {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
   flex-wrap: wrap;
 }
 .toggle-btn {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   color: var(--text-body);
-  padding: 6px 8px;
+  padding: var(--space-sm) var(--space-md);
   font-family: inherit;
   font-size: 10px;
   font-weight: 500;
@@ -380,10 +393,16 @@ label.section-label { cursor: pointer; }
 /* ============================================================
    FILTER BUTTONS — full-bleed gradient swatch (signature).
    The gradient IS the identity, label overlays with text-shadow.
+   3-column CSS Grid (was flex with calc-width hack).
    ============================================================ */
-#filter-group { flex-wrap: wrap; gap: 4px; }
+#filter-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-xs);
+  flex-wrap: initial;
+}
 #filter-group .toggle-btn {
-  flex: 0 1 calc(33.33% - 3px);
+  flex: initial;
   min-height: 42px;
   padding: 0;
   position: relative;
@@ -436,7 +455,7 @@ label.section-label { cursor: pointer; }
 .knob-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 22px 6px;       /* row gap holds the value tooltip drop */
+  gap: var(--space-2xl) var(--space-md);   /* row gap holds the value tooltip drop; col gap breathes for 2-line labels */
 }
 
 .knob {
@@ -449,7 +468,7 @@ label.section-label { cursor: pointer; }
   user-select: none;
   -webkit-user-select: none;
   outline: none;
-  padding: 2px 0;
+  padding: var(--space-2xs) 0;
   border-radius: 6px;
   transition: background var(--duration-base) var(--ease-out);
 }
@@ -507,7 +526,7 @@ label.section-label { cursor: pointer; }
   content: "";
   display: inline-block;
   width: 4px; height: 4px;
-  margin-left: 4px;
+  margin-left: var(--space-xs);
   border-radius: 50%;
   background: var(--state-info);
   vertical-align: middle;
@@ -521,9 +540,9 @@ label.section-label { cursor: pointer; }
   opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-out);
   position: absolute;
-  bottom: -16px;
+  bottom: calc(-1 * var(--space-xl));
   background: var(--surface-card);
-  padding: 2px 7px;
+  padding: var(--space-2xs) var(--space-md);
   border-radius: 4px;
   border: 1px solid var(--pink-signal);
   white-space: nowrap;
@@ -540,15 +559,15 @@ label.section-label { cursor: pointer; }
 .color-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
   flex-wrap: wrap;
 }
 .swatch-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 4px;
+  gap: var(--space-xs);
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-xs);
 }
 .swatch-btn {
   width: 100%;
@@ -593,19 +612,10 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 .file-status {
   font-size: 10px;
   color: var(--text-muted);
-  padding-top: 2px;
+  padding-top: var(--space-2xs);
   word-break: break-all;
   font-variant-numeric: tabular-nums;
   font-style: italic;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 10px 14px 0;
-  font-size: 9px;
-  color: var(--text-faint);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 /* ============================================================
@@ -622,8 +632,8 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 #canvas-topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
   border-bottom: 1px solid var(--border-hairline);
   background: var(--bg-room);
   font-size: 10px;
@@ -646,7 +656,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 }
 #canvas-topbar .topbar-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 #canvas-area {
@@ -679,7 +689,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-lg);
   color: var(--text-muted);
   font-size: 13px;
   letter-spacing: 0.06em;
@@ -701,7 +711,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 /* Drop-zone overlay — transient, pink hairline halo */
 #drop-overlay {
   position: absolute;
-  inset: 8px;
+  inset: var(--space-md);
   border: 2px dashed var(--pink-signal);
   border-radius: 8px;
   background: rgba(247, 37, 133, 0.06);
@@ -723,12 +733,12 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 /* Video controls — solid surface, no glass */
 #video-controls {
   position: absolute;
-  bottom: 12px; left: 50%;
+  bottom: var(--space-lg); left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   background: var(--surface-card);
   border: 1px solid var(--border-hairline);
   border-radius: 8px;
@@ -798,12 +808,12 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
 /* FPS overlay */
 #fps-overlay {
   position: absolute;
-  bottom: 8px; right: 12px;
+  bottom: var(--space-md); right: var(--space-lg);
   font-size: 10px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   background: var(--surface-card);
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   border-radius: 4px;
   border: 1px solid var(--border-hairline);
   z-index: 12;
@@ -824,14 +834,14 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-2xl);
 }
 #help-overlay.hidden { display: none; }
 #help-panel {
   background: var(--surface-card);
   border: 1px solid var(--border-hairline);
   border-radius: 12px;
-  padding: 24px 28px;
+  padding: var(--space-2xl);
   max-width: 480px;
   width: 100%;
   max-height: 80vh;
@@ -845,7 +855,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-key);
-  margin-bottom: 14px;
+  margin-bottom: var(--space-lg);
 }
 #help-panel h3 {
   font-size: 10px;
@@ -853,15 +863,15 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-top: 16px;
-  margin-bottom: 8px;
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 #help-panel kbd {
   display: inline-block;
   font-family: 'Inter', monospace;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: var(--space-2xs) var(--space-sm);
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   border-radius: 3px;
@@ -873,7 +883,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-sm);
   font-size: 11px;
   color: var(--text-body);
 }
@@ -881,14 +891,14 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 0;
+  padding: var(--space-xs) 0;
   border-bottom: 1px solid var(--border-hairline);
 }
 #help-panel li > span:first-child { color: var(--text-body); }
-#help-panel li > span:last-child  { display: flex; gap: 4px; }
+#help-panel li > span:last-child  { display: flex; gap: var(--space-xs); }
 #help-close {
   position: absolute;
-  top: 8px; right: 12px;
+  top: var(--space-md); right: var(--space-lg);
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -908,12 +918,12 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
    ============================================================ */
 #toast-region {
   position: fixed;
-  bottom: 18px;
+  bottom: var(--space-xl);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;
-  gap: 8px;
+  gap: var(--space-md);
   z-index: 1000;
   max-width: 420px;
   width: max-content;
@@ -923,7 +933,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
   background: var(--surface-card);
   border: 1px solid var(--border-hairline);
   color: var(--text-key);
-  padding: 10px 14px;
+  padding: var(--space-md) var(--space-lg);
   font-size: 11px;
   letter-spacing: 0.03em;
   line-height: 1.4;
@@ -960,8 +970,8 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
     border-right: none;
     border-bottom: 1px solid var(--border-hairline);
   }
-  #filter-group .toggle-btn { flex: 0 1 calc(25% - 3px); }
+  #filter-group { grid-template-columns: repeat(4, 1fr); }
   .knob-grid { grid-template-columns: repeat(4, 1fr); }
   #canvas-topbar .topbar-title { display: none; }
-  #help-panel { padding: 16px; }
+  #help-panel { padding: var(--space-xl); }
 }
