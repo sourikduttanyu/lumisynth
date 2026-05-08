@@ -42,6 +42,7 @@
   --surface-raised:  oklch(26% 0.012 70);
   --surface-hover:   oklch(32% 0.014 70);
   --border-hairline: oklch(34% 0.010 70);
+  --border-strong:   oklch(50% 0.012 70);   /* one step up from hairline; used for expanded/active container chrome (e.g. expanded color rack slot) */
 
   /* Display surfaces (deep, embedded screen — darker than chassis) */
   --display-bezel:    oklch(8%  0.005 70);
