@@ -9,12 +9,8 @@ import { applyASCII } from './ascii.js';
 import { applyGLFilter } from './glFilters.js';
 import { applyWave, resetWave } from './wave.js';
 
-// ---- Defaults (single source of truth) ----
 const DEFAULTS = Object.freeze({
-  speed: 1,
-  shape: 'rect',
-  regionStyle: 'basic',
-  filter: 'none',
+  speed: 1, shape: 'rect', regionStyle: 'basic', filter: 'none',
   voronoiThreshold: 0.5, voronoiJumpDist: 0.5, voronoiFalloff: 0.5, voronoiEdgeLines: 0.0,
   caDensity: 0.5, caStability: 0.5, caEvolutionSpeed: 0.5, caSourceInflux: 0.5,
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
@@ -45,17 +41,29 @@ let frameCount  = 0;
 let cachedBlobs = [];
 let rafHandle   = 0;
 
-// ---- DOM refs ----
-const video       = document.getElementById('video');
-const canvas      = document.getElementById('main-canvas');
-const ctx         = canvas.getContext('2d', { willReadFrequently: true });
-const placeholder = document.getElementById('placeholder');
-const fileInput   = document.getElementById('file-input');
-const canvasArea  = document.getElementById('canvas-area');
-const fileStatus  = document.getElementById('file-status');
-const toastRegion = document.getElementById('toast-region');
-const btnSnapshot = document.getElementById('btn-snapshot');
-const btnReset    = document.getElementById('btn-reset');
+const video        = document.getElementById('video');
+const canvas       = document.getElementById('main-canvas');
+const ctx          = canvas.getContext('2d', { willReadFrequently: true });
+const placeholder  = document.getElementById('placeholder');
+const fileInput    = document.getElementById('file-input');
+const canvasArea   = document.getElementById('canvas-area');
+const fileStatus   = document.getElementById('file-status');
+const topbarSource = document.getElementById('topbar-source');
+const toastRegion  = document.getElementById('toast-region');
+const btnSnapshot  = document.getElementById('btn-snapshot');
+const btnReset     = document.getElementById('btn-reset');
+const btnFps       = document.getElementById('btn-fps');
+const btnHelp      = document.getElementById('btn-help');
+const helpOverlay  = document.getElementById('help-overlay');
+const helpClose    = document.getElementById('help-close');
+const dropOverlay  = document.getElementById('drop-overlay');
+const videoControls= document.getElementById('video-controls');
+const btnPlay      = document.getElementById('btn-play');
+const videoScrub   = document.getElementById('video-scrub');
+const videoTime    = document.getElementById('video-time');
+const fpsOverlay   = document.getElementById('fps-overlay');
+const emptyCard    = document.getElementById('empty-card');
+const swatchGrid   = document.getElementById('swatch-grid');
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
@@ -74,25 +82,30 @@ function showToast(message, kind = 'info', timeoutMs = 4000) {
 // ---- Helpers ----
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const KNOB_ARC_LEN = 75;     // visible 75% of pathLength=100 (270° sweep)
-const KNOB_DRAG_PX = 150;    // pixels for full min→max sweep at 1× speed
+const KNOB_ARC_LEN = 75;
+const KNOB_DRAG_PX = 150;
 
 function kebabToCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
-
 function snapToStep(v, min, step) {
   if (step <= 0) return v;
   const n = Math.round((v - min) / step);
   return min + n * step;
 }
-
 function formatValue(v, step) {
   if (step >= 1) return String(Math.round(v));
   const decimals = step >= 0.1 ? 1 : 2;
   return parseFloat(Number(v).toFixed(decimals)).toString();
 }
+function formatTime(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+function nearlyEqual(a, b) { return Math.abs(a - b) < 1e-6; }
 
 // ---- Knob component ----
-const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step, default, stateKey }
+const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step, default, stateKey, el }
 
 function initKnob(el) {
   const id      = el.id;
@@ -104,24 +117,21 @@ function initKnob(el) {
   const isInt   = step >= 1 && Number.isInteger(min) && Number.isInteger(max);
   const valEl   = document.getElementById(`${id}-val`);
 
-  // Build SVG (track + arc + cap + pointer)
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'knob-svg');
   svg.setAttribute('viewBox', '0 0 48 48');
-  svg.setAttribute('width', '48');
-  svg.setAttribute('height', '48');
+  svg.setAttribute('width', '40');
+  svg.setAttribute('height', '40');
   svg.setAttribute('aria-hidden', 'true');
 
   const mkCircle = (cls, r, attrs = {}) => {
     const c = document.createElementNS(SVG_NS, 'circle');
     c.setAttribute('class', cls);
-    c.setAttribute('cx', '24');
-    c.setAttribute('cy', '24');
-    c.setAttribute('r',  String(r));
+    c.setAttribute('cx', '24'); c.setAttribute('cy', '24');
+    c.setAttribute('r', String(r));
     for (const [k, v] of Object.entries(attrs)) c.setAttribute(k, v);
     return c;
   };
-
   const track = mkCircle('knob-track', 18, {
     pathLength: '100', 'stroke-dasharray': '75 25',
     'stroke-dashoffset': '0', transform: 'rotate(135 24 24)',
@@ -143,7 +153,6 @@ function initKnob(el) {
   svg.appendChild(pointer);
   el.prepend(svg);
 
-  // ARIA setup
   el.setAttribute('role', 'slider');
   el.setAttribute('aria-valuemin', String(min));
   el.setAttribute('aria-valuemax', String(max));
@@ -152,14 +161,13 @@ function initKnob(el) {
 
   function paint(v) {
     const t = (v - min) / (max - min);
-    const offset = KNOB_ARC_LEN * (1 - t);
-    arc.setAttribute('stroke-dashoffset', String(offset));
-    const angle = -135 + 270 * t;
-    pointer.setAttribute('transform', `rotate(${angle} 24 24)`);
+    arc.setAttribute('stroke-dashoffset', String(KNOB_ARC_LEN * (1 - t)));
+    pointer.setAttribute('transform', `rotate(${-135 + 270 * t} 24 24)`);
     const display = formatValue(v, step);
     if (valEl) valEl.textContent = display;
     el.setAttribute('aria-valuenow', String(v));
     el.setAttribute('aria-valuetext', display);
+    el.classList.toggle('modified', !nearlyEqual(v, def));
   }
 
   function setValue(v, { persist = true } = {}) {
@@ -171,10 +179,9 @@ function initKnob(el) {
     paint(next);
     if (persist) schedulePersist();
   }
-
   function getValue() { return currentValue; }
 
-  // Pointer drag (vertical)
+  // Drag (vertical)
   let dragging = false;
   let lastY = 0;
   el.addEventListener('pointerdown', (e) => {
@@ -188,13 +195,12 @@ function initKnob(el) {
   });
   el.addEventListener('pointermove', (e) => {
     if (!dragging) return;
-    const dy = lastY - e.clientY;          // up = positive
+    const dy = lastY - e.clientY;
     if (dy === 0) return;
     lastY = e.clientY;
     const range = max - min;
     const fineMult = e.shiftKey ? 0.1 : 1;
-    const delta = (dy / KNOB_DRAG_PX) * range * fineMult;
-    setValue(currentValue + delta);
+    setValue(currentValue + (dy / KNOB_DRAG_PX) * range * fineMult);
   });
   const stopDrag = (e) => {
     if (!dragging) return;
@@ -205,13 +211,8 @@ function initKnob(el) {
   el.addEventListener('pointerup', stopDrag);
   el.addEventListener('pointercancel', stopDrag);
 
-  // Double-click → reset to default
-  el.addEventListener('dblclick', (e) => {
-    setValue(def);
-    e.preventDefault();
-  });
+  el.addEventListener('dblclick', (e) => { setValue(def); e.preventDefault(); });
 
-  // Keyboard
   el.addEventListener('keydown', (e) => {
     let next = currentValue;
     const big = step * 10;
@@ -230,26 +231,19 @@ function initKnob(el) {
     setValue(next);
   });
 
-  // Wheel (with shift for fine)
   el.addEventListener('wheel', (e) => {
     if (document.activeElement !== el && !el.matches(':hover')) return;
     e.preventDefault();
     const dir = e.deltaY < 0 ? 1 : -1;
-    const fineMult = e.shiftKey ? 0.1 : 1;
-    setValue(currentValue + dir * step * (e.shiftKey ? 1 : 5) * fineMult);
+    setValue(currentValue + dir * step * (e.shiftKey ? 1 : 5));
   }, { passive: false });
 
-  // Initial paint with current default
   paint(currentValue);
   state[stateKey] = currentValue;
-
-  knobRegistry.set(id, { setValue, getValue, min, max, step, default: def, stateKey });
+  knobRegistry.set(id, { setValue, getValue, min, max, step, default: def, stateKey, el });
 }
 
-// Initialise every [data-knob] element.
-// Temporarily reveal hidden effect-cards so SVG layout + gradient resolution
-// happen against a real (non-display:none) parent. Re-hide immediately after;
-// applyStateToUI() will reveal the correct card based on persisted filter.
+// Reveal hidden cards while initing so SVGs lay out
 const _hiddenCards = [...document.querySelectorAll('.effect-card.hidden')];
 _hiddenCards.forEach(c => c.classList.remove('hidden'));
 document.querySelectorAll('[data-knob]').forEach(initKnob);
@@ -274,10 +268,21 @@ const TOGGLE_CONFIG = [
 function onFilterChange(v) {
   for (const name of GL_SECTIONS) {
     const el = document.getElementById(`${name}-controls`);
-    if (el) el.classList.toggle('hidden', v !== name);
+    if (el) {
+      const visible = v === name;
+      el.classList.toggle('hidden', !visible);
+      el.classList.toggle('active-card', visible);
+    }
   }
   for (const [name, fn] of Object.entries(GL_RESETS)) {
     if (v !== name) fn();
+  }
+  // Empty-card shows when no GL effect is active OR for non-GL filters too
+  emptyCard.classList.toggle('hidden', GL_SECTIONS.includes(v));
+  if (v === 'none') {
+    emptyCard.textContent = 'Pick an effect to shape the signal.';
+  } else if (!GL_SECTIONS.includes(v)) {
+    emptyCard.textContent = `${v.toUpperCase()} runs per-blob — no parameters.`;
   }
   const active = document.getElementById(`${v}-controls`);
   if (active && !active.classList.contains('hidden')) {
@@ -321,32 +326,40 @@ function wireToggleGroup(groupId, stateKey, parser, onChange) {
     e.preventDefault();
   });
 }
-
 TOGGLE_CONFIG.forEach(([id, key, parser, onChange]) => wireToggleGroup(id, key, parser, onChange));
 
-// ---- Color picker ----
+// ---- Color (swatches + native picker) ----
 const colorPicker = document.getElementById('overlay-color');
 const colorLabel  = document.getElementById('overlay-color-val');
-colorPicker.addEventListener('input', () => {
-  state.overlayColor = colorPicker.value;
-  colorLabel.textContent = colorPicker.value;
+
+function updateOverlayColor(value) {
+  state.overlayColor = value;
+  colorPicker.value = value;
+  colorLabel.textContent = value;
+  swatchGrid.querySelectorAll('.swatch-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.swatch.toLowerCase() === value.toLowerCase());
+  });
   schedulePersist();
+}
+
+colorPicker.addEventListener('input', () => updateOverlayColor(colorPicker.value));
+swatchGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.swatch-btn');
+  if (!btn) return;
+  updateOverlayColor(btn.dataset.swatch);
 });
 
 // ---- Apply persisted state to UI ----
 function applyStateToUI() {
-  for (const [id, info] of knobRegistry) {
+  for (const [, info] of knobRegistry) {
     const v = state[info.stateKey];
-    if (typeof v === 'number' && !Number.isNaN(v)) {
-      info.setValue(v, { persist: false });
-    }
+    if (typeof v === 'number' && !Number.isNaN(v)) info.setValue(v, { persist: false });
   }
   for (const [groupId, key, , onChange] of TOGGLE_CONFIG) {
     setToggleGroupValue(groupId, state[key]);
     if (onChange) onChange(state[key]);
   }
-  colorPicker.value = state.overlayColor;
-  colorLabel.textContent = state.overlayColor;
+  updateOverlayColor(state.overlayColor);
   video.playbackRate = state.speed;
 }
 
@@ -358,7 +371,7 @@ function schedulePersist() {
     try {
       const { hasSource, ...persistable } = state;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
-    } catch { /* ignore quota / private mode */ }
+    } catch { /* ignore */ }
   }, 200);
 }
 function loadPersistedState() {
@@ -367,22 +380,62 @@ function loadPersistedState() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
-    for (const k of Object.keys(DEFAULTS)) {
-      if (k in parsed) state[k] = parsed[k];
-    }
-  } catch { /* corrupt — ignore */ }
+    for (const k of Object.keys(DEFAULTS)) if (k in parsed) state[k] = parsed[k];
+  } catch { /* ignore */ }
 }
 
-// ---- Reset ----
-btnReset.addEventListener('click', () => {
+// ---- Reset (two-stage confirm) ----
+let resetConfirmTimer = 0;
+function performFullReset() {
   for (const k of Object.keys(DEFAULTS)) state[k] = DEFAULTS[k];
   applyStateToUI();
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   showToast('Reset to defaults', 'ok', 2500);
+}
+btnReset.addEventListener('click', () => {
+  if (btnReset.classList.contains('confirming')) {
+    clearTimeout(resetConfirmTimer);
+    btnReset.classList.remove('confirming');
+    btnReset.textContent = 'Reset';
+    performFullReset();
+    return;
+  }
+  btnReset.classList.add('confirming');
+  btnReset.textContent = 'Confirm?';
+  clearTimeout(resetConfirmTimer);
+  resetConfirmTimer = setTimeout(() => {
+    btnReset.classList.remove('confirming');
+    btnReset.textContent = 'Reset';
+  }, 3000);
+});
+
+// ---- Per-card reset (× button) ----
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-reset-card]');
+  if (!btn) return;
+  const card = btn.closest('.effect-card');
+  if (!card) return;
+  // Reset all knobs in the card
+  card.querySelectorAll('[data-knob]').forEach(k => {
+    const info = knobRegistry.get(k.id);
+    if (info) info.setValue(info.default);
+  });
+  // Reset toggles in the card (erode-mode-group, false-band-group)
+  card.querySelectorAll('.toggle-group').forEach(group => {
+    const cfg = TOGGLE_CONFIG.find(([gid]) => gid === group.id);
+    if (!cfg) return;
+    const [, key, parser, onChange] = cfg;
+    const defValue = DEFAULTS[key];
+    setToggleGroupValue(group.id, defValue);
+    state[key] = parser(String(defValue));
+    if (onChange) onChange(state[key]);
+  });
+  schedulePersist();
+  showToast(`${card.dataset.cardEffect.toUpperCase()} reset`, 'ok', 1500);
 });
 
 // ---- Snapshot ----
-btnSnapshot.addEventListener('click', () => {
+function takeSnapshot() {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
     return;
@@ -400,6 +453,57 @@ btnSnapshot.addEventListener('click', () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('Frame saved', 'ok', 2000);
   }, 'image/png');
+}
+btnSnapshot.addEventListener('click', takeSnapshot);
+
+// ---- Help panel ----
+function openHelp()  { helpOverlay.classList.remove('hidden'); helpClose.focus(); }
+function closeHelp() { helpOverlay.classList.add('hidden'); }
+btnHelp.addEventListener('click', openHelp);
+helpClose.addEventListener('click', closeHelp);
+helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) closeHelp(); });
+
+// ---- FPS overlay ----
+let fpsEnabled = false;
+let fpsLastT = performance.now();
+let fpsAccum = 0;
+let fpsFrames = 0;
+function updateFps(blobCount) {
+  const now = performance.now();
+  fpsAccum += now - fpsLastT;
+  fpsLastT = now;
+  fpsFrames++;
+  if (fpsAccum >= 500) {
+    const fps = Math.round((fpsFrames * 1000) / fpsAccum);
+    fpsOverlay.textContent = `${fps} fps · ${blobCount} blobs`;
+    fpsAccum = 0;
+    fpsFrames = 0;
+  }
+}
+btnFps.addEventListener('click', () => {
+  fpsEnabled = !fpsEnabled;
+  fpsOverlay.classList.toggle('hidden', !fpsEnabled);
+  btnFps.classList.toggle('confirming', fpsEnabled);
+});
+
+// ---- Keyboard shortcuts (global) ----
+document.addEventListener('keydown', (e) => {
+  // Ignore when typing in input/textarea or interacting with knob/toggle
+  const tag = (document.activeElement?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  if (e.key === 'Escape' && !helpOverlay.classList.contains('hidden')) {
+    closeHelp(); e.preventDefault(); return;
+  }
+  if (e.key === '?' || (e.key === '/' && e.shiftKey)) { openHelp(); e.preventDefault(); return; }
+  if ((e.key === 's' || e.key === 'S') && document.activeElement?.dataset?.knob === undefined) {
+    if (!document.activeElement?.classList?.contains('knob')) { takeSnapshot(); e.preventDefault(); }
+    return;
+  }
+  if ((e.key === 'f' || e.key === 'F') && !document.activeElement?.classList?.contains('knob')) {
+    btnFps.click(); e.preventDefault();
+  }
 });
 
 // ---- File upload ----
@@ -420,6 +524,7 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
     await video.play();
     resetAllState();
     setHasSource(true, 'Camera');
+    videoControls.classList.add('hidden');     // no scrub for camera
     showToast('Camera active', 'ok', 2000);
   } catch (err) {
     showToast(`Camera unavailable: ${err.message || err.name}`, 'error', 6000);
@@ -436,16 +541,17 @@ function loadVideoSource(url, label) {
   video.play().catch(() => {});
   resetAllState();
   setHasSource(true, label || 'Video');
+  videoControls.classList.remove('hidden');    // scrub available for files
 }
 
 function resetAllState() {
-  resetFrameHistory();
-  resetTracker();
-  resetVoronoi();
-  resetCA();
-  resetWave();
-  cachedBlobs = [];
-  frameCount  = 0;
+  resetFrameHistory(); resetTracker(); resetVoronoi(); resetCA(); resetWave();
+  cachedBlobs = []; frameCount = 0;
+}
+
+function updateSourceLabel(text) {
+  fileStatus.textContent = text;
+  topbarSource.textContent = text;
 }
 
 function setHasSource(val, label) {
@@ -454,12 +560,11 @@ function setHasSource(val, label) {
   btnSnapshot.disabled = !val;
   if (val) {
     const dims = (video.videoWidth && video.videoHeight)
-      ? ` · ${video.videoWidth}×${video.videoHeight}`
-      : '';
-    fileStatus.textContent = (label || 'Source loaded') + dims;
+      ? ` · ${video.videoWidth}×${video.videoHeight}` : '';
+    updateSourceLabel((label || 'Source') + dims);
     if (rafHandle === 0) rafHandle = requestAnimationFrame(renderFrame);
   } else {
-    fileStatus.textContent = 'No source loaded';
+    updateSourceLabel('No source loaded');
   }
 }
 
@@ -467,59 +572,117 @@ video.addEventListener('loadedmetadata', () => {
   resizeCanvas();
   if (state.hasSource && video.videoWidth && video.videoHeight) {
     const current = fileStatus.textContent.split(' · ')[0];
-    fileStatus.textContent = `${current} · ${video.videoWidth}×${video.videoHeight}`;
+    updateSourceLabel(`${current} · ${video.videoWidth}×${video.videoHeight}`);
   }
+});
+
+// ---- Drag & drop ----
+let dragDepth = 0;
+function isFileDrag(e) {
+  return e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+}
+canvasArea.addEventListener('dragenter', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  dropOverlay.classList.add('visible');
+});
+canvasArea.addEventListener('dragover', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+canvasArea.addEventListener('dragleave', (e) => {
+  if (!isFileDrag(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropOverlay.classList.remove('visible');
+});
+canvasArea.addEventListener('drop', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  dropOverlay.classList.remove('visible');
+  const file = [...(e.dataTransfer.files || [])][0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast(`Not a video file: ${file.type || 'unknown type'}`, 'error');
+    return;
+  }
+  loadVideoSource(URL.createObjectURL(file), file.name);
+});
+
+// ---- Video playback controls (hover-only, idle-hide) ----
+let controlsIdleTimer = 0;
+function showControls() {
+  if (videoControls.classList.contains('hidden')) return;     // camera mode
+  videoControls.classList.add('visible');
+  clearTimeout(controlsIdleTimer);
+  controlsIdleTimer = setTimeout(() => videoControls.classList.remove('visible'), 2000);
+}
+canvasArea.addEventListener('pointermove', showControls);
+canvasArea.addEventListener('pointerleave', () => {
+  clearTimeout(controlsIdleTimer);
+  videoControls.classList.remove('visible');
+});
+videoControls.addEventListener('pointerenter', () => clearTimeout(controlsIdleTimer));
+
+btnPlay.addEventListener('click', () => {
+  if (video.paused) { video.play().catch(() => {}); }
+  else { video.pause(); }
+});
+video.addEventListener('play',  () => { btnPlay.textContent = '❚❚'; btnPlay.setAttribute('aria-label', 'Pause'); });
+video.addEventListener('pause', () => { btnPlay.textContent = '▶';  btnPlay.setAttribute('aria-label', 'Play'); });
+
+let scrubbing = false;
+videoScrub.addEventListener('input', () => {
+  scrubbing = true;
+  if (!isFinite(video.duration)) return;
+  const t = (parseFloat(videoScrub.value) / 1000) * video.duration;
+  video.currentTime = t;
+  videoTime.textContent = `${formatTime(t)} / ${formatTime(video.duration)}`;
+});
+videoScrub.addEventListener('change', () => { scrubbing = false; });
+
+video.addEventListener('timeupdate', () => {
+  if (scrubbing || !isFinite(video.duration) || video.duration === 0) return;
+  const pct = video.currentTime / video.duration;
+  videoScrub.value = String(Math.round(pct * 1000));
+  videoTime.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
 });
 
 // ---- Canvas sizing ----
 function resizeCanvas() {
   const aw = canvasArea.clientWidth;
   const ah = canvasArea.clientHeight;
-
   if (!state.hasSource || video.videoWidth === 0) {
-    canvas.width = aw;
-    canvas.height = ah;
-    return;
+    canvas.width = aw; canvas.height = ah; return;
   }
-
   const vRatio = video.videoWidth / video.videoHeight;
   const aRatio = aw / ah;
   let cw, ch;
-  if (aRatio > vRatio) {
-    ch = ah; cw = Math.round(ah * vRatio);
-  } else {
-    cw = aw; ch = Math.round(aw / vRatio);
-  }
-
+  if (aRatio > vRatio) { ch = ah; cw = Math.round(ah * vRatio); }
+  else                 { cw = aw; ch = Math.round(aw / vRatio); }
   if (canvas.width !== cw || canvas.height !== ch) {
-    canvas.width  = cw;
-    canvas.height = ch;
+    canvas.width = cw; canvas.height = ch;
   }
 }
-
 window.addEventListener('resize', resizeCanvas);
 
-// ---- Render loop (gated behind hasSource) ----
+// ---- Render loop ----
 function renderFrame() {
-  if (!state.hasSource) {
-    rafHandle = 0;
-    return;
-  }
+  if (!state.hasSource) { rafHandle = 0; return; }
   rafHandle = requestAnimationFrame(renderFrame);
   resizeCanvas();
-
   if (video.readyState < 2 || video.videoWidth === 0) return;
 
   const cw = canvas.width;
   const ch = canvas.height;
-
   ctx.drawImage(video, 0, 0, cw, ch);
 
   const ow = Math.max(1, Math.round(cw * DETECT_SCALE));
   const oh = Math.max(1, Math.round(ch * DETECT_SCALE));
   if (offscreen.width !== ow || offscreen.height !== oh) {
-    offscreen.width  = ow;
-    offscreen.height = oh;
+    offscreen.width = ow; offscreen.height = oh;
   }
   offCtx.drawImage(video, 0, 0, ow, oh);
   const offImageData = offCtx.getImageData(0, 0, ow, oh);
@@ -527,16 +690,9 @@ function renderFrame() {
   frameCount++;
   if (frameCount % state.updateInterval === 0) {
     const rawBlobs  = detectBlobs(offImageData, state.threshold, state.maxBlobs, state.detectMode);
-    const sx = cw / ow;
-    const sy = ch / oh;
+    const sx = cw / ow, sy = ch / oh;
     const scaledRaw = rawBlobs.map(b => ({
-      ...b,
-      x:  b.x  * sx,
-      y:  b.y  * sy,
-      w:  b.w  * sx,
-      h:  b.h  * sy,
-      cx: b.cx * sx,
-      cy: b.cy * sy,
+      ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
     }));
     cachedBlobs = trackBlobs(scaledRaw, cw, state.maxBlobs);
   }
@@ -546,7 +702,7 @@ function renderFrame() {
   if (f === 'voronoi') {
     applyVoronoi(ctx, video, cw, ch, {
       threshold: state.voronoiThreshold, jumpDist: state.voronoiJumpDist,
-      falloff:   state.voronoiFalloff,   edgeLines: state.voronoiEdgeLines,
+      falloff: state.voronoiFalloff, edgeLines: state.voronoiEdgeLines,
     });
   } else if (f === 'cellular') {
     applyCA(ctx, video, cw, ch, {
@@ -580,8 +736,8 @@ function renderFrame() {
   }
 
   // Per-blob CPU filters: getImageData/putImageData per blob = CPU<->GPU
-  // round-trip per region. Acceptable here because it only runs for non-GL
-  // filters; if blob counts grow large, batch into a single full-frame read.
+  // round-trip per region. Acceptable for non-GL filters; if blob counts grow
+  // large, batch into a single full-frame read.
   if (state.filter !== 'none' && !FULL_FRAME_SET.has(state.filter)) {
     for (const blob of blobs) {
       const bx = Math.max(0, Math.floor(blob.x));
@@ -589,7 +745,6 @@ function renderFrame() {
       const bw = Math.min(cw - bx, Math.ceil(blob.w));
       const bh = Math.min(ch - by, Math.ceil(blob.h));
       if (bw <= 0 || bh <= 0) continue;
-
       const region = ctx.getImageData(bx, by, bw, bh);
       applyFilterToRegion(region.data, state.filter);
       ctx.putImageData(region, bx, by);
@@ -597,6 +752,8 @@ function renderFrame() {
   }
 
   drawOverlays(ctx, blobs, state.regionStyle, state.shape, state.connectionRate, state.strokeWidth, state.blobSize, state.fontSize, state.overlayColor);
+
+  if (fpsEnabled) updateFps(blobs.length);
 }
 
 // ---- Init ----

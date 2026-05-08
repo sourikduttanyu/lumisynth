@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <!-- Global SVG defs (knob gradient) -->
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
       <defs>
         <linearGradient id="knobGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -28,13 +27,10 @@
             <span class="logo">FluxKit</span>
             <span class="logo-sub">v2</span>
           </div>
-          <div class="header-actions">
-            <button id="btn-snapshot" class="icon-btn" type="button" title="Save current frame as PNG" disabled>Save</button>
-            <button id="btn-reset"    class="icon-btn" type="button" title="Reset all controls to defaults">Reset</button>
-          </div>
+          <button id="btn-reset" class="icon-btn" type="button" title="Reset all controls to defaults">Reset</button>
         </div>
 
-        <!-- ============ OSC (Source + Structure) ============ -->
+        <!-- ============ OSC ============ -->
         <div class="stage-divider">OSC <span class="stage-sub">source · structure</span></div>
 
         <section class="control-section" aria-label="Video input">
@@ -65,68 +61,70 @@
 
         <section class="control-section">
           <div class="knob-grid">
-            <div class="knob" id="sensitivity"    data-knob data-min="10" data-max="100" data-step="1"    data-default="30" aria-label="Sensitivity" tabindex="0"><span class="knob-label">Sense</span><span class="knob-val" id="sensitivity-val">30</span></div>
-            <div class="knob" id="max-blobs"      data-knob data-min="5"  data-max="30"  data-step="1"    data-default="12" aria-label="Max Blobs" tabindex="0"><span class="knob-label">Max</span><span class="knob-val" id="max-blobs-val">12</span></div>
-            <div class="knob" id="update-interval" data-knob data-min="1" data-max="30"  data-step="1"    data-default="1"  aria-label="Update Interval (frames)" tabindex="0"><span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
+            <div class="knob" id="sensitivity"     data-knob data-min="10" data-max="100" data-step="1" data-default="30" aria-label="Sensitivity" tabindex="0"><span class="knob-label">Sensitivity</span><span class="knob-val" id="sensitivity-val">30</span></div>
+            <div class="knob" id="max-blobs"       data-knob data-min="5"  data-max="30"  data-step="1" data-default="12" aria-label="Max Blobs" tabindex="0"><span class="knob-label">Max Blobs</span><span class="knob-val" id="max-blobs-val">12</span></div>
+            <div class="knob" id="update-interval" data-knob data-min="1"  data-max="30"  data-step="1" data-default="1"  aria-label="Update Interval (frames)" tabindex="0"><span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
           </div>
         </section>
 
-        <!-- ============ FILTER (Color) ============ -->
+        <!-- ============ FILTER ============ -->
         <div class="stage-divider">FILTER <span class="stage-sub">color</span></div>
 
         <section class="control-section">
           <div class="section-label" id="lbl-filter">Effect</div>
           <div class="toggle-group" id="filter-group" role="radiogroup" aria-labelledby="lbl-filter">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"       aria-label="No filter">None</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="inv"        aria-label="Invert colors">Inv</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermal"    aria-label="Thermal">Thermal</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="voronoi"    aria-label="Voronoi">Voronoi</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="cellular"   aria-label="Cellular automata">Cellular</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii"      aria-label="ASCII shader">ASCII</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="shatter"    aria-label="Voronoi shatter">Shatter</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"      aria-label="Erode/dilate">Erode</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="wave"       aria-label="Wave propagation">Wave</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="oxide"      aria-label="Oxide patina">Oxide</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="synth"      aria-label="Synth colors">Synth</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="biolum"     aria-label="Bioluminescent">BioLum</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermo"     aria-label="Thermo">Thermo</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="falsecolor" aria-label="False color">FalseClr</button>
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"       aria-label="No filter"><span>None</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="inv"        aria-label="Invert colors"><span>Inv</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermal"    aria-label="Thermal"><span>Thermal</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="voronoi"    aria-label="Voronoi"><span>Voronoi</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="cellular"   aria-label="Cellular automata"><span>Cellular</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii"      aria-label="ASCII shader"><span>ASCII</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="shatter"    aria-label="Voronoi shatter"><span>Shatter</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"      aria-label="Erode/dilate"><span>Erode</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="wave"       aria-label="Wave propagation"><span>Wave</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="oxide"      aria-label="Oxide patina"><span>Oxide</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="synth"      aria-label="Synth colors"><span>Synth</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="biolum"     aria-label="Bioluminescent"><span>BioLum</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermo"     aria-label="Thermo"><span>Thermo</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="falsecolor" aria-label="False color"><span>FalseClr</span></button>
           </div>
         </section>
 
-        <!-- Per-effect cards (one visible based on Filter selection) -->
-        <section class="effect-card hidden" id="voronoi-controls" aria-label="Voronoi parameters">
-          <div class="effect-card-title">Voronoi</div>
+        <!-- Empty-state placeholder (shown when filter=none) -->
+        <div class="empty-card" id="empty-card">Pick an effect to shape the signal.</div>
+
+        <section class="effect-card hidden" id="voronoi-controls" data-card-effect="voronoi" aria-label="Voronoi parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Voronoi</div><button class="card-reset-btn" type="button" data-reset-card="voronoi" title="Reset Voronoi knobs" aria-label="Reset Voronoi knobs">×</button></div>
           <div class="knob-grid">
-            <div class="knob" id="voronoi-threshold"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Threshold" tabindex="0"><span class="knob-label">Thresh</span><span class="knob-val" id="voronoi-threshold-val">0.5</span></div>
-            <div class="knob" id="voronoi-jump-dist"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Jump Distance" tabindex="0"><span class="knob-label">Jump</span><span class="knob-val" id="voronoi-jump-dist-val">0.5</span></div>
+            <div class="knob" id="voronoi-threshold"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Threshold" tabindex="0"><span class="knob-label">Threshold</span><span class="knob-val" id="voronoi-threshold-val">0.5</span></div>
+            <div class="knob" id="voronoi-jump-dist"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Jump Distance" tabindex="0"><span class="knob-label">Jump Dist</span><span class="knob-val" id="voronoi-jump-dist-val">0.5</span></div>
             <div class="knob" id="voronoi-falloff"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Falloff" tabindex="0"><span class="knob-label">Falloff</span><span class="knob-val" id="voronoi-falloff-val">0.5</span></div>
             <div class="knob" id="voronoi-edge-lines" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Voronoi Edge Lines" tabindex="0"><span class="knob-label">Edges</span><span class="knob-val" id="voronoi-edge-lines-val">0</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="cellular-controls" aria-label="Cellular parameters">
-          <div class="effect-card-title">Cellular</div>
+        <section class="effect-card hidden" id="cellular-controls" data-card-effect="cellular" aria-label="Cellular parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Cellular</div><button class="card-reset-btn" type="button" data-reset-card="cellular" title="Reset Cellular knobs" aria-label="Reset Cellular knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="ca-density"         data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Density" tabindex="0"><span class="knob-label">Density</span><span class="knob-val" id="ca-density-val">0.5</span></div>
-            <div class="knob" id="ca-stability"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Stability" tabindex="0"><span class="knob-label">Stable</span><span class="knob-val" id="ca-stability-val">0.5</span></div>
+            <div class="knob" id="ca-stability"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Stability" tabindex="0"><span class="knob-label">Stability</span><span class="knob-val" id="ca-stability-val">0.5</span></div>
             <div class="knob" id="ca-evolution-speed" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Evolution Speed" tabindex="0"><span class="knob-label">Evolve</span><span class="knob-val" id="ca-evolution-speed-val">0.5</span></div>
             <div class="knob" id="ca-source-influx"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Source Influx" tabindex="0"><span class="knob-label">Influx</span><span class="knob-val" id="ca-source-influx-val">0.5</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="ascii-controls" aria-label="ASCII parameters">
-          <div class="effect-card-title">ASCII</div>
+        <section class="effect-card hidden" id="ascii-controls" data-card-effect="ascii" aria-label="ASCII parameters">
+          <div class="effect-card-header"><div class="effect-card-title">ASCII</div><button class="card-reset-btn" type="button" data-reset-card="ascii" title="Reset ASCII knobs" aria-label="Reset ASCII knobs">×</button></div>
           <div class="knob-grid">
-            <div class="knob" id="ascii-cell-size"      data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Cell Size" tabindex="0"><span class="knob-label">Cell</span><span class="knob-val" id="ascii-cell-size-val">0.3</span></div>
+            <div class="knob" id="ascii-cell-size"      data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Cell Size" tabindex="0"><span class="knob-label">Cell Size</span><span class="knob-val" id="ascii-cell-size-val">0.3</span></div>
             <div class="knob" id="ascii-contrast"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Contrast" tabindex="0"><span class="knob-label">Contrast</span><span class="knob-val" id="ascii-contrast-val">0.3</span></div>
             <div class="knob" id="ascii-black-thresh"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="ASCII Black Threshold" tabindex="0"><span class="knob-label">Black</span><span class="knob-val" id="ascii-black-thresh-val">0.2</span></div>
             <div class="knob" id="ascii-glyph-strength" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.9" aria-label="ASCII Glyph Strength" tabindex="0"><span class="knob-label">Glyph</span><span class="knob-val" id="ascii-glyph-strength-val">0.9</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="shatter-controls" aria-label="Shatter parameters">
-          <div class="effect-card-title">Shatter</div>
+        <section class="effect-card hidden" id="shatter-controls" data-card-effect="shatter" aria-label="Shatter parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Shatter</div><button class="card-reset-btn" type="button" data-reset-card="shatter" title="Reset Shatter knobs" aria-label="Reset Shatter knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="shatter-cells"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Shatter Cell Count" tabindex="0"><span class="knob-label">Cells</span><span class="knob-val" id="shatter-cells-val">0.3</span></div>
             <div class="knob" id="shatter-crack"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="Shatter Crack Width" tabindex="0"><span class="knob-label">Crack</span><span class="knob-val" id="shatter-crack-val">0.2</span></div>
@@ -135,8 +133,8 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="erode-controls" aria-label="Erode parameters">
-          <div class="effect-card-title">Erode</div>
+        <section class="effect-card hidden" id="erode-controls" data-card-effect="erode" aria-label="Erode parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Erode</div><button class="card-reset-btn" type="button" data-reset-card="erode" title="Reset Erode controls" aria-label="Reset Erode controls">×</button></div>
           <div class="section-label" id="lbl-erode-mode">Mode</div>
           <div class="toggle-group" id="erode-mode-group" role="radiogroup" aria-labelledby="lbl-erode-mode">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="0">Erode</button>
@@ -149,8 +147,8 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="wave-controls" aria-label="Wave parameters">
-          <div class="effect-card-title">Wave</div>
+        <section class="effect-card hidden" id="wave-controls" data-card-effect="wave" aria-label="Wave parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Wave</div><button class="card-reset-btn" type="button" data-reset-card="wave" title="Reset Wave knobs" aria-label="Reset Wave knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="wave-source" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Wave Source Strength" tabindex="0"><span class="knob-label">Source</span><span class="knob-val" id="wave-source-val">0.5</span></div>
             <div class="knob" id="wave-damp"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Wave Damping" tabindex="0"><span class="knob-label">Damp</span><span class="knob-val" id="wave-damp-val">0.3</span></div>
@@ -159,28 +157,28 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="oxide-controls" aria-label="Oxide parameters">
-          <div class="effect-card-title">Oxide</div>
+        <section class="effect-card hidden" id="oxide-controls" data-card-effect="oxide" aria-label="Oxide parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Oxide</div><button class="card-reset-btn" type="button" data-reset-card="oxide" title="Reset Oxide knobs" aria-label="Reset Oxide knobs">×</button></div>
           <div class="knob-grid">
-            <div class="knob" id="oxide-corr"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Oxide Corrosion" tabindex="0"><span class="knob-label">Corr</span><span class="knob-val" id="oxide-corr-val">0.5</span></div>
+            <div class="knob" id="oxide-corr"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Oxide Corrosion" tabindex="0"><span class="knob-label">Corrosion</span><span class="knob-val" id="oxide-corr-val">0.5</span></div>
             <div class="knob" id="oxide-metal" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Oxide Metal type (copper to silver)" tabindex="0"><span class="knob-label">Metal</span><span class="knob-val" id="oxide-metal-val">0</span></div>
             <div class="knob" id="oxide-rough" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Oxide Roughness" tabindex="0"><span class="knob-label">Rough</span><span class="knob-val" id="oxide-rough-val">0.3</span></div>
             <div class="knob" id="oxide-sheen" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Oxide Sheen" tabindex="0"><span class="knob-label">Sheen</span><span class="knob-val" id="oxide-sheen-val">0.3</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="synth-controls" aria-label="Synth parameters">
-          <div class="effect-card-title">Synth</div>
+        <section class="effect-card hidden" id="synth-controls" data-card-effect="synth" aria-label="Synth parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Synth</div><button class="card-reset-btn" type="button" data-reset-card="synth" title="Reset Synth knobs" aria-label="Reset Synth knobs">×</button></div>
           <div class="knob-grid">
-            <div class="knob" id="synth-warm" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Synth Warmth" tabindex="0"><span class="knob-label">Warm</span><span class="knob-val" id="synth-warm-val">0.5</span></div>
+            <div class="knob" id="synth-warm" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Synth Warmth" tabindex="0"><span class="knob-label">Warmth</span><span class="knob-val" id="synth-warm-val">0.5</span></div>
             <div class="knob" id="synth-sep"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Synth Separation" tabindex="0"><span class="knob-label">Sep</span><span class="knob-val" id="synth-sep-val">0.3</span></div>
             <div class="knob" id="synth-res"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Synth Resonance" tabindex="0"><span class="knob-label">Res</span><span class="knob-val" id="synth-res-val">0.4</span></div>
-            <div class="knob" id="synth-dyn"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.7" aria-label="Synth Dynamic Range" tabindex="0"><span class="knob-label">Dyn</span><span class="knob-val" id="synth-dyn-val">0.7</span></div>
+            <div class="knob" id="synth-dyn"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.7" aria-label="Synth Dynamic Range" tabindex="0"><span class="knob-label">Dyn Range</span><span class="knob-val" id="synth-dyn-val">0.7</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="biolum-controls" aria-label="BioLum parameters">
-          <div class="effect-card-title">BioLum</div>
+        <section class="effect-card hidden" id="biolum-controls" data-card-effect="biolum" aria-label="BioLum parameters">
+          <div class="effect-card-header"><div class="effect-card-title">BioLum</div><button class="card-reset-btn" type="button" data-reset-card="biolum" title="Reset BioLum knobs" aria-label="Reset BioLum knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="biolum-glow"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.7" aria-label="BioLum Intensity" tabindex="0"><span class="knob-label">Glow</span><span class="knob-val" id="biolum-glow-val">0.7</span></div>
             <div class="knob" id="biolum-color" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="BioLum Color (cyan to violet)" tabindex="0"><span class="knob-label">Color</span><span class="knob-val" id="biolum-color-val">0</span></div>
@@ -189,18 +187,18 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="thermo-controls" aria-label="Thermo parameters">
-          <div class="effect-card-title">Thermo</div>
+        <section class="effect-card hidden" id="thermo-controls" data-card-effect="thermo" aria-label="Thermo parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Thermo</div><button class="card-reset-btn" type="button" data-reset-card="thermo" title="Reset Thermo knobs" aria-label="Reset Thermo knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="thermo-cont"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Thermo Contrast" tabindex="0"><span class="knob-label">Contrast</span><span class="knob-val" id="thermo-cont-val">0.4</span></div>
             <div class="knob" id="thermo-hot"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Thermo Hot Shift" tabindex="0"><span class="knob-label">Hot</span><span class="knob-val" id="thermo-hot-val">0</span></div>
             <div class="knob" id="thermo-cold"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.1" aria-label="Thermo Cold Floor" tabindex="0"><span class="knob-label">Cold</span><span class="knob-val" id="thermo-cold-val">0.1</span></div>
-            <div class="knob" id="thermo-white" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Thermo White Point" tabindex="0"><span class="knob-label">White</span><span class="knob-val" id="thermo-white-val">0.5</span></div>
+            <div class="knob" id="thermo-white" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Thermo White Point" tabindex="0"><span class="knob-label">White Pt</span><span class="knob-val" id="thermo-white-val">0.5</span></div>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="falsecolor-controls" aria-label="FalseColor parameters">
-          <div class="effect-card-title">FalseClr</div>
+        <section class="effect-card hidden" id="falsecolor-controls" data-card-effect="falsecolor" aria-label="FalseColor parameters">
+          <div class="effect-card-header"><div class="effect-card-title">FalseClr</div><button class="card-reset-btn" type="button" data-reset-card="falsecolor" title="Reset FalseClr controls" aria-label="Reset FalseClr controls">×</button></div>
           <div class="section-label" id="lbl-false-band">Banding</div>
           <div class="toggle-group" id="false-band-group" role="radiogroup" aria-labelledby="lbl-false-band">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="0">Off</button>
@@ -213,15 +211,7 @@
           </div>
         </section>
 
-        <section class="control-section">
-          <label class="section-label" for="overlay-color">Overlay Color</label>
-          <div class="color-row">
-            <input type="color" id="overlay-color" value="#ffffff" />
-            <span class="color-label" id="overlay-color-val">#ffffff</span>
-          </div>
-        </section>
-
-        <!-- ============ FX (Mutate + Decay — output styling) ============ -->
+        <!-- ============ FX ============ -->
         <div class="stage-divider">FX <span class="stage-sub">overlay · output</span></div>
 
         <section class="control-section">
@@ -240,6 +230,27 @@
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="circle"  aria-label="Circle">&#9675;</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="rounded" aria-label="Rounded rectangle">&#9645;</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="diamond" aria-label="Diamond">&#9671;</button>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="section-label">
+            Overlay Color
+            <span class="section-sub">— boxes &amp; lines</span>
+          </div>
+          <div class="swatch-grid" id="swatch-grid">
+            <button class="swatch-btn" type="button" data-swatch="#ffffff" style="background:#ffffff" aria-label="White"></button>
+            <button class="swatch-btn" type="button" data-swatch="#f72585" style="background:#f72585" aria-label="Pink"></button>
+            <button class="swatch-btn" type="button" data-swatch="#5be7a6" style="background:#5be7a6" aria-label="Mint"></button>
+            <button class="swatch-btn" type="button" data-swatch="#4cc9f0" style="background:#4cc9f0" aria-label="Cyan"></button>
+            <button class="swatch-btn" type="button" data-swatch="#ffea00" style="background:#ffea00" aria-label="Yellow"></button>
+            <button class="swatch-btn" type="button" data-swatch="#ff8c42" style="background:#ff8c42" aria-label="Orange"></button>
+            <button class="swatch-btn" type="button" data-swatch="#b5179e" style="background:#b5179e" aria-label="Purple"></button>
+            <button class="swatch-btn" type="button" data-swatch="#000000" style="background:#000000" aria-label="Black"></button>
+          </div>
+          <div class="color-row">
+            <input type="color" id="overlay-color" value="#ffffff" aria-label="Custom overlay color" />
+            <span class="color-label" id="overlay-color-val">#ffffff</span>
           </div>
         </section>
 
@@ -265,18 +276,74 @@
         <div class="sidebar-footer"></div>
       </aside>
 
-      <main id="canvas-area" aria-label="Live preview">
-        <canvas id="main-canvas" role="img" aria-label="Live video output with detection overlays and effects"></canvas>
-        <div id="placeholder">
-          <div class="placeholder-text">
-            <div class="placeholder-icon" aria-hidden="true">◉</div>
-            <div>Upload a video or open camera to begin</div>
+      <div id="canvas-stack">
+        <div id="canvas-topbar">
+          <span class="topbar-title">FluxKit</span>
+          <span class="topbar-source" id="topbar-source">No source</span>
+          <div class="topbar-actions">
+            <button id="btn-fps"      class="icon-btn" type="button" title="Toggle FPS overlay">FPS</button>
+            <button id="btn-help"     class="icon-btn" type="button" title="Keyboard shortcuts (?)">?</button>
+            <button id="btn-snapshot" class="icon-btn" type="button" title="Save current frame as PNG" disabled>Snap</button>
           </div>
         </div>
-      </main>
+
+        <main id="canvas-area" aria-label="Live preview">
+          <canvas id="main-canvas" role="img" aria-label="Live video output with detection overlays and effects"></canvas>
+          <div id="placeholder">
+            <div class="placeholder-text">
+              <div class="placeholder-icon" aria-hidden="true">◉</div>
+              <div>Drop a video or open the camera</div>
+              <div class="placeholder-hint">drag · drop · play</div>
+            </div>
+          </div>
+          <div id="drop-overlay" aria-hidden="true">Drop video to play</div>
+          <div id="video-controls" class="hidden" aria-label="Playback controls">
+            <button id="btn-play" type="button" aria-label="Play / pause">▶</button>
+            <input type="range" id="video-scrub" min="0" max="1000" step="1" value="0" aria-label="Scrub video" />
+            <span class="video-time" id="video-time">0:00 / 0:00</span>
+          </div>
+          <div id="fps-overlay" class="hidden">— fps · 0 blobs</div>
+        </main>
+      </div>
     </div>
 
     <div id="toast-region" role="region" aria-live="polite" aria-atomic="false" aria-label="Notifications"></div>
+
+    <div id="help-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div id="help-panel">
+        <button id="help-close" type="button" aria-label="Close help">×</button>
+        <h2 id="help-title">Keyboard &amp; Mouse</h2>
+
+        <h3>Knobs</h3>
+        <ul>
+          <li><span>Drag up / down</span><span><kbd>Drag</kbd></span></li>
+          <li><span>Fine adjustment</span><span><kbd>Shift</kbd> <kbd>Drag</kbd></span></li>
+          <li><span>Reset to default</span><span><kbd>Double-click</kbd></span></li>
+          <li><span>Step ±</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></li>
+          <li><span>Step ×10</span><span><kbd>PgUp</kbd> <kbd>PgDn</kbd></span></li>
+          <li><span>Min / Max</span><span><kbd>Home</kbd> <kbd>End</kbd></span></li>
+          <li><span>Wheel scroll</span><span><kbd>Wheel</kbd></span></li>
+        </ul>
+
+        <h3>Toggle groups</h3>
+        <ul>
+          <li><span>Cycle options</span><span><kbd>←</kbd> <kbd>→</kbd></span></li>
+        </ul>
+
+        <h3>App</h3>
+        <ul>
+          <li><span>Open help</span><span><kbd>?</kbd></span></li>
+          <li><span>Snapshot frame</span><span><kbd>S</kbd></span></li>
+          <li><span>Toggle FPS</span><span><kbd>F</kbd></span></li>
+          <li><span>Close dialog</span><span><kbd>Esc</kbd></span></li>
+        </ul>
+
+        <h3>File</h3>
+        <ul>
+          <li><span>Drop video onto canvas</span><span><kbd>Drag &amp; drop</kbd></span></li>
+        </ul>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>
