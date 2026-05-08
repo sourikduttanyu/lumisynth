@@ -805,16 +805,21 @@ function renderFrame() {
   // share the buffer, ONE putImageData. Replaces the old N-round-trip pattern
   // (was 12-30 GPU↔CPU stalls per frame at maxBlobs default). Skipped entirely
   // when no CPU filter is active so the display canvas stays GPU-resident.
-  if (state.filter !== 'none' && !FULL_FRAME_SET.has(state.filter) && blobs.length > 0) {
+  if (state.filter !== 'none' && !FULL_FRAME_SET.has(state.filter) && blobs.length > 0 && state.blobSize > 0) {
     const full = ctx.getImageData(0, 0, cw, ch);
+    const blobScale = state.blobSize / 64;
     let touched = false;
     for (const blob of blobs) {
-      const bx = Math.max(0, Math.floor(blob.x));
-      const by = Math.max(0, Math.floor(blob.y));
-      const bw = Math.min(cw - bx, Math.ceil(blob.w));
-      const bh = Math.min(ch - by, Math.ceil(blob.h));
+      const cx = blob.x + blob.w / 2;
+      const cy = blob.y + blob.h / 2;
+      const sw = blob.w * blobScale;
+      const sh = blob.h * blobScale;
+      const bx = Math.max(0, Math.floor(cx - sw / 2));
+      const by = Math.max(0, Math.floor(cy - sh / 2));
+      const bw = Math.min(cw - bx, Math.ceil(sw));
+      const bh = Math.min(ch - by, Math.ceil(sh));
       if (bw <= 0 || bh <= 0) continue;
-      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, state.filter);
+      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, state.filter, state.shape);
       touched = true;
     }
     if (touched) ctx.putImageData(full, 0, 0);
