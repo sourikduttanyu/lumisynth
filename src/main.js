@@ -1,48 +1,76 @@
 import './style.css';
 import { detectBlobs, resetFrameHistory } from './blobDetector.js';
 import { applyFilterToSubregion } from './filters.js';
-import { drawOverlays } from './overlays.js';
+import { drawTrackOverlay, resetTrackOverlay } from './overlays.js';
 import { trackBlobs, resetTracker } from './kalman.js';
-import { applyVoronoi, resetVoronoi } from './voronoi.js';
-import { applyCA, resetCA } from './cellular.js';
 import { applyASCII } from './ascii.js';
 import { applyGLFilter } from './glFilters.js';
-import { applyWave, resetWave } from './wave.js';
 import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs } from './glContext.js';
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
 
 const DEFAULTS = Object.freeze({
-  // Pipeline stages.
-  // - structure: one of 'none' | voronoi | cellular | ascii | shatter | erode | wave
-  // - colorRack: array of slots — see makeColorRack(). Stores up to 3 chained
-  //   COLOR effects. Initialized in startup (NOT in DEFAULTS) because each
-  //   slot has a fresh per-instance id; performFullReset re-creates it via
-  //   makeColorRack() so each session has unique ids.
-  // - perBlob:   one of 'none' | inv | thermal  (legacy holding pen, moves to FX rack in P3)
-  speed: 1, shape: 'rect', regionStyle: 'basic',
+  // Source / playback.
+  speed: 1,
+
+  // SYNTH-mode pipeline.
+  // - structure: 'none' | 'ascii' | 'erode'
+  // - colorRack: array of 3 slots (see makeColorRack()) — initialized at
+  //   startup, not in DEFAULTS, because each slot has a fresh per-instance id.
+  // - perBlob: 'none' | 'inv' | 'thermal' (legacy holding pen)
   structure: 'none', perBlob: 'none',
-  voronoiThreshold: 0.5, voronoiJumpDist: 0.5, voronoiFalloff: 0.5, voronoiEdgeLines: 0.0,
-  caDensity: 0.5, caStability: 0.5, caEvolutionSpeed: 0.5, caSourceInflux: 0.5,
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
-  shatterCells: 0.3, shatterCrack: 0.2, shatterFill: 0.5, shatterRandom: 0.8,
-  erodeMode: 0,      erodeRadius: 0.3,  erodeStrength: 0.7, erodeEdge: 0.0,
-  // COLOR effect knob defaults moved to COLOR_PARAM_SCHEMAS — they're
-  // per-slot now (state.colorRack[i].params), not global state.
-  waveSource: 0.5,   waveDamp: 0.3,     waveSpeed: 0.5,     waveContr: 0.5,
-  connectionRate: 0.25,
+  erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
+
+  // ============ TRACK-mode state ============
+  // Top-level mode + composite selector.
+  //   mode:           'synth' | 'track'  — controls body[data-mode] attr
+  //                                         and which sidebar sections show
+  //   trackComposite: 'overlay' | 'isolated'
+  mode: 'synth',
+  trackComposite: 'overlay',
+
+  // Detection (TRACK mode owns these; SYNTH mode silently uses them too,
+  // since the per-blob legacy path needs detected blobs).
+  //   trackChannel:    'motion' | 'luma' | 'dark' | 'sat' | 'edge' | 'sharp'
+  //   threshold        10..100 — direct detection threshold passed to blobDetector
+  //   trackMinSize     4..200 px (in source pixels) — passed to blobDetector
+  //   trackStability   0..1   — feeds the one-euro smoother
+  //   trackMaxBlobs    5..30  — max blobs returned per frame
+  //   updateInterval   1..30  — run detection every N frames (1 = every frame)
+  trackChannel: 'motion',
   threshold: 30,
-  maxBlobs: 12,
-  detectMode: 'motion',
+  trackMinSize: 8,
+  trackStability: 0,
+  trackMaxBlobs: 12,
   updateInterval: 1,
-  blobSmooth: 0,
-  strokeWidth: 1,
-  blobSize: 64,
-  fontSize: 11,
-  overlayColor: '#ffffff',
+
+  // Shape (one active style + 4 knobs).
+  //   trackShape:           'solid' | 'hollow' | 'dotted' | 'corners'
+  //   trackShapeColor       0..1  — hue knob (0=white)
+  //   trackShapeThickness   1..8  — line/dot weight
+  //   trackShapePadding   -20..20 — bbox padding
+  //   trackShapeStyle       0..1  — style-specific knob (varies per shape)
+  trackShape: 'solid',
+  trackShapeColor: 0, trackShapeThickness: 2, trackShapePadding: 0, trackShapeStyle: 0.5,
+
+  // Lines (5 graph types + 4 knobs).
+  //   trackLines:           'off' | 'distthresh' | 'velocity' | 'pulse' | 'constellation'
+  //   trackLinesColor       0..1
+  //   trackLinesThickness   1..6
+  //   trackLinesParam       0..1  — type-specific
+  //   trackLinesTaper       0..1
+  trackLines: 'off',
+  trackLinesColor: 0, trackLinesThickness: 1, trackLinesParam: 0.5, trackLinesTaper: 0,
+
+  // Track FX rack (3 slots, like colorRack) — initialized via makeTrackFxRack()
+  // at startup. Stores up to 3 stackable tracking effects: echo / radar / heatmap.
 });
 
-const STORAGE_KEY = 'fluxkit-state-v2';
+// Storage key bumped because the state schema changed: STRUCTURE lost
+// voronoi/cellular/wave/shatter, detection knobs renamed, BlobTracking
+// (TRACK-mode) state added. Old v2 saves are dropped silently.
+const STORAGE_KEY = 'fluxkit-state-v3';
 
 // Color rack: 3 fixed slots, each holding one COLOR effect (or empty), with
 // per-slot enable/disable + drag-to-reorder. Renders in series — slot 0 reads
@@ -158,13 +186,79 @@ function makeColorRack() {
   }));
 }
 
-const state = { ...DEFAULTS, hasSource: false, colorRack: makeColorRack() };
+// ============================================================
+// TRACK FX RACK — same 3-slot pattern as colorRack but for the spec's
+// three TRACK-mode effects (echo blobs / radar sweep / heatmap residue).
+// Each slot has the same shape (id, type, enabled, params); the picker,
+// schemas, and dispatch are independent.
+// ============================================================
+const TRACK_FX_PARAM_SCHEMAS = {
+  echo: {
+    knobs: [
+      { key: 'depth',   label: 'Depth',   min: 1, max: 10, step: 1,    default: 4,   tip: 'How many past blob positions show. 1 = single ghost. 10 = long fading trail of bbox echoes.' },
+      { key: 'opacity', label: 'Opacity', min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Visibility of the echo bboxes. 0 = invisible. 1 = full strength echoes.' },
+      { key: 'decay',   label: 'Decay',   min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Falloff curve. 0 = chunky (equal opacity per echo step). 1 = smooth exponential taper.' },
+      { key: 'offset',  label: 'Offset',  min: 0, max: 1,  step: 0.01, default: 0,   tip: '0 = echoes sit exactly where the blob was. 1 = scaled-down or scaled-up slightly per step (depth pulse).' },
+    ],
+    order: ['depth', 'opacity', 'decay', 'offset'],
+  },
+  radar: {
+    knobs: [
+      { key: 'speed',      label: 'Speed', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Rotation speed of the sweep arm.' },
+      { key: 'trail',      label: 'Trail', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'How long blobs persist after the sweep crosses them. 0 = brief flash. 1 = lingering glow.' },
+      { key: 'sweepWidth', label: 'Width', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Width of the rotating arc. 0 = laser line. 1 = wide pie-slice.' },
+      { key: 'direction',  label: 'Dir',   min: -1, max: 1, step: 0.01, default: 1,   tip: '-1 = sweeps counterclockwise. 0 = oscillates back and forth. +1 = sweeps clockwise.' },
+    ],
+    order: ['speed', 'trail', 'sweepWidth', 'direction'],
+  },
+  heatmap: {
+    knobs: [
+      { key: 'intensity', label: 'Int',    min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Visibility of the heatmap layer.' },
+      { key: 'decay',     label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'How quickly old positions fade. 0 = forever. 1 = quick.' },
+      { key: 'spread',    label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Radius of the glow around each blob position. Low = pinpoint. High = wide bloom.' },
+      { key: 'palette',   label: 'Pal',    min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = thermal (red-yellow-white). 0.5 = cool (blue-cyan-white). 1 = rainbow.' },
+    ],
+    order: ['intensity', 'decay', 'spread', 'palette'],
+  },
+};
+
+function makeTrackFxFactoryParams(type) {
+  const schema = TRACK_FX_PARAM_SCHEMAS[type];
+  if (!schema) return {};
+  const p = {};
+  for (const k of schema.knobs) p[k.key] = k.default;
+  return p;
+}
+
+function makeTrackFxRack() {
+  return Array.from({ length: RACK_SLOTS }, () => ({
+    id: makeSlotId(),
+    type: 'none',
+    enabled: false,
+    params: {},
+  }));
+}
+
+// state.sourceKind tracks which input element is currently driving the chain:
+//   null    — no source loaded
+//   'video' — file-loaded HTMLVideoElement (#video, src= via createObjectURL)
+//   'webcam'— same #video element, srcObject = MediaStream
+//   'image' — HTMLImageElement (#image), still-frame source
+// Not persisted (follows the source, which is not persisted across reloads).
+const state = {
+  ...DEFAULTS,
+  hasSource: false,
+  sourceKind: null,
+  colorRack: makeColorRack(),
+  trackFxRack: makeTrackFxRack(),
+};
 
 let frameCount  = 0;
 let cachedBlobs = [];
 let rafHandle   = 0;
 
 const video        = document.getElementById('video');
+const imageEl      = document.getElementById('image');
 const canvas       = document.getElementById('main-canvas');
 // GPU-backed display canvas. We only read from it when a CPU-filter is active
 // (inv/thermal), and that path now does ONE batched getImageData per frame
@@ -191,7 +285,7 @@ const btnPlay      = document.getElementById('btn-play');
 const videoScrub   = document.getElementById('video-scrub');
 const videoTime    = document.getElementById('video-time');
 const fpsOverlay   = document.getElementById('fps-overlay');
-const swatchGrid   = document.getElementById('swatch-grid');
+// (overlay-color swatch grid retired — replaced by per-shape/per-lines hue knob)
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
@@ -435,51 +529,29 @@ document.querySelectorAll('[data-knob]').forEach(initKnob);
 _hiddenCards.forEach(c => c.classList.add('hidden'));
 
 // ---- Toggle groups ----
-// Pipeline categorization. STRUCTURE effects still have right-panel cards
-// driven by global `state.X` knobs (single-select stage). COLOR effects
-// are per-slot now — their knobs live inline inside the rack slot, and
-// runEffect() does NOT dispatch them (use runColorEffect with slot.params).
-const STRUCTURE_SECTIONS = ['voronoi','cellular','ascii','shatter','erode','wave'];
+// Pipeline categorization. STRUCTURE in v3 is the trimmed spec set:
+// none / ASCII / Erode (per "remove extras from UI" — voronoi, cellular,
+// shatter, wave were dropped because they're not in the spec's 9). COLOR
+// effects remain per-slot in the rack.
+const STRUCTURE_SECTIONS = ['ascii', 'erode'];
 const COLOR_SECTIONS     = ['oxide','synth','biolum','thermo','falsecolor'];
-const GL_RESETS          = { voronoi: resetVoronoi, cellular: resetCA, wave: resetWave };
+// No GL_RESETS: ascii is stateless and erode is a single-frame
+// morphological op, so neither needs a per-source-switch reset.
+const GL_RESETS          = {};
 
 // Centralized STRUCTURE effect dispatch: pulls per-effect knob values
 // from global `state` and forwards them to the correct module with a
 // uniform call shape. COLOR effects are dispatched separately via
 // runColorEffect (each color slot owns its own params).
-//
-// `name` is one of STRUCTURE_SECTIONS. `opts` (optional) flows straight
-// through to the effect module's chain hooks.
 function runEffect(name, opts) {
   switch (name) {
-    case 'voronoi':
-      return applyVoronoi(canvas.width, canvas.height, {
-        threshold: state.voronoiThreshold, jumpDist: state.voronoiJumpDist,
-        falloff: state.voronoiFalloff, edgeLines: state.voronoiEdgeLines,
-      }, opts);
-    case 'cellular':
-      return applyCA(canvas.width, canvas.height, {
-        density: state.caDensity, stability: state.caStability,
-        evolutionSpeed: state.caEvolutionSpeed, sourceInflux: state.caSourceInflux,
-      }, opts);
     case 'ascii':
       return applyASCII(canvas.width, canvas.height, {
         cellSize: state.asciiCellSize, contrast: state.asciiContrast,
         blackThreshold: state.asciiBlackThresh, glyphStrength: state.asciiGlyphStrength,
       }, opts);
-    case 'wave':
-      return applyWave(canvas.width, canvas.height, {
-        sourceStrength: state.waveSource, damping: state.waveDamp,
-        speed: state.waveSpeed, contrast: state.waveContr,
-      }, opts);
-    case 'shatter':
-      return applyGLFilter('shatter',    canvas.width, canvas.height, [state.shatterCells, state.shatterCrack, state.shatterFill, state.shatterRandom],          opts);
     case 'erode':
-      return applyGLFilter('erode',      canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge],                opts);
-    // COLOR effects intentionally NOT dispatched here. Colors are
-    // per-slot now and need their slot's params; runColorEffect handles
-    // them. Calling runEffect('synth') without a params source would be
-    // ambiguous (which synth slot?) so it just no-ops with a warn.
+      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], opts);
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -512,11 +584,7 @@ function runColorEffect(name, params, opts) {
 // rule when a chain runs (use the COLOR stage's blend mode at the final
 // composite).
 const BLEND_MODES = {
-  voronoi:    'screen',
-  cellular:   'screen',
-  wave:       'screen',
   ascii:      'source-over',
-  shatter:    'source-over',
   erode:      'source-over',
   oxide:      'source-over',
   synth:      'source-over',
@@ -526,16 +594,16 @@ const BLEND_MODES = {
 };
 
 const TOGGLE_CONFIG = [
-  ['speed-group',       'speed',       parseFloat, (v) => { video.playbackRate = v; }],
-  ['shape-group',       'shape',       String,     null],
-  ['style-group',       'regionStyle', String,     null],
-  ['structure-group',   'structure',   String,     onStructureChange],
-  ['perblob-group',     'perBlob',     String,     onPerBlobChange],
-  ['detect-mode-group', 'detectMode',  String,     () => { resetFrameHistory(); }],
-  ['blob-size-group',   'blobSize',    parseInt,   null],
-  ['erode-mode-group',  'erodeMode',   parseInt,   null],
-  // false-band-group retired — falsecolor's banding toggle is now an
-  // inline per-slot toggle inside the color rack (see COLOR_PARAM_SCHEMAS).
+  ['speed-group',           'speed',          parseFloat, (v) => { video.playbackRate = v; }],
+  ['structure-group',       'structure',      String,     onStructureChange],
+  ['perblob-group',         'perBlob',        String,     onPerBlobChange],
+  ['erode-mode-group',      'erodeMode',      parseInt,   null],
+  // ============ TRACK-mode toggle groups ============
+  ['mode-group',            'mode',           String,     onModeChange],
+  ['track-composite-group', 'trackComposite', String,     null],
+  ['lumi-channel-group',    'trackChannel',   String,     () => { resetFrameHistory(); }],
+  ['track-shape-group',     'trackShape',     String,     null],
+  ['track-lines-group',     'trackLines',     String,     null],
 ];
 
 // Resolve which effects render this frame. STRUCTURE plus 0-3 chained
@@ -598,6 +666,16 @@ function onStructureChange(v) {
 // this hook intentionally has no side effects beyond that.
 function onPerBlobChange(_v) { /* intentionally empty */ }
 
+// Mode toggle. Drives section visibility via body[data-mode] (the CSS
+// rule [data-mode-section="track"] / [data-mode-section="synth"] reacts
+// to this attribute). Also resets per-source overlay state when leaving
+// TRACK so stale trails / heatmap residue don't bleed into the next
+// session.
+function onModeChange(v) {
+  document.body.setAttribute('data-mode', v);
+  if (v !== 'track') resetTrackOverlay();
+}
+
 function setToggleGroupValue(groupId, value) {
   const group = document.getElementById(groupId);
   if (!group) return;
@@ -636,26 +714,10 @@ function wireToggleGroup(groupId, stateKey, parser, onChange) {
 }
 TOGGLE_CONFIG.forEach(([id, key, parser, onChange]) => wireToggleGroup(id, key, parser, onChange));
 
-// ---- Color (swatches + native picker) ----
-const colorPicker = document.getElementById('overlay-color');
-const colorLabel  = document.getElementById('overlay-color-val');
-
-function updateOverlayColor(value) {
-  state.overlayColor = value;
-  colorPicker.value = value;
-  colorLabel.textContent = value;
-  swatchGrid.querySelectorAll('.swatch-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.swatch.toLowerCase() === value.toLowerCase());
-  });
-  schedulePersist();
-}
-
-colorPicker.addEventListener('input', () => updateOverlayColor(colorPicker.value));
-swatchGrid.addEventListener('click', (e) => {
-  const btn = e.target.closest('.swatch-btn');
-  if (!btn) return;
-  updateOverlayColor(btn.dataset.swatch);
-});
+// Overlay color picker (swatches + native picker) was retired — the
+// per-shape COLOR knob (trackShapeColor) and per-lines COLOR knob
+// (trackLinesColor) replace it. Their hue value drives every shape
+// stroke / line stroke / dot in the new BlobTracking renderer.
 
 // ============================================================
 // COLOR RACK — custom widget (not a toggle group).
@@ -1106,6 +1168,335 @@ colorRackEl?.addEventListener('drop', (e) => {
   _dragSrcIdx = null;
 });
 
+// ============================================================
+// TRACK FX RACK — parallel to colorRack with its own DOM/picker state.
+// Reuses the same .color-rack-* classes (no new visuals per "ignore visual
+// style"); slots live in #track-fx-rack and the picker in
+// #track-fx-picker-popover. Slot mutations operate on state.trackFxRack
+// and call schedulePersist + renderTrackFxRack to round-trip through
+// the same persistence path the color rack uses.
+// ============================================================
+const trackFxRackEl       = document.getElementById('track-fx-rack');
+const trackFxPickerEl     = document.getElementById('track-fx-picker-popover');
+
+const TRACK_FX_LABEL = { echo: 'Echo', radar: 'Radar', heatmap: 'Heatmap' };
+// Cheap solid-color swatches — visual style ignored per scope, so we just
+// pick one identifying tint per effect; the rack chip pattern needs *some*
+// gradient to fill the swatch area.
+const TRACK_FX_SWATCH_GRADIENTS = {
+  echo:    'linear-gradient(135deg, #444, #888, #444)',
+  radar:   'linear-gradient(135deg, #001a40, #00aacc, #88ddff)',
+  heatmap: 'linear-gradient(90deg, #000, #5a0000, #ff5500, #ffea00, #fff)',
+};
+const TRACK_FX_CHIP_TIP = {
+  echo:    'Echo Blobs in this slot. Past N frames\' bboxes appear faintly behind current. Click to swap.',
+  radar:   'Radar Sweep in this slot. Rotating arc reveals blobs as it crosses them. Click to swap.',
+  heatmap: 'Heatmap Residue in this slot. Wherever blobs have been recently glows. Click to swap.',
+};
+
+let _openTrackFxPickerSlotId = null;
+const _expandedTrackFxSlots  = new Set();
+
+function renderTrackFxRack() {
+  if (!trackFxRackEl) return;
+  trackFxRackEl.innerHTML = '';
+  for (let i = 0; i < state.trackFxRack.length; i++) {
+    const slot     = state.trackFxRack[i];
+    const filled   = slot.type !== 'none';
+    const expanded = filled && _expandedTrackFxSlots.has(slot.id);
+
+    const el = document.createElement('div');
+    el.className = 'color-rack-slot';
+    el.setAttribute('role', 'listitem');
+    el.dataset.slotId  = slot.id;
+    el.dataset.slotIdx = String(i);
+    el.dataset.empty   = filled ? 'false' : 'true';
+    el.dataset.enabled = (slot.enabled && filled) ? 'true' : 'false';
+    el.dataset.expanded = expanded ? 'true' : 'false';
+    el.draggable = true;
+
+    const row = document.createElement('div');
+    row.className = 'color-rack-slot-row';
+    el.appendChild(row);
+
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'color-rack-handle';
+    handle.setAttribute('aria-label', 'Drag to reorder slot');
+    handle.dataset.tip = 'Drag to reorder this tracking effect.';
+    handle.textContent = '≡';
+    row.appendChild(handle);
+
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'color-rack-chip';
+    chip.setAttribute('aria-haspopup', 'true');
+    chip.setAttribute('aria-expanded', _openTrackFxPickerSlotId === slot.id ? 'true' : 'false');
+    chip.dataset.action = 'open-picker';
+    if (filled) {
+      chip.dataset.tip = TRACK_FX_CHIP_TIP[slot.type] || '';
+      const swatch = document.createElement('span');
+      swatch.className = 'color-rack-chip-swatch';
+      swatch.style.background = TRACK_FX_SWATCH_GRADIENTS[slot.type] || '';
+      const label = document.createElement('span');
+      label.className = 'color-rack-chip-label';
+      label.textContent = TRACK_FX_LABEL[slot.type] || slot.type;
+      chip.appendChild(swatch);
+      chip.appendChild(label);
+    } else {
+      chip.dataset.tip = 'Empty slot. Click to add a tracking effect.';
+      const empty = document.createElement('span');
+      empty.className = 'color-rack-chip-empty';
+      empty.textContent = '+ add effect';
+      chip.appendChild(empty);
+    }
+    row.appendChild(chip);
+
+    if (filled) {
+      const chev = document.createElement('button');
+      chev.type = 'button';
+      chev.className = 'color-rack-chevron';
+      chev.dataset.action = 'expand';
+      chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      chev.dataset.tip = expanded ? 'Hide this slot\'s knobs.' : 'Show this slot\'s knobs.';
+      chev.textContent = expanded ? '▴' : '▾';
+      row.appendChild(chev);
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'color-rack-toggle';
+      toggle.dataset.action = 'toggle';
+      toggle.setAttribute('aria-pressed', slot.enabled ? 'true' : 'false');
+      toggle.dataset.tip = slot.enabled ? 'Disable this slot.' : 'Enable this slot.';
+      toggle.textContent = slot.enabled ? '✓' : '⊘';
+      row.appendChild(toggle);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'color-rack-remove';
+      remove.dataset.action = 'remove';
+      remove.dataset.tip = 'Clear this slot.';
+      remove.textContent = '×';
+      row.appendChild(remove);
+    }
+
+    if (expanded) {
+      const panel = renderTrackFxSlotPanel(slot);
+      el.appendChild(panel);
+    }
+
+    trackFxRackEl.appendChild(el);
+  }
+}
+
+function renderTrackFxSlotPanel(slot) {
+  const schema = TRACK_FX_PARAM_SCHEMAS[slot.type];
+  const panel = document.createElement('div');
+  panel.className = 'color-rack-slot-panel';
+  if (!schema) return panel;
+
+  const phead = document.createElement('div');
+  phead.className = 'color-rack-slot-panel-head';
+  const ptitle = document.createElement('span');
+  ptitle.className = 'color-rack-slot-panel-title';
+  ptitle.textContent = `${TRACK_FX_LABEL[slot.type] || slot.type} knobs`;
+  phead.appendChild(ptitle);
+  const presetBtn = document.createElement('button');
+  presetBtn.type = 'button';
+  presetBtn.className = 'color-rack-slot-reset';
+  presetBtn.dataset.action = 'reset-params';
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s knobs to factory.';
+  presetBtn.textContent = '⟲';
+  phead.appendChild(presetBtn);
+  panel.appendChild(phead);
+
+  const grid = document.createElement('div');
+  grid.className = 'color-rack-slot-knob-grid';
+  for (const k of schema.knobs) {
+    const knobId = `trackfx-${slot.id}-${k.key}`;
+    const valId  = `${knobId}-val`;
+    const knobEl = document.createElement('div');
+    knobEl.className = 'knob slot-knob';
+    knobEl.id = knobId;
+    knobEl.dataset.knob = '';
+    knobEl.dataset.min     = String(k.min);
+    knobEl.dataset.max     = String(k.max);
+    knobEl.dataset.step    = String(k.step);
+    knobEl.dataset.default = String(k.default);
+    knobEl.dataset.tip     = k.tip;
+    knobEl.tabIndex = 0;
+    knobEl.setAttribute('aria-label', `${TRACK_FX_LABEL[slot.type]} ${k.label}`);
+    const labelEl = document.createElement('span');
+    labelEl.className = 'knob-label';
+    labelEl.textContent = k.label;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'knob-val';
+    valSpan.id = valId;
+    valSpan.textContent = String(slot.params[k.key] ?? k.default);
+    knobEl.appendChild(labelEl);
+    knobEl.appendChild(valSpan);
+    grid.appendChild(knobEl);
+
+    initKnob(knobEl, {
+      writeValue:   (v) => { slot.params[k.key] = v; },
+      initialValue: slot.params[k.key] ?? k.default,
+    });
+  }
+  panel.appendChild(grid);
+
+  return panel;
+}
+
+// ---- Slot mutation helpers (parallel to colorRack) ----
+function setTrackFxSlotType(slotId, type) {
+  const slot = state.trackFxRack.find((s) => s.id === slotId);
+  if (!slot) return;
+  if (type === 'none') {
+    slot.type = 'none';
+    slot.enabled = false;
+    slot.params = {};
+  } else {
+    slot.type = type;
+    slot.enabled = true;
+    slot.params = makeTrackFxFactoryParams(type);
+  }
+  _expandedTrackFxSlots.delete(slotId);
+  renderTrackFxRack();
+  schedulePersist();
+}
+function toggleTrackFxSlot(slotId) {
+  const slot = state.trackFxRack.find((s) => s.id === slotId);
+  if (!slot || slot.type === 'none') return;
+  slot.enabled = !slot.enabled;
+  renderTrackFxRack();
+  schedulePersist();
+}
+function clearTrackFxSlot(slotId) {
+  const slot = state.trackFxRack.find((s) => s.id === slotId);
+  if (!slot) return;
+  slot.type = 'none';
+  slot.enabled = false;
+  slot.params = {};
+  _expandedTrackFxSlots.delete(slotId);
+  renderTrackFxRack();
+  schedulePersist();
+}
+function resetTrackFxSlotParams(slotId) {
+  const slot = state.trackFxRack.find((s) => s.id === slotId);
+  if (!slot || slot.type === 'none') return;
+  slot.params = makeTrackFxFactoryParams(slot.type);
+  renderTrackFxRack();
+  schedulePersist();
+}
+function reorderTrackFxSlot(srcIdx, dstIdx) {
+  if (srcIdx === dstIdx) return;
+  const arr = state.trackFxRack.slice();
+  const [moved] = arr.splice(srcIdx, 1);
+  arr.splice(dstIdx, 0, moved);
+  state.trackFxRack = arr;
+  renderTrackFxRack();
+  schedulePersist();
+}
+
+function openTrackFxPicker(slotEl) {
+  const slotId = slotEl.dataset.slotId;
+  _openTrackFxPickerSlotId = slotId;
+  const r = slotEl.getBoundingClientRect();
+  trackFxPickerEl.classList.remove('hidden');
+  const pr = trackFxPickerEl.getBoundingClientRect();
+  let top  = r.bottom + 4;
+  let left = r.right - pr.width;
+  if (top + pr.height > window.innerHeight - 8) top = r.top - pr.height - 4;
+  if (left < 8) left = 8;
+  trackFxPickerEl.style.top  = `${top}px`;
+  trackFxPickerEl.style.left = `${left}px`;
+  const chip = slotEl.querySelector('.color-rack-chip');
+  if (chip) chip.setAttribute('aria-expanded', 'true');
+}
+function closeTrackFxPicker() {
+  if (!_openTrackFxPickerSlotId) return;
+  _openTrackFxPickerSlotId = null;
+  trackFxPickerEl.classList.add('hidden');
+  for (const chip of trackFxRackEl.querySelectorAll('.color-rack-chip')) {
+    chip.setAttribute('aria-expanded', 'false');
+  }
+}
+
+trackFxRackEl?.addEventListener('click', (e) => {
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) return;
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (!action) return;
+  const slotId = slotEl.dataset.slotId;
+  if (action === 'open-picker') {
+    if (_openTrackFxPickerSlotId === slotId) { closeTrackFxPicker(); return; }
+    openTrackFxPicker(slotEl);
+  } else if (action === 'toggle') {
+    toggleTrackFxSlot(slotId);
+  } else if (action === 'remove') {
+    clearTrackFxSlot(slotId);
+  } else if (action === 'expand') {
+    if (_expandedTrackFxSlots.has(slotId)) _expandedTrackFxSlots.delete(slotId);
+    else                                   _expandedTrackFxSlots.add(slotId);
+    renderTrackFxRack();
+  } else if (action === 'reset-params') {
+    resetTrackFxSlotParams(slotId);
+  }
+});
+
+trackFxPickerEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-pick-trackfx]');
+  if (!btn || !_openTrackFxPickerSlotId) return;
+  setTrackFxSlotType(_openTrackFxPickerSlotId, btn.dataset.pickTrackfx);
+  closeTrackFxPicker();
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!_openTrackFxPickerSlotId) return;
+  if (trackFxPickerEl.contains(e.target)) return;
+  if (e.target.closest(`#track-fx-rack .color-rack-slot[data-slot-id="${_openTrackFxPickerSlotId}"]`)) return;
+  closeTrackFxPicker();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && _openTrackFxPickerSlotId) closeTrackFxPicker();
+});
+
+// Independent drag-state for the trackFx rack so a drag here doesn't
+// confuse the colorRack drag-state and vice versa.
+let _trackFxDragSrcIdx = null;
+trackFxRackEl?.addEventListener('dragstart', (e) => {
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) { e.preventDefault(); return; }
+  _trackFxDragSrcIdx = parseInt(slotEl.dataset.slotIdx, 10);
+  slotEl.classList.add('dragging');
+  e.dataTransfer.setData('text/plain', String(_trackFxDragSrcIdx));
+  e.dataTransfer.effectAllowed = 'move';
+});
+trackFxRackEl?.addEventListener('dragend', () => {
+  _trackFxDragSrcIdx = null;
+  for (const el of trackFxRackEl.querySelectorAll('.color-rack-slot')) {
+    el.classList.remove('dragging', 'drop-target');
+  }
+});
+trackFxRackEl?.addEventListener('dragover', (e) => {
+  if (_trackFxDragSrcIdx === null) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const slotEl = e.target.closest('.color-rack-slot');
+  for (const el of trackFxRackEl.querySelectorAll('.color-rack-slot')) {
+    el.classList.toggle('drop-target', el === slotEl && el !== e.currentTarget.querySelector('.dragging'));
+  }
+});
+trackFxRackEl?.addEventListener('drop', (e) => {
+  if (_trackFxDragSrcIdx === null) return;
+  e.preventDefault();
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) return;
+  const dstIdx = parseInt(slotEl.dataset.slotIdx, 10);
+  reorderTrackFxSlot(_trackFxDragSrcIdx, dstIdx);
+  _trackFxDragSrcIdx = null;
+});
+
 // ---- Apply persisted state to UI ----
 function applyStateToUI() {
   _applyingState = true;
@@ -1118,13 +1509,14 @@ function applyStateToUI() {
       setToggleGroupValue(groupId, state[key]);
       if (onChange) onChange(state[key]);
     }
-    updateOverlayColor(state.overlayColor);
     video.playbackRate = state.speed;
-    // Color rack is a custom widget (not a toggle group), so it has to
-    // render itself rather than ride the TOGGLE_CONFIG loop. Runs inside
-    // the _applyingState guard so any future side effects on render don't
-    // double-fire during state restore.
+    document.body.setAttribute('data-mode', state.mode);
+    // Color rack + track FX rack are custom widgets (not toggle groups),
+    // so they have to render themselves rather than ride the TOGGLE_CONFIG
+    // loop. Both run inside the _applyingState guard so any future side
+    // effects on render don't double-fire during state restore.
     renderColorRack();
+    renderTrackFxRack();
   } finally {
     _applyingState = false;
   }
@@ -1233,8 +1625,41 @@ function loadPersistedState() {
       'falsePalette','falseBand','falseBandCnt','falseBright',
     ];
     for (const k of DEAD_GLOBAL_COLOR_KEYS) delete parsed[k];
+
+    // Track FX rack — same defensive migration as colorRack: validate
+    // each slot, fall back to factory params when malformed, drop unknown
+    // types. STORAGE_KEY bumped to v3 so first-load-after-this-commit
+    // sees no parsed.trackFxRack and uses the fresh rack from state init.
+    const TRACK_FX_TYPES = Object.keys(TRACK_FX_PARAM_SCHEMAS);
+    if (parsed.trackFxRack && (!Array.isArray(parsed.trackFxRack) || parsed.trackFxRack.length !== RACK_SLOTS)) {
+      parsed.trackFxRack = makeTrackFxRack();
+    }
+    if (Array.isArray(parsed.trackFxRack)) {
+      parsed.trackFxRack = parsed.trackFxRack.map((slot) => {
+        if (!slot || typeof slot !== 'object') {
+          return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
+        }
+        const type = (slot.type === 'none' || TRACK_FX_TYPES.includes(slot.type)) ? slot.type : 'none';
+        const factoryP = makeTrackFxFactoryParams(type);
+        let params = factoryP;
+        if (slot.params && typeof slot.params === 'object') {
+          params = { ...factoryP };
+          for (const k of Object.keys(factoryP)) {
+            const v = slot.params[k];
+            if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
+          }
+        }
+        return {
+          id:      slot.id || makeSlotId(),
+          type,
+          enabled: !!slot.enabled && type !== 'none',
+          params,
+        };
+      });
+    }
     for (const k of Object.keys(DEFAULTS)) if (k in parsed) state[k] = parsed[k];
-    if (parsed.colorRack) state.colorRack = parsed.colorRack;
+    if (parsed.colorRack)    state.colorRack    = parsed.colorRack;
+    if (parsed.trackFxRack)  state.trackFxRack  = parsed.trackFxRack;
   } catch { /* ignore */ }
 }
 
@@ -1242,8 +1667,10 @@ function loadPersistedState() {
 let resetConfirmTimer = 0;
 function performFullReset() {
   for (const k of Object.keys(DEFAULTS)) state[k] = DEFAULTS[k];
-  // colorRack lives outside DEFAULTS (per-instance ids); reset explicitly.
-  state.colorRack = makeColorRack();
+  // colorRack + trackFxRack live outside DEFAULTS (per-instance ids);
+  // reset explicitly so each session has fresh slot ids and factory params.
+  state.colorRack   = makeColorRack();
+  state.trackFxRack = makeTrackFxRack();
   applyStateToUI();
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   showToast('Reset to defaults', 'ok', 2500);
@@ -1302,7 +1729,7 @@ function takeSnapshot() {
     const a = document.createElement('a');
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     a.href = url;
-    a.download = `fluxkit-${ts}.png`;
+    a.download = `lumisynth-${ts}.png`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1457,7 +1884,7 @@ function finalizeRecording() {
   const a    = document.createElement('a');
   const ts   = new Date().toISOString().replace(/[:.]/g, '-');
   a.href = url;
-  a.download = `fluxkit-${ts}.${fmt.ext}`;
+  a.download = `lumisynth-${ts}.${fmt.ext}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1560,8 +1987,23 @@ document.getElementById('btn-upload').addEventListener('click', () => fileInput.
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  loadVideoSource(URL.createObjectURL(file), file.name);
+  loadFileAsSource(file);
 });
+
+// Single dispatch point for any incoming File object (upload button or drop).
+// Routes by MIME type. Unsupported types surface a toast rather than silently
+// failing — we don't want a dropped audio file to look like the app froze.
+function loadFileAsSource(file) {
+  const type = file.type || '';
+  const url = URL.createObjectURL(file);
+  if (type.startsWith('video/')) {
+    loadVideoSource(url, file.name);
+  } else if (type.startsWith('image/')) {
+    loadImageSource(url, file.name);
+  } else {
+    showToast(`Unsupported file type: ${type || 'unknown'}`, 'error');
+  }
+}
 
 // ---- Camera ----
 document.getElementById('btn-camera').addEventListener('click', async () => {
@@ -1572,6 +2014,7 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
     video.srcObject = stream;
     await video.play();
     resetAllState();
+    state.sourceKind = 'webcam';
     setHasSource(true, 'Camera');
     videoControls.classList.add('hidden');     // no scrub for camera
     showToast('Camera active', 'ok', 2000);
@@ -1579,6 +2022,38 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
     showToast(`Camera unavailable: ${err.message || err.name}`, 'error', 6000);
   }
 });
+
+// ---- Active source helpers ----
+// Polymorphic accessors for the rendering pipeline. The current source can
+// be a video (file or webcam) or a still image. Render-loop sites use these
+// instead of touching `video` directly so adding new source kinds (e.g. the
+// Subject loop) stays a single-call-site change.
+function activeSourceEl() {
+  return state.sourceKind === 'image' ? imageEl : video;
+}
+function activeSourceWidth() {
+  return state.sourceKind === 'image'
+    ? (imageEl.naturalWidth || 0)
+    : (video.videoWidth || 0);
+}
+function activeSourceHeight() {
+  return state.sourceKind === 'image'
+    ? (imageEl.naturalHeight || 0)
+    : (video.videoHeight || 0);
+}
+function activeSourceReady() {
+  if (state.sourceKind === 'image') {
+    return imageEl.complete && imageEl.naturalWidth > 0;
+  }
+  return video.readyState >= 2 && video.videoWidth > 0;
+}
+// For images we treat the source as "always paused" — there's no temporal
+// dimension. The detection block guards on this so motion-mode doesn't
+// thrash on a constant frame, and so cachedBlobs stay stable on stills.
+function activeSourcePaused() {
+  if (state.sourceKind === 'image') return true;
+  return video.paused;
+}
 
 function loadVideoSource(url, label) {
   if (video.srcObject) {
@@ -1589,12 +2064,38 @@ function loadVideoSource(url, label) {
   video.loop = true;
   video.play().catch(() => {});
   resetAllState();
+  state.sourceKind = 'video';
   setHasSource(true, label || 'Video');
   videoControls.classList.remove('hidden');    // scrub available for files
 }
 
+function loadImageSource(url, label) {
+  // Tear down any active webcam stream — switching to image stops the camera.
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
+  // Pause and clear the video element so the previous video doesn't keep
+  // ticking in the background while we display an image.
+  try { video.pause(); } catch (_) {}
+  video.removeAttribute('src');
+  try { video.load(); } catch (_) {}
+
+  imageEl.onload = () => {
+    resetAllState();
+    state.sourceKind = 'image';
+    setHasSource(true, label || 'Image');
+    videoControls.classList.add('hidden');     // no transport for stills
+    resizeCanvas();
+  };
+  imageEl.onerror = () => {
+    showToast('Image failed to load', 'error');
+  };
+  imageEl.src = url;
+}
+
 function resetAllState() {
-  resetFrameHistory(); resetTracker(); resetVoronoi(); resetCA(); resetWave();
+  resetFrameHistory(); resetTracker(); resetTrackOverlay();
   cachedBlobs = []; frameCount = 0;
   // Smoothing state — both backends — gets purged so the next source
   // doesn't inherit a stale dead-filter pool that could mis-match its
@@ -1619,18 +2120,20 @@ function setHasSource(val, label) {
   btnSnapshot.disabled = !val;
   if (btnRecord) btnRecord.disabled = !val;
   if (val) {
-    const dims = (video.videoWidth && video.videoHeight)
-      ? ` · ${video.videoWidth}×${video.videoHeight}` : '';
+    const w = activeSourceWidth();
+    const h = activeSourceHeight();
+    const dims = (w && h) ? ` · ${w}×${h}` : '';
     updateSourceLabel((label || 'Source') + dims);
     if (rafHandle === 0) rafHandle = requestAnimationFrame(renderFrame);
   } else {
+    state.sourceKind = null;
     updateSourceLabel('No source loaded');
   }
 }
 
 video.addEventListener('loadedmetadata', () => {
   resizeCanvas();
-  if (state.hasSource && video.videoWidth && video.videoHeight) {
+  if (state.hasSource && state.sourceKind !== 'image' && video.videoWidth && video.videoHeight) {
     const current = fileStatus.textContent.split(' · ')[0];
     updateSourceLabel(`${current} · ${video.videoWidth}×${video.videoHeight}`);
   }
@@ -1664,11 +2167,7 @@ canvasArea.addEventListener('drop', (e) => {
   dropOverlay.classList.remove('visible');
   const file = [...(e.dataTransfer.files || [])][0];
   if (!file) return;
-  if (!file.type.startsWith('video/')) {
-    showToast(`Not a video file: ${file.type || 'unknown type'}`, 'error');
-    return;
-  }
-  loadVideoSource(URL.createObjectURL(file), file.name);
+  loadFileAsSource(file);
 });
 
 // ---- Video playback controls (hover-only, idle-hide) ----
@@ -1714,10 +2213,12 @@ video.addEventListener('timeupdate', () => {
 function resizeCanvas() {
   const aw = canvasArea.clientWidth;
   const ah = canvasArea.clientHeight;
-  if (!state.hasSource || video.videoWidth === 0) {
+  const sw = activeSourceWidth();
+  const sh = activeSourceHeight();
+  if (!state.hasSource || sw === 0 || sh === 0) {
     canvas.width = aw; canvas.height = ah; return;
   }
-  const vRatio = video.videoWidth / video.videoHeight;
+  const vRatio = sw / sh;
   const aRatio = aw / ah;
   let cw, ch;
   if (aRatio > vRatio) { ch = ah; cw = Math.round(ah * vRatio); }
@@ -1747,7 +2248,7 @@ window.addEventListener('resize', resizeCanvas);
 //      so it trades stationary smoothness against responsiveness with no
 //      adaptive recovery. Kept for fallback only.
 //
-// state.blobSmooth = 0 → bypass either backend entirely (raw Kalman out).
+// state.trackStability = 0 → bypass either backend entirely (raw Kalman out).
 
 const BLOB_SMOOTH_BACKEND = 'oneEuro';
 
@@ -1785,7 +2286,7 @@ const _deadFilters   = new Map();  // tracker id → { filter, lastBlob, ttl }
 const _displayBlobs = new Map();   // id → smoothed blob
 
 function _smoothBlobsOneEuro(latest, canvasW) {
-  const smooth = state.blobSmooth;
+  const smooth = state.trackStability;
   if (smooth <= 0.001) {
     if (_activeFilters.size) _activeFilters.clear();
     if (_deadFilters.size)   _deadFilters.clear();
@@ -1868,7 +2369,7 @@ function _smoothBlobsOneEuro(latest, canvasW) {
 // flipping BLOB_SMOOTH_BACKEND back is a single-character change. Do not
 // edit this without also reverting the doc comment above.
 function _smoothBlobsEMALegacy(latest) {
-  const smooth = state.blobSmooth;
+  const smooth = state.trackStability;
   if (smooth <= 0.001) {
     if (_displayBlobs.size) _displayBlobs.clear();
     return latest;
@@ -1933,11 +2434,12 @@ function renderFrame(nowDOMHi) {
   if (_fpsAccumMs < FRAME_BUDGET_MS) return;
   _fpsAccumMs -= FRAME_BUDGET_MS;
 
-  if (video.readyState < 2 || video.videoWidth === 0) return;
+  if (!activeSourceReady()) return;
+  const srcEl = activeSourceEl();
 
   const cw = canvas.width;
   const ch = canvas.height;
-  ctx.drawImage(video, 0, 0, cw, ch);
+  ctx.drawImage(srcEl, 0, 0, cw, ch);
 
   const ow = Math.max(1, Math.round(cw * DETECT_SCALE));
   const oh = Math.max(1, Math.round(ch * DETECT_SCALE));
@@ -1945,25 +2447,30 @@ function renderFrame(nowDOMHi) {
     offscreen.width = ow; offscreen.height = oh;
   }
   // Detection/tracking only runs while the source is actually playing. When
-  // paused, motion-mode would see zero frame-diff and starve every tracker
-  // until they cull, making blobs vanish. Luma-mode would re-detect the same
-  // bright pixels every tick, churning IDs. Either way: pause should freeze
-  // detection. cachedBlobs is preserved from the last playing frame so the
-  // overlays + per-blob filter still render against the frozen video frame
-  // (and the user can keep tweaking shape / size / color knobs to see the
-  // effect on a still image).
-  if (!video.paused) {
-    offCtx.drawImage(video, 0, 0, ow, oh);
+  // paused (video) or static (image), motion-mode would see zero frame-diff
+  // and starve every tracker until they cull, making blobs vanish. Luma-mode
+  // would re-detect the same bright pixels every tick, churning IDs. Either
+  // way: a frozen frame should freeze detection. cachedBlobs is preserved
+  // from the last playing frame so overlays + per-blob filter still render
+  // against the frozen frame (and the user can keep tweaking shape / size /
+  // color knobs to see the effect on a still). For image sources detection
+  // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
+  // so an image renders without overlays. (One-shot detection on stills is
+  // a deliberate v2 follow-up — out of scope for this image-input pass.)
+  if (!activeSourcePaused()) {
+    offCtx.drawImage(srcEl, 0, 0, ow, oh);
     const offImageData = offCtx.getImageData(0, 0, ow, oh);
 
     frameCount++;
-    if (frameCount % state.updateInterval === 0) {
-      const rawBlobs  = detectBlobs(offImageData, state.threshold, state.maxBlobs, state.detectMode);
+    if (frameCount % Math.max(1, state.updateInterval) === 0) {
+      const minSizeDetect = state.trackMinSize * DETECT_SCALE;
+      const cap = Math.min(30, state.trackMaxBlobs);
+      const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
       const sx = cw / ow, sy = ch / oh;
       const scaledRaw = rawBlobs.map(b => ({
         ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
       }));
-      cachedBlobs = trackBlobs(scaledRaw, cw, state.maxBlobs);
+      cachedBlobs = trackBlobs(scaledRaw, cw, cap);
     }
   }
   const blobs = smoothBlobs(cachedBlobs, cw);
@@ -1993,7 +2500,7 @@ function renderFrame(nowDOMHi) {
   const totalStages = (pipe.structure ? 1 : 0) + pipe.colors.length;
   if (totalStages > 0) {
     ensureContext(cw, ch);
-    uploadVideoFrame(video);
+    uploadVideoFrame(srcEl);
 
     if (totalStages === 1) {
       // Standalone single-stage fast path. No chain FBO allocation, no
@@ -2064,35 +2571,65 @@ function renderFrame(nowDOMHi) {
     }
   }
 
-  // Per-blob CPU filters (Inv / Thermal): ONE full-frame getImageData, N
-  // region passes that share the buffer, ONE putImageData. Replaces the
-  // old N-round-trip pattern (was 12-30 GPU↔CPU stalls per frame at
-  // maxBlobs default). Skipped entirely when no per-blob filter is active
-  // so the display canvas stays GPU-resident.
-  // Sourced from state.perBlob (was state.filter pre-P1; per-blob is now
-  // an independent stage that always layers on top of whatever the main
-  // STRUCTURE/COLOR chain rendered).
-  if (state.perBlob !== 'none' && blobs.length > 0 && state.blobSize > 0) {
+  // Per-blob CPU filter pass (Inv / Thermal — legacy, SYNTH-mode only).
+  // Hidden in TRACK mode to keep the BlobTracking visualization clean
+  // (the spec's TRACK mode is "BlobTracking on top of LumiSynth output";
+  // per-blob recoloring belongs to the LumiSynth chain, not the tracking
+  // overlay). The blob-size + shape knobs that used to drive this pass
+  // were retired with the rest of the legacy overlay UI; we hard-code
+  // 1× scale + rect clipping so the legacy behavior survives untouched
+  // under whatever blob extents Kalman tracks naturally.
+  if (state.perBlob !== 'none' && blobs.length > 0) {
     const full = ctx.getImageData(0, 0, cw, ch);
-    const blobScale = state.blobSize / 64;
     let touched = false;
     for (const blob of blobs) {
-      const cx = blob.x + blob.w / 2;
-      const cy = blob.y + blob.h / 2;
-      const sw = blob.w * blobScale;
-      const sh = blob.h * blobScale;
-      const bx = Math.max(0, Math.floor(cx - sw / 2));
-      const by = Math.max(0, Math.floor(cy - sh / 2));
-      const bw = Math.min(cw - bx, Math.ceil(sw));
-      const bh = Math.min(ch - by, Math.ceil(sh));
+      const bx = Math.max(0, Math.floor(blob.cx - blob.w / 2));
+      const by = Math.max(0, Math.floor(blob.cy - blob.h / 2));
+      const bw = Math.min(cw - bx, Math.ceil(blob.w));
+      const bh = Math.min(ch - by, Math.ceil(blob.h));
       if (bw <= 0 || bh <= 0) continue;
-      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, state.perBlob, state.shape);
+      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, state.perBlob, 'rect');
       touched = true;
     }
     if (touched) ctx.putImageData(full, 0, 0);
   }
 
-  drawOverlays(ctx, blobs, state.regionStyle, state.shape, state.connectionRate, state.strokeWidth, state.blobSize, state.fontSize, state.overlayColor);
+  // ============ BlobTracking overlay (TRACK mode only) ============
+  // ISOLATED composite: clear the canvas to black, then paint overlays —
+  // every LumiSynth pixel from above is wiped, leaving the tracking
+  // visualization on a clean black backdrop (spec: "clean export for
+  // VJs and analysts"). OVERLAY composite leaves the LumiSynth output
+  // alone and paints overlays on top.
+  if (state.mode === 'track') {
+    if (state.trackComposite === 'isolated') {
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.restore();
+    }
+    // Build the opts bag for the overlay renderer. trackFxRack contributes
+    // 0–3 effects, in slot order, only enabled non-empty slots.
+    const effects = state.trackFxRack
+      .filter((s) => s.enabled && s.type !== 'none')
+      .map((s) => ({ type: s.type, params: s.params }));
+    drawTrackOverlay(ctx, blobs, cw, ch, {
+      shape: {
+        type:       state.trackShape,
+        hueColor:   state.trackShapeColor,
+        thickness:  state.trackShapeThickness,
+        padding:    state.trackShapePadding,
+        styleParam: state.trackShapeStyle,
+      },
+      lines: {
+        type:      state.trackLines,
+        hueColor:  state.trackLinesColor,
+        thickness: state.trackLinesThickness,
+        param:     state.trackLinesParam,
+        taper:     state.trackLinesTaper,
+      },
+      effects,
+    });
+  }
 
   if (fpsEnabled) updateFps(blobs.length);
 }
@@ -2218,7 +2755,90 @@ if (import.meta.env.DEV) {
   });
 }
 
+// ---- Project name (inline rename in canvas-topbar) ----
+// Click the project-name pill to rename. Enter / blur commits, Esc cancels.
+// Persisted in localStorage under its own key (independent of the main state
+// blob to keep concerns separate). Default: untitled.lumi.
+const PROJECT_NAME_KEY = 'lumisynth-project-name';
+const DEFAULT_PROJECT_NAME = 'untitled.lumi';
+const projectNameEl = document.getElementById('topbar-projectname');
+
+function loadProjectName() {
+  if (!projectNameEl) return;
+  let name = DEFAULT_PROJECT_NAME;
+  try {
+    const stored = localStorage.getItem(PROJECT_NAME_KEY);
+    if (typeof stored === 'string' && stored.trim().length > 0) name = stored;
+  } catch (_) { /* localStorage unavailable — fall through to default */ }
+  projectNameEl.textContent = name;
+  document.title = `${name} — LumiSynth`;
+}
+
+function saveProjectName(name) {
+  try { localStorage.setItem(PROJECT_NAME_KEY, name); } catch (_) {}
+}
+
+function commitProjectName(rawText) {
+  if (!projectNameEl) return;
+  const trimmed = (rawText || '').trim();
+  const name = trimmed.length > 0 ? trimmed : DEFAULT_PROJECT_NAME;
+  projectNameEl.textContent = name;
+  document.title = `${name} — LumiSynth`;
+  saveProjectName(name);
+  projectNameEl.classList.remove('editing');
+  projectNameEl.setAttribute('contenteditable', 'false');
+}
+
+function cancelProjectNameEdit(originalName) {
+  if (!projectNameEl) return;
+  projectNameEl.textContent = originalName;
+  projectNameEl.classList.remove('editing');
+  projectNameEl.setAttribute('contenteditable', 'false');
+}
+
+if (projectNameEl) {
+  let beforeEdit = projectNameEl.textContent;
+
+  const beginEdit = () => {
+    if (projectNameEl.classList.contains('editing')) return;
+    beforeEdit = projectNameEl.textContent;
+    projectNameEl.classList.add('editing');
+    projectNameEl.setAttribute('contenteditable', 'plaintext-only');
+    projectNameEl.focus();
+    // Select all text inside the contenteditable for fast overwrite.
+    const range = document.createRange();
+    range.selectNodeContents(projectNameEl);
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  };
+
+  projectNameEl.addEventListener('click', beginEdit);
+  projectNameEl.addEventListener('keydown', (e) => {
+    // Enter from the static (non-editing) state also begins edit, since the
+    // element has tabindex=0 and role=button.
+    if (!projectNameEl.classList.contains('editing')) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); beginEdit(); }
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitProjectName(projectNameEl.textContent);
+      projectNameEl.blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelProjectNameEdit(beforeEdit);
+      projectNameEl.blur();
+    }
+  });
+  projectNameEl.addEventListener('blur', () => {
+    if (projectNameEl.classList.contains('editing')) {
+      commitProjectName(projectNameEl.textContent);
+    }
+  });
+}
+
 // ---- Init ----
+loadProjectName();
 loadPersistedState();
 applyStateToUI();
 canvas.width  = canvasArea.clientWidth;

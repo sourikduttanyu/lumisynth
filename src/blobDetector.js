@@ -31,13 +31,13 @@ export function resetFrameHistory() {
 
 /**
  * @param {ImageData}                                             imageData
- * @param {number}                                                threshold  per-mode cutoff:
- *                                                                  motion=diff delta, luma/dark/sharp/edge=raw, sat=chroma
+ * @param {number}                                                threshold  per-mode cutoff
  * @param {number}                                                maxBlobs   max blobs to return
  * @param {'motion'|'luma'|'dark'|'sat'|'edge'|'sharp'}           mode
+ * @param {number}                                                minSize    minimum blob bbox side in source pixels. 0 disables.
  * @returns {Array<{x,y,w,h,cx,cy,area,score,index}>}
  */
-export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion') {
+export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion', minSize = 0) {
   const { width, height, data } = imageData;
   const total = width * height;
 
@@ -144,11 +144,9 @@ export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion') {
         // strength[maxX-1, maxX, maxX+1] (and same for Y), use the analytic
         // vertex offset to get a fractional center inside the cell.
         //   offset = 0.5 * (s[-1] - s[+1]) / (s[-1] - 2*s[0] + s[+1])
-        // This kills the integer-pixel quantization that makes detected
-        // centers hop ±1 cell between frames even when the real blob
-        // barely moved — the dominant source of stationary-blob jitter.
-        // Skip when the peak is on the frame border (no valid neighbor) or
-        // the denominator is ~0 (locally flat region — no defined vertex).
+        // Kills integer-pixel quantization that makes detected centers hop
+        // ±1 cell between frames even when the real blob barely moved.
+        // Skip when peak is on frame border or denominator is ~0 (flat region).
         let subX = maxX, subY = maxY;
         if (maxX > 0 && maxX < width - 1) {
           const sL = strength[maxY * width + (maxX - 1)];
@@ -184,6 +182,11 @@ export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion') {
 
   const maxVal = peaks[0].val;
   const hs = cellSize / 2;
+
+  // Min-size filter: drop blobs whose cell side is smaller than minSize px.
+  // minSize=0 disables.
+  const passSize = (minSize <= 0) || (cellSize >= minSize);
+  if (!passSize) return [];
 
   return peaks.map((p, i) => ({
     x:     p.cx - hs,

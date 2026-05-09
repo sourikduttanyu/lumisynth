@@ -19,49 +19,6 @@ void main() {
 
 // ---- Fragment shaders ----
 
-const FRAG_SHATTER = `#version 300 es
-precision highp float;
-in vec2 vUV;
-uniform sampler2D u_video;
-uniform vec4 uParams;
-out vec4 fragColor;
-
-vec2 hash2(vec2 p) {
-  p = vec2(dot(p, vec2(127.1,311.7)), dot(p, vec2(269.5,183.3)));
-  return fract(sin(p) * 43758.5453);
-}
-void main() {
-  vec2 uv = vUV;
-  vec2 res = vec2(textureSize(u_video, 0));
-  float aspect = res.x / res.y;
-  vec2 coord = vec2(uv.x * aspect, uv.y);
-  float cellCount = mix(4.0, 40.0, uParams.x);
-  coord *= cellCount;
-  vec2 iCoord = floor(coord);
-  vec2 fCoord = fract(coord);
-  float minDist = 10.0, secondDist = 10.0;
-  vec2 nearestCell = vec2(0.0);
-  for (int y = -1; y <= 1; y++) {
-    for (int x = -1; x <= 1; x++) {
-      vec2 nb = vec2(float(x), float(y));
-      vec2 pt = hash2(iCoord + nb) * uParams.w + (1.0 - uParams.w) * 0.5;
-      float d = length(nb + pt - fCoord);
-      if (d < minDist) { secondDist = minDist; minDist = d; nearestCell = iCoord + nb + pt; }
-      else if (d < secondDist) { secondDist = d; }
-    }
-  }
-  float edge  = secondDist - minDist;
-  float crackW = mix(0.01, 0.15, uParams.y);
-  float crack  = 1.0 - smoothstep(crackW * 0.3, crackW, edge);
-  vec2 cellUV  = nearestCell / cellCount;
-  cellUV.x    /= aspect;
-  float cellVal = texture(u_video, clamp(cellUV, 0.0, 1.0)).r;
-  float pixVal  = texture(u_video, uv).r;
-  float fill    = mix(cellVal, pixVal, uParams.z);
-  float out_v   = fill * (1.0 - crack * 0.9);
-  fragColor = vec4(out_v, out_v, out_v, 1.0);
-}`;
-
 const FRAG_ERODE = `#version 300 es
 precision highp float;
 precision highp int;
@@ -257,7 +214,6 @@ void main() {
 }`;
 
 const FRAGS = {
-  shatter:    FRAG_SHATTER,
   erode:      FRAG_ERODE,
   oxide:      FRAG_OXIDE,
   synth:      FRAG_SYNTH,
@@ -318,7 +274,7 @@ function getProgram(name) {
 }
 
 /**
- * @param {string}                   name    filter name (shatter|erode|oxide|synth|biolum|thermo|falsecolor)
+ * @param {string}                   name    filter name (erode|oxide|synth|biolum|thermo|falsecolor)
  * @param {CanvasRenderingContext2D}  ctx
  * @param {number}                    cw, ch
  * @param {number[]}                  params  [p0,p1,p2,p3] → uParams.xyzw

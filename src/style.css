@@ -1139,6 +1139,32 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   color: var(--text-on-display);
   letter-spacing: 0.10em;
 }
+#canvas-topbar .topbar-projectname {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: oklch(92% 0.005 70 / 0.85);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  cursor: text;
+  user-select: none;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#canvas-topbar .topbar-projectname:hover,
+#canvas-topbar .topbar-projectname:focus {
+  border-color: var(--display-hairline);
+  outline: none;
+}
+#canvas-topbar .topbar-projectname.editing {
+  background: oklch(18% 0.01 70);
+  border-color: var(--display-hairline);
+  cursor: text;
+  user-select: text;
+}
 #canvas-topbar .topbar-source {
   flex: 1;
   color: oklch(92% 0.005 70 / 0.7);
@@ -1493,6 +1519,43 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ============================================================
+   MODE GATING — sections / topbar groups marked with
+   data-mode-section="synth" or "track" hide based on body[data-mode].
+   "ignore visual style" per scope: minimal display:none toggle, no
+   transitions or motion. Body data-mode is set/cleared by JS.
+   ============================================================ */
+body[data-mode="synth"] [data-mode-section="track"] { display: none !important; }
+body[data-mode="track"] [data-mode-section="synth"] { display: none !important; }
+
+/* Topbar mode toggle group — sits in the canvas-topbar between source
+   label and topbar-actions. Compact two-button radio matching the rest
+   of the .toggle-btn family but on the display surface (per the existing
+   #canvas-topbar .icon-btn pattern). */
+.topbar-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.topbar-mode .toggle-group { gap: var(--space-2xs); }
+.topbar-mode .toggle-btn {
+  background: var(--display-bezel);
+  border-color: var(--display-hairline);
+  color: var(--text-on-display);
+  min-height: 22px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 9px;
+  letter-spacing: 0.10em;
+}
+.topbar-mode .toggle-btn:hover { background: oklch(12% 0.005 70); }
+.topbar-mode .toggle-btn.active,
+.topbar-mode .toggle-btn[aria-checked="true"] {
+  background: var(--orange-signal);
+  color: oklch(15% 0.05 30);
+  border-color: transparent;
+  font-weight: 700;
 }
 
 /* ============================================================

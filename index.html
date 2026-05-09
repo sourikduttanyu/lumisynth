@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
+  <body data-mode="synth">
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
       <defs>
         <linearGradient id="knobGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -22,6 +22,8 @@
 
     <div id="app">
       <video id="video" playsinline muted loop style="display:none;"></video>
+      <img id="image" alt="" style="display:none;" />
+
 
       <aside id="sidebar" aria-label="FluxKit controls">
         <div class="sidebar-header">
@@ -33,13 +35,13 @@
         </div>
 
         <!-- ============ OSC ============ -->
-        <div class="stage-divider" data-stage="osc">OSC <span class="stage-sub">source · detection</span></div>
+        <div class="stage-divider" data-stage="osc">OSC <span class="stage-sub">source</span></div>
 
-        <section class="control-section" aria-label="Video input">
+        <section class="control-section" aria-label="Source input">
           <div class="section-label">Source</div>
-          <button id="btn-upload" class="action-btn" type="button">Upload Video</button>
+          <button id="btn-upload" class="action-btn" type="button">Upload</button>
           <button id="btn-camera" class="action-btn" type="button">Open Camera</button>
-          <input type="file" id="file-input" accept="video/*" class="hidden" />
+          <input type="file" id="file-input" accept="video/*,image/png,image/jpeg,image/webp" class="hidden" />
           <div id="file-status" class="file-status" aria-live="polite">No source loaded</div>
         </section>
 
@@ -53,67 +55,23 @@
           </div>
         </section>
 
-        <section class="control-section">
-          <div class="section-label" id="lbl-detect">Detect Mode</div>
-          <div class="toggle-group" id="detect-mode-group" role="radiogroup" aria-labelledby="lbl-detect">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="motion" data-tip="Detects regions changing between frames. Goes blind on paused or static video — switch to Luma, Edge, or Sharp for stills.">Motion</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="luma"   data-tip="Detects bright regions above the Sensitivity threshold. Good for tracking subjects against dark backgrounds.">Luma</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dark"   data-tip="Detects dark regions below the Sensitivity threshold. Mirror of Luma — good for silhouettes against bright backgrounds.">Dark</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="sat"    data-tip="Detects vivid color regions (high chroma) ignoring brightness. Good for tracking colored objects on monochrome backgrounds.">Sat</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="edge"   data-tip="Detects boundaries, corners, and text using a Sobel gradient. Works on paused frames since it doesn't need motion.">Edge</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="sharp"  data-tip="Detects high-frequency detail using a Laplacian. Tends to favor focused regions over blurred ones — useful for shallow depth-of-field footage.">Sharp</button>
-          </div>
-        </section>
-
-        <section class="control-section">
-          <div class="knob-grid">
-            <div class="knob" id="sensitivity"     data-knob data-state="threshold" data-min="10" data-max="100" data-step="1"    data-default="30" aria-label="Sensitivity (detection threshold)" data-tip="Detection threshold. Lower = more sensitive (more / weaker blobs). Higher = stricter (fewer / stronger blobs). Meaning depends on Detect Mode (frame-diff for Motion, brightness for Luma, etc.)." tabindex="0"><span class="knob-label">Sensitivity</span><span class="knob-val" id="sensitivity-val">30</span></div>
-            <div class="knob" id="max-blobs"       data-knob data-min="5"  data-max="30"  data-step="1"    data-default="12" aria-label="Max Blobs" data-tip="Maximum number of blobs to detect and track at once. Higher = more visual density but more CPU per frame." tabindex="0"><span class="knob-label">Max Blobs</span><span class="knob-val" id="max-blobs-val">12</span></div>
-            <div class="knob" id="update-interval" data-knob data-min="1"  data-max="30"  data-step="1"    data-default="1"  aria-label="Update Interval (frames)" data-tip="Run detection every N render frames. 1 = every frame (smoothest tracking). Higher = less CPU but jerkier movement; pair with Smooth to soften." tabindex="0"><span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
-            <div class="knob" id="blob-smooth"     data-knob data-min="0"  data-max="1"   data-step="0.01" data-default="0"  aria-label="Blob smoothing — adaptive low-pass on tracked blob position and size, opens up automatically when blobs move fast" data-tip="Adaptive smoothing on blob position + size. 0 = bypass (raw detections). Higher = heavier smoothing when blob is still (kills jitter), automatically opens up when blob moves fast (low lag). Survives brief detection dropouts without popping." tabindex="0"><span class="knob-label">Smooth</span><span class="knob-val" id="blob-smooth-val">0</span></div>
-          </div>
-        </section>
+        <!-- ============================================================
+             SYNTH-mode sections. Visible only when body[data-mode="synth"].
+             ============================================================ -->
 
         <!-- ============ STRUCTURE ============ -->
-        <!-- The geometry / pattern stage. Pick ONE structure that reshapes
-             the video before any color treatment. (P1 ships single-effect
-             dispatch; STRUCTURE → COLOR FBO chain lands in P2.) -->
-        <div class="stage-divider" data-stage="structure">STRUCTURE <span class="stage-sub">geometry · pattern</span></div>
+        <div class="stage-divider" data-stage="structure" data-mode-section="synth">STRUCTURE <span class="stage-sub">geometry · pattern</span></div>
 
-        <section class="control-section">
+        <section class="control-section" data-mode-section="synth">
           <div class="section-label" id="lbl-structure">Pick one</div>
           <div class="toggle-group filter-swatch-group" id="structure-group" role="radiogroup" aria-labelledby="lbl-structure">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"     aria-label="No structure"      data-tip="No structure stage. Video passes through to the COLOR stage unchanged."><span>None</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="voronoi"  aria-label="Voronoi"           data-tip="STRUCTURE. Voronoi diffusion. Bright spots in the video become seed points; the frame partitions into colored cells around them with a unique hue per cell."><span>Voronoi</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="cellular" aria-label="Cellular automata" data-tip="STRUCTURE. Conway-style cellular automaton seeded by video brightness. Live cells survive / die / birth based on neighbor counts; bright video pixels keep injecting new life."><span>Cellular</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii"    aria-label="ASCII shader"      data-tip="STRUCTURE. ASCII art. Replaces video with a grid of 5×7 bitmap characters; denser glyphs for brighter regions."><span>ASCII</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="shatter"  aria-label="Voronoi shatter"   data-tip="STRUCTURE. Voronoi shatter. The image breaks into irregular polygonal cells with cracks between them; each cell samples a single color from its center."><span>Shatter</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"    aria-label="Erode/dilate"      data-tip="STRUCTURE. Morphological op. Erode shrinks bright regions; Dilate (mode toggle) grows them. The Edge knob can isolate just the difference as an outline ring."><span>Erode</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="wave"     aria-label="Wave propagation"  data-tip="STRUCTURE. Wave propagation simulation. Bright peaks in the video disturb a 2D wave field; the field ripples and damps over time per the wave equation."><span>Wave</span></button>
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"  aria-label="No structure" data-tip="No structure stage. Video passes through to the COLOR stage unchanged."><span>None</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii" aria-label="ASCII shader" data-tip="STRUCTURE. ASCII art. Replaces video with a grid of 5×7 bitmap characters; denser glyphs for brighter regions."><span>ASCII</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode" aria-label="Erode/dilate" data-tip="STRUCTURE. Morphological op. Erode shrinks bright regions; Dilate (mode toggle) grows them. The Edge knob can isolate just the difference as an outline ring."><span>Erode</span></button>
           </div>
         </section>
 
-        <section class="effect-card hidden" id="voronoi-controls" data-card-effect="voronoi" aria-label="Voronoi parameters">
-          <div class="effect-card-header"><div class="effect-card-title">Voronoi</div><button class="card-reset-btn" type="button" data-reset-card="voronoi" title="Reset Voronoi knobs" aria-label="Reset Voronoi knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="voronoi-threshold"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Threshold"     data-tip="Brightness cutoff for spawning new Voronoi seeds. Higher = fewer / more selective seeds; lower = more cells covering more of the frame." tabindex="0"><span class="knob-label">Threshold</span><span class="knob-val" id="voronoi-threshold-val">0.5</span></div>
-            <div class="knob" id="voronoi-jump-dist"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Jump Distance" data-tip="Jump-flood neighbor sampling distance. Lower = slower convergence (organic, growing cells). Higher = snappier crystallization." tabindex="0"><span class="knob-label">Jump Dist</span><span class="knob-val" id="voronoi-jump-dist-val">0.5</span></div>
-            <div class="knob" id="voronoi-falloff"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Voronoi Falloff"       data-tip="Distance-based brightness fade from each seed center. 0 = flat colored cells. 1 = strong fade to dark at cell edges (3D-feeling)." tabindex="0"><span class="knob-label">Falloff</span><span class="knob-val" id="voronoi-falloff-val">0.5</span></div>
-            <div class="knob" id="voronoi-edge-lines" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Voronoi Edge Lines"    data-tip="Strength of black borders drawn between cells. 0 = no lines. 1 = strong outlines." tabindex="0"><span class="knob-label">Edges</span><span class="knob-val" id="voronoi-edge-lines-val">0</span></div>
-          </div>
-        </section>
-
-        <section class="effect-card hidden" id="cellular-controls" data-card-effect="cellular" aria-label="Cellular parameters">
-          <div class="effect-card-header"><div class="effect-card-title">Cellular</div><button class="card-reset-btn" type="button" data-reset-card="cellular" title="Reset Cellular knobs" aria-label="Reset Cellular knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="ca-density"         data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Density"          data-tip="Live-cell brightness threshold. Lower = more cells alive at once (denser pattern). Higher = sparser, cleaner survivors." tabindex="0"><span class="knob-label">Density</span><span class="knob-val" id="ca-density-val">0.5</span></div>
-            <div class="knob" id="ca-stability"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Stability"        data-tip="How conservative the survive / birth rules are. 0 = chaotic (wide tolerance, fast churn). 1 = strict (closer to classic Conway, longer-lived structures)." tabindex="0"><span class="knob-label">Stability</span><span class="knob-val" id="ca-stability-val">0.5</span></div>
-            <div class="knob" id="ca-evolution-speed" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Evolution Speed"  data-tip="Per-frame simulation step size. Low = slow organic feel (each frame nudges the field). High = fast cellular churn." tabindex="0"><span class="knob-label">Evolve</span><span class="knob-val" id="ca-evolution-speed-val">0.5</span></div>
-            <div class="knob" id="ca-source-influx"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Cellular Source Influx"    data-tip="How strongly bright video pixels seed new live cells. 0 = no source coupling (pure CA). 1 = video constantly drives the field." tabindex="0"><span class="knob-label">Influx</span><span class="knob-val" id="ca-source-influx-val">0.5</span></div>
-          </div>
-        </section>
-
-        <section class="effect-card hidden" id="ascii-controls" data-card-effect="ascii" aria-label="ASCII parameters">
+        <section class="effect-card hidden" id="ascii-controls" data-card-effect="ascii" data-mode-section="synth" aria-label="ASCII parameters">
           <div class="effect-card-header"><div class="effect-card-title">ASCII</div><button class="card-reset-btn" type="button" data-reset-card="ascii" title="Reset ASCII knobs" aria-label="Reset ASCII knobs">×</button></div>
           <div class="knob-grid">
             <div class="knob" id="ascii-cell-size"      data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Cell Size"       data-tip="Character cell size in pixels (10-32). Smaller = denser ASCII grid with more characters per frame." tabindex="0"><span class="knob-label">Cell Size</span><span class="knob-val" id="ascii-cell-size-val">0.3</span></div>
@@ -123,17 +81,7 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="shatter-controls" data-card-effect="shatter" aria-label="Shatter parameters">
-          <div class="effect-card-header"><div class="effect-card-title">Shatter</div><button class="card-reset-btn" type="button" data-reset-card="shatter" title="Reset Shatter knobs" aria-label="Reset Shatter knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="shatter-cells"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Shatter Cell Count"  data-tip="Number of fragments across the frame (4-40). More = smaller pieces; less = chunkier shards." tabindex="0"><span class="knob-label">Cells</span><span class="knob-val" id="shatter-cells-val">0.3</span></div>
-            <div class="knob" id="shatter-crack"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="Shatter Crack Width" data-tip="Width of dark seams between fragments. 0 = invisible seams. 1 = thick black cracks." tabindex="0"><span class="knob-label">Crack</span><span class="knob-val" id="shatter-crack-val">0.2</span></div>
-            <div class="knob" id="shatter-fill"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Shatter Fill"        data-tip="Mix between flat per-cell color and original pixel detail. 0 = flat shards (one color each). 1 = preserves video detail inside each shard." tabindex="0"><span class="knob-label">Fill</span><span class="knob-val" id="shatter-fill-val">0.5</span></div>
-            <div class="knob" id="shatter-random" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.8" aria-label="Shatter Randomness"  data-tip="Per-cell jitter. 0 = perfectly regular grid (square cells). 1 = fully irregular Voronoi shapes." tabindex="0"><span class="knob-label">Random</span><span class="knob-val" id="shatter-random-val">0.8</span></div>
-          </div>
-        </section>
-
-        <section class="effect-card hidden" id="erode-controls" data-card-effect="erode" aria-label="Erode parameters">
+        <section class="effect-card hidden" id="erode-controls" data-card-effect="erode" data-mode-section="synth" aria-label="Erode parameters">
           <div class="effect-card-header"><div class="effect-card-title">Erode</div><button class="card-reset-btn" type="button" data-reset-card="erode" title="Reset Erode controls" aria-label="Reset Erode controls">×</button></div>
           <div class="section-label" id="lbl-erode-mode">Mode</div>
           <div class="toggle-group" id="erode-mode-group" role="radiogroup" aria-labelledby="lbl-erode-mode">
@@ -147,38 +95,17 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="wave-controls" data-card-effect="wave" aria-label="Wave parameters">
-          <div class="effect-card-header"><div class="effect-card-title">Wave</div><button class="card-reset-btn" type="button" data-reset-card="wave" title="Reset Wave knobs" aria-label="Reset Wave knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="wave-source" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Wave Source Strength" data-tip="How strongly bright peaks in the video drive new wave disturbances. 0 = inert pool. 1 = strong impulses on every bright spot." tabindex="0"><span class="knob-label">Source</span><span class="knob-val" id="wave-source-val">0.5</span></div>
-            <div class="knob" id="wave-damp"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Wave Damping"         data-tip="How fast the wave field loses energy. Low = waves persist (turbulent, busy). High = waves die quickly (calm pool, less interference)." tabindex="0"><span class="knob-label">Damp</span><span class="knob-val" id="wave-damp-val">0.3</span></div>
-            <div class="knob" id="wave-speed"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Wave Speed"           data-tip="Propagation speed (CFL coefficient). Low = slow rolling waves. High = fast rippling. Very high values can become numerically unstable." tabindex="0"><span class="knob-label">Speed</span><span class="knob-val" id="wave-speed-val">0.5</span></div>
-            <div class="knob" id="wave-contr"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Wave Contrast"        data-tip="Visualization contrast. Low = soft halftone wave field. High = sharp white peaks on near-black." tabindex="0"><span class="knob-label">Contrast</span><span class="knob-val" id="wave-contr-val">0.5</span></div>
-          </div>
-        </section>
-
         <!-- ============ COLOR ============ -->
-        <!-- The palette / tone stage — now a 0-3 stack chained in series.
-             Each enabled slot reads the previous slot's output (or
-             STRUCTURE's output, or raw video). Order matters; slots are
-             reorderable. Empty/disabled slots are skipped. -->
-        <div class="stage-divider" data-stage="color">COLOR <span class="stage-sub">stack · 0–3 chained</span></div>
+        <!-- COLOR rack untouched per "ignore color and fx for now". -->
+        <div class="stage-divider" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">stack · 0–3 chained</span></div>
 
-        <section class="control-section">
+        <section class="control-section" data-mode-section="synth">
           <div class="section-label" id="lbl-color">Slots</div>
           <div class="color-rack" id="color-rack" role="list" aria-labelledby="lbl-color"
                data-tip="Up to 3 color stages chained in series. Each slot reads the previous slot's output. Drag the handle to reorder; toggle to A/B without losing the slot; × clears.">
-            <!-- Slots are rendered by renderColorRack() in main.js from
-                 state.colorRack. The fixed 3-slot count means we don't
-                 need to add/remove DOM nodes; renderColorRack just updates
-                 each slot's contents. Kept blank here so the empty-state
-                 layout doesn't flash before JS boots. -->
           </div>
         </section>
 
-        <!-- Color picker popover — positioned at body level, anchored
-             beneath the slot that opened it. Hidden by default; opened by
-             clicking a slot's chip. 6 buttons: None + 5 colors. -->
         <div class="color-picker-popover hidden" id="color-picker-popover" role="dialog" aria-label="Pick a color for this slot">
           <button type="button" class="color-pick" data-pick-color="none"       data-tip="Clear this slot. Slot becomes empty and is skipped in the chain.">None</button>
           <button type="button" class="color-pick" data-pick-color="oxide"      data-tip="Oxide / patina material. Re-skins the input as corroded metal.">Oxide</button>
@@ -188,21 +115,10 @@
           <button type="button" class="color-pick" data-pick-color="falsecolor" data-tip="False-color palette swap. Cross-fades between four palettes.">FalseClr</button>
         </div>
 
-        <!-- COLOR effect cards (Oxide, Synth, BioLum, Thermo, FalseClr)
-             previously lived here as right-panel cards driven by global
-             knob state. They are now per-slot — knobs render inline
-             inside each rack slot when expanded, bound to slot.params.
-             COLOR_PARAM_SCHEMAS in src/main.js is the source of truth
-             for what knobs/toggles each color effect exposes. -->
+        <!-- ============ FX RACK (placeholder, untouched per "ignore fx") ============ -->
+        <div class="stage-divider" data-stage="fx-rack" data-mode-section="synth">FX RACK <span class="stage-sub">chain · 0–3 slots</span></div>
 
-        <!-- ============ FX RACK ============ -->
-        <!-- Sequential chain of 0–3 FX, applied AFTER STRUCTURE → COLOR.
-             Each slot reads the output of the previous one (not raw video).
-             P1 ships placeholder slots only; rack mechanics + real FX
-             effects land in P3. -->
-        <div class="stage-divider" data-stage="fx-rack">FX RACK <span class="stage-sub">chain · 0–3 slots</span></div>
-
-        <section class="control-section">
+        <section class="control-section" data-mode-section="synth">
           <div class="section-label">Slots</div>
           <div class="fx-rack" id="fx-rack" data-tip="FX rack chain. 0–3 effects in series, each reading the previous stage's output. Empty slots wire-through. Coming in a future update.">
             <div class="fx-rack-slot" data-slot="0" aria-label="FX rack slot 1, empty"><span class="fx-rack-slot-num">1</span><span class="fx-rack-slot-empty">— empty —</span></div>
@@ -211,83 +127,108 @@
           </div>
         </section>
 
-        <!-- ============ PER-BLOB (legacy) ============ -->
-        <!-- Holding pen for the per-blob CPU filters (Inv, Thermal). They
-             don't fit the full-frame chain model and will be rebuilt as
-             FX RACK candidates in P3. Until then they keep working as-is,
-             applied after the main chain inside detected blob regions only. -->
-        <div class="stage-divider" data-stage="perblob">PER-BLOB <span class="stage-sub">legacy → moves to FX rack</span></div>
+        <!-- ============ PER-BLOB (legacy, untouched per "ignore fx") ============ -->
+        <div class="stage-divider" data-stage="perblob">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
 
         <section class="control-section">
           <div class="section-label" id="lbl-perblob">Overlay</div>
           <div class="toggle-group filter-swatch-group" id="perblob-group" role="radiogroup" aria-labelledby="lbl-perblob">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"    aria-label="No per-blob overlay" data-tip="No per-blob overlay. Only the main chain renders."><span>None</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="inv"     aria-label="Invert colors"       data-tip="PER-BLOB. Inverts colors within each blob's region. Affected by Blob Size + Shape (clipped to ellipse / rounded / diamond)."><span>Inv</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermal" aria-label="Thermal palette"     data-tip="PER-BLOB. Maps luma to a thermal palette (black → blue → magenta → red → white) within each blob's region. Affected by Blob Size + Shape."><span>Thermal</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="inv"     aria-label="Invert colors"       data-tip="PER-BLOB. Inverts colors within each blob's region."><span>Inv</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermal" aria-label="Thermal palette"     data-tip="PER-BLOB. Maps luma to a thermal palette within each blob's region."><span>Thermal</span></button>
           </div>
         </section>
 
-        <!-- ============ FX ============ -->
-        <div class="stage-divider" data-stage="fx">FX <span class="stage-sub">overlay · output</span></div>
+        <!-- ============================================================
+             TRACK-mode sections. Visible only when body[data-mode="track"].
+             ============================================================ -->
 
-        <section class="control-section">
-          <div class="section-label" id="lbl-style">Region Style</div>
-          <div class="toggle-group" id="style-group" role="radiogroup" aria-labelledby="lbl-style">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="basic" data-tip="Outline plus the detection score (0-1) printed above each blob.">Basic</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="label" data-tip="Outline plus an 'Object N' tab label above each blob.">Label</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="frame" data-tip="Outline plus 8 corner / edge handles plus the score — looks like a selection box from a video editor.">Frame</button>
+        <!-- ============ DETECTION (TRACK only) ============ -->
+        <div class="stage-divider" data-stage="osc" data-mode-section="track">DETECTION <span class="stage-sub">lumi channel</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="section-label" id="lbl-lumi-channel">Lumi Channel</div>
+          <div class="toggle-group" id="lumi-channel-group" role="radiogroup" aria-labelledby="lbl-lumi-channel">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="motion" data-tip="Frame diff. Detects moving things. Goes blind on paused video.">Motion</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="luma"   data-tip="Raw luminance. Detects bright objects on dark backgrounds.">Luma</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dark"   data-tip="Inverse luminance. Detects silhouettes against bright backgrounds.">Dark</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="sat"    data-tip="Chroma (max-min). Detects vivid color regions, ignores brightness.">Sat</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="edge"   data-tip="Sobel gradient. Detects edges and textures.">Edge</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="sharp"  data-tip="Laplacian magnitude. Detects high-frequency detail and focused regions.">Sharp</button>
           </div>
         </section>
 
-        <section class="control-section">
-          <div class="section-label" id="lbl-shape">Shape</div>
-          <div class="toggle-group" id="shape-group" role="radiogroup" aria-labelledby="lbl-shape">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="rect"    aria-label="Rectangle"         data-tip="Rectangular outline. Per-blob filter region (Inv / Thermal) is also rectangular.">&#9633;</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="circle"  aria-label="Circle"            data-tip="Elliptical outline. Per-blob filter region is clipped to fit the ellipse.">&#9675;</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="rounded" aria-label="Rounded rectangle" data-tip="Rounded rectangle outline (6px corner radius). Per-blob filter clipped to match.">&#9645;</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="diamond" aria-label="Diamond"           data-tip="Diamond (rotated square) outline. Per-blob filter clipped to the diamond shape.">&#9671;</button>
-          </div>
-        </section>
-
-        <section class="control-section">
-          <div class="section-label">
-            Overlay Color
-            <span class="section-sub">— boxes &amp; lines</span>
-          </div>
-          <div class="swatch-grid" id="swatch-grid" data-tip="Color for blob outlines, labels, and connection lines. Does NOT affect the per-blob Inv / Thermal filter regions.">
-            <button class="swatch-btn" type="button" data-swatch="#ffffff" style="background:#ffffff" aria-label="White"></button>
-            <button class="swatch-btn" type="button" data-swatch="#f72585" style="background:#f72585" aria-label="Pink"></button>
-            <button class="swatch-btn" type="button" data-swatch="#5be7a6" style="background:#5be7a6" aria-label="Mint"></button>
-            <button class="swatch-btn" type="button" data-swatch="#4cc9f0" style="background:#4cc9f0" aria-label="Cyan"></button>
-            <button class="swatch-btn" type="button" data-swatch="#ffea00" style="background:#ffea00" aria-label="Yellow"></button>
-            <button class="swatch-btn" type="button" data-swatch="#ff8c42" style="background:#ff8c42" aria-label="Orange"></button>
-            <button class="swatch-btn" type="button" data-swatch="#b5179e" style="background:#b5179e" aria-label="Purple"></button>
-            <button class="swatch-btn" type="button" data-swatch="#000000" style="background:#000000" aria-label="Black"></button>
-          </div>
-          <div class="color-row" data-tip="Pick any color for blob outlines, labels, and connection lines.">
-            <input type="color" id="overlay-color" value="#ffffff" aria-label="Custom overlay color" />
-            <span class="color-label" id="overlay-color-val">#ffffff</span>
-          </div>
-        </section>
-
-        <section class="control-section">
+        <section class="control-section" data-mode-section="track">
           <div class="knob-grid">
-            <div class="knob" id="connection-rate" data-knob data-min="0" data-max="1" data-step="0.25" data-default="0.25" aria-label="Connection Rate" data-tip="Density of lines drawn between tracked blobs. 0 = no lines. 1 = every pair connected (dense network)." tabindex="0"><span class="knob-label">Connect</span><span class="knob-val" id="connection-rate-val">0.25</span></div>
-            <div class="knob" id="stroke-width"    data-knob data-min="0" data-max="4" data-step="0.5"  data-default="1"    aria-label="Stroke Width (px)" data-tip="Line thickness in pixels for blob outlines and connection lines. 0 hides them entirely." tabindex="0"><span class="knob-label">Stroke</span><span class="knob-val" id="stroke-width-val">1</span></div>
-            <div class="knob" id="font-size"       data-knob data-min="8" data-max="32" data-step="1"   data-default="11"   aria-label="Font Size (px)" data-tip="Text size in pixels for the score numbers (Basic / Frame styles) and Object N labels (Label style)." tabindex="0"><span class="knob-label">Font</span><span class="knob-val" id="font-size-val">11</span></div>
+            <div class="knob" id="sensitivity"      data-knob data-state="threshold"       data-min="10"  data-max="100" data-step="1"    data-default="30"  aria-label="Sensitivity (detection threshold)" data-tip="Detection threshold (10–100). Lower = more blobs, weaker signal. Higher = fewer blobs, stronger signal.">     <span class="knob-label">Sensitivity</span><span class="knob-val" id="sensitivity-val">30</span></div>
+            <div class="knob" id="track-max-blobs"  data-knob data-state="trackMaxBlobs"   data-min="5"   data-max="30"  data-step="1"    data-default="12"  aria-label="Max Blobs"                         data-tip="Maximum blobs tracked per frame (5–30).">                                                                           <span class="knob-label">Max Blobs</span><span class="knob-val" id="track-max-blobs-val">12</span></div>
+            <div class="knob" id="update-interval"  data-knob data-state="updateInterval"  data-min="1"   data-max="30"  data-step="1"    data-default="1"   aria-label="Update Interval (frames)"          data-tip="Run detection every N frames. 1 = every frame (most responsive). Higher = cheaper, less reactive.">                  <span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
+            <div class="knob" id="track-min-size"   data-knob data-state="trackMinSize"    data-min="4"   data-max="200" data-step="1"    data-default="8"   aria-label="Min Size (px)"                     data-tip="Smallest blob bbox side tracked, in source pixels. Below this, blobs are dropped.">                                  <span class="knob-label">Min Size</span><span class="knob-val" id="track-min-size-val">8</span></div>
+            <div class="knob" id="track-stability"  data-knob data-state="trackStability"  data-min="0"   data-max="1"   data-step="0.01" data-default="0"   aria-label="Stability"                         data-tip="Temporal smoothing (One Euro Filter). 0 = raw. High = smooth, low-lag adaptive.">                                   <span class="knob-label">Stability</span><span class="knob-val" id="track-stability-val">0</span></div>
           </div>
         </section>
 
-        <section class="control-section">
-          <div class="section-label" id="lbl-blobsize">Blob Size</div>
-          <div class="toggle-group" id="blob-size-group" role="radiogroup" aria-labelledby="lbl-blobsize">
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="0"   data-tip="Hide blob outlines and skip the per-blob filter pass entirely. Saves CPU.">0</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="32"  data-tip="Half-size: outlines and per-blob filter regions are 0.5× the detected blob size, anchored at the blob center.">32</button>
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="64"  data-tip="Native size: outlines and per-blob filter regions match the detected blob size exactly.">64</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="128" data-tip="Double-size: outlines and per-blob filter regions are 2× the detected blob size, anchored at the blob center.">128</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="256" data-tip="Quadruple-size: outlines and per-blob filter regions are 4× the detected blob size. Large overlapping shapes; great with circle / diamond.">256</button>
+        <!-- ============ SHAPE (TRACK only) ============ -->
+        <div class="stage-divider" data-stage="fx" data-mode-section="track">SHAPE <span class="stage-sub">bbox style</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="section-label" id="lbl-track-shape">Style</div>
+          <div class="toggle-group" id="track-shape-group" role="radiogroup" aria-labelledby="lbl-track-shape">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="solid"   data-tip="Solid rectangle. Filled bbox — opaque overlay. Knob 4 = OPACITY.">Solid</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="hollow"  data-tip="Hollow rectangle. Outline only. Knob 4 = OUTER GLOW.">Hollow</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dotted"  data-tip="Dotted rectangle. Outline made of dots. Knob 4 = DOT SIZE.">Dotted</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="corners" data-tip="Corner brackets — just the four corners ([ ] surveillance HUD). Knob 4 = BRACKET LENGTH.">Corners</button>
           </div>
         </section>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="knob-grid">
+            <div class="knob" id="track-shape-color"     data-knob data-state="trackShapeColor"     data-min="0"   data-max="1" data-step="0.01" data-default="0"   aria-label="Shape color (hue)"       data-tip="Hue rotation. At 0 white; scrolls through full hue range to 1." tabindex="0"><span class="knob-label">Color</span><span class="knob-val" id="track-shape-color-val">0</span></div>
+            <div class="knob" id="track-shape-thickness" data-knob data-state="trackShapeThickness" data-min="1"   data-max="8" data-step="1"    data-default="2"   aria-label="Shape thickness (px)"    data-tip="Line/dot weight in pixels (1–8)." tabindex="0"><span class="knob-label">Thick</span><span class="knob-val" id="track-shape-thickness-val">2</span></div>
+            <div class="knob" id="track-shape-padding"   data-knob data-state="trackShapePadding"   data-min="-20" data-max="20" data-step="1"   data-default="0"   aria-label="Shape padding (px)"      data-tip="Padding around bbox. 0 = tight to bbox. Negative = shrinks inside. Positive = breathing room." tabindex="0"><span class="knob-label">Pad</span><span class="knob-val" id="track-shape-padding-val">0</span></div>
+            <div class="knob" id="track-shape-style"     data-knob data-state="trackShapeStyle"     data-min="0"   data-max="1" data-step="0.01" data-default="0.5" aria-label="Style-specific (per shape)" data-tip="Style-specific knob (varies per shape). Solid = OPACITY. Hollow = OUTER GLOW. Dotted = DOT SIZE. Corners = BRACKET LENGTH." tabindex="0"><span class="knob-label">Style</span><span class="knob-val" id="track-shape-style-val">0.5</span></div>
+          </div>
+        </section>
+
+        <!-- ============ LINES (TRACK only) ============ -->
+        <div class="stage-divider" data-stage="fx" data-mode-section="track">LINES <span class="stage-sub">graph</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="section-label" id="lbl-track-lines">Type</div>
+          <div class="toggle-group" id="track-lines-group" role="radiogroup" aria-labelledby="lbl-track-lines">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="off"           data-tip="No lines.">Off</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="distthresh"    data-tip="Distance Threshold. Connect any two blobs within N px of each other. Cluster behavior. Knob 3 = MAX CONNECT DISTANCE.">Dist</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="velocity"      data-tip="Velocity Trails. Each blob trails a line behind its own past path. No inter-blob connections. Knob 3 = TRAIL LENGTH.">Velocity</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pulse"          data-tip="Pulse Trail. Same connections as Distance Threshold, but a bright dot travels along each connection from A to B repeatedly. Knob 3 = PULSE SPEED.">Pulse</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="constellation" data-tip="Constellation. Connect every blob to every other; line opacity falls off with distance. Knob 3 = FALLOFF CURVE.">Const</button>
+          </div>
+        </section>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="knob-grid">
+            <div class="knob" id="track-lines-color"     data-knob data-state="trackLinesColor"     data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Lines color (hue)"     data-tip="Hue rotation, same scheme as Shape Color. At 0 white; scrolls through full hue range to 1." tabindex="0"><span class="knob-label">Color</span><span class="knob-val" id="track-lines-color-val">0</span></div>
+            <div class="knob" id="track-lines-thickness" data-knob data-state="trackLinesThickness" data-min="1" data-max="6" data-step="1"    data-default="1"   aria-label="Lines thickness (px)"  data-tip="Line weight in pixels (1–6)." tabindex="0"><span class="knob-label">Thick</span><span class="knob-val" id="track-lines-thickness-val">1</span></div>
+            <div class="knob" id="track-lines-param"     data-knob data-state="trackLinesParam"     data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Lines param (type-specific)" data-tip="Type-specific. Dist = max connect distance (50–500 px). Velocity = trail length. Pulse = pulse speed. Constellation = falloff curve." tabindex="0"><span class="knob-label">Param</span><span class="knob-val" id="track-lines-param-val">0.5</span></div>
+            <div class="knob" id="track-lines-taper"     data-knob data-state="trackLinesTaper"     data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Lines taper"           data-tip="0 = constant width. 1 = taper from thick at one end to thin at the other." tabindex="0"><span class="knob-label">Taper</span><span class="knob-val" id="track-lines-taper-val">0</span></div>
+          </div>
+        </section>
+
+        <!-- ============ EFFECTS (TRACK only) — 3 stackable cards ============ -->
+        <div class="stage-divider" data-stage="fx" data-mode-section="track">EFFECTS <span class="stage-sub">stack · 0–3</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="section-label" id="lbl-track-fx">Slots</div>
+          <div class="color-rack" id="track-fx-rack" role="list" aria-labelledby="lbl-track-fx"
+               data-tip="Up to 3 tracking effects stacked on top of Shape + Lines. Drag the handle to reorder; toggle to A/B; × clears.">
+          </div>
+        </section>
+
+        <div class="color-picker-popover hidden" id="track-fx-picker-popover" role="dialog" aria-label="Pick a tracking effect for this slot">
+          <button type="button" class="color-pick" data-pick-trackfx="none"     data-tip="Clear this slot. Slot becomes empty and is skipped.">None</button>
+          <button type="button" class="color-pick" data-pick-trackfx="echo"     data-tip="Echo Blobs. Past N frames' bboxes appear faintly behind current. Motion ghosting at the blob level.">Echo</button>
+          <button type="button" class="color-pick" data-pick-trackfx="radar"    data-tip="Radar Sweep. A rotating arc emits from frame center; blobs only become visible as the sweep crosses them.">Radar</button>
+          <button type="button" class="color-pick" data-pick-trackfx="heatmap"  data-tip="Heatmap Residue. Wherever a blob has been recently glows. Motion smear of the entire scene's blob history.">Heat</button>
+        </div>
 
       </aside>
 
@@ -295,6 +236,19 @@
         <div id="canvas-topbar">
           <span class="topbar-title">FluxKit</span>
           <span class="topbar-source" id="topbar-source">No source</span>
+
+          <!-- Mode toggle: SYNTH ↔ TRACK. When TRACK, OVERLAY/ISOLATED appears next to it. -->
+          <div class="topbar-mode" data-tip="SYNTH = full LumiSynth chain, no blob overlay. TRACK = BlobTracking visualization on top of the chain (or alone, in ISOLATED).">
+            <div class="toggle-group" id="mode-group" role="radiogroup" aria-label="Pipeline mode">
+              <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="synth" data-tip="LumiSynth pipeline only. No blob overlay.">SYNTH</button>
+              <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="track" data-tip="BlobTracking visualization. Stacks Shape × Lines × Effects on detected blobs.">TRACK</button>
+            </div>
+            <div class="toggle-group" id="track-composite-group" role="radiogroup" aria-label="Track composite mode" data-mode-section="track">
+              <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="overlay"  data-tip="Show BlobTracking on top of the LumiSynth output (or raw source if all stages are off).">OVL</button>
+              <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="isolated" data-tip="Show only BlobTracking on a black background. Clean export for VJs and analysts.">ISO</button>
+            </div>
+          </div>
+
           <div class="topbar-actions">
             <button id="btn-fps"      class="icon-btn" type="button" title="Toggle FPS overlay">FPS</button>
             <button id="btn-help"     class="icon-btn" type="button" title="Keyboard shortcuts (?)">?</button>
@@ -308,11 +262,11 @@
           <div id="placeholder">
             <div class="placeholder-text">
               <div class="placeholder-icon" aria-hidden="true">◉</div>
-              <div>Drop a video or open the camera</div>
-              <div class="placeholder-hint">drag · drop · play</div>
+              <div>Drop a video or image, or open the camera</div>
+              <div class="placeholder-hint">video · image · webcam</div>
             </div>
           </div>
-          <div id="drop-overlay" aria-hidden="true">Drop video to play</div>
+          <div id="drop-overlay" aria-hidden="true">Drop video or image</div>
           <div id="video-controls" class="hidden" aria-label="Playback controls">
             <button id="btn-play" type="button" aria-label="Play / pause">▶</button>
             <input type="range" id="video-scrub" min="0" max="1000" step="1" value="0" aria-label="Scrub video" />
