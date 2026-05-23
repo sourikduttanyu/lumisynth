@@ -67,7 +67,10 @@
           <div class="toggle-group filter-swatch-group" id="structure-group" role="radiogroup" aria-labelledby="lbl-structure">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"  aria-label="No structure" data-tip="No structure stage. Video passes through to the COLOR stage unchanged."><span>None</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii" aria-label="ASCII shader" data-tip="STRUCTURE. ASCII art. Replaces video with a grid of 5×7 bitmap characters; denser glyphs for brighter regions."><span>ASCII</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode" aria-label="Erode/dilate" data-tip="STRUCTURE. Morphological op. Erode shrinks bright regions; Dilate (mode toggle) grows them. The Edge knob can isolate just the difference as an outline ring."><span>Erode</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"     aria-label="Erode/dilate"   data-tip="STRUCTURE. Morphological op. Erode shrinks bright regions; Dilate (mode toggle) grows them. The Edge knob can isolate just the difference as an outline ring."><span>Erode</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="watershed"  aria-label="Watershed"      data-tip="STRUCTURE. Luminance basins with sharp boundaries — each basin settles to a local average. Basin Size, Boundary, Flatness, Depth Tint."><span>Watershed</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort"  aria-label="Pixel Sort"     data-tip="STRUCTURE. Bright pixels cast sharp sorted streak trails. Threshold, Length, Opacity, Direction."><span>PixSort</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"       aria-label="Melt"           data-tip="STRUCTURE. Luminance drips downward like heated wax. Amount, Drip Length, Viscosity, Direction."><span>Melt</span></button>
           </div>
         </section>
 
@@ -95,6 +98,36 @@
           </div>
         </section>
 
+        <section class="effect-card hidden" id="watershed-controls" data-card-effect="watershed" data-mode-section="synth" aria-label="Watershed parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Watershed</div><button class="card-reset-btn" type="button" data-reset-card="watershed" title="Reset Watershed knobs" aria-label="Reset Watershed knobs">×</button></div>
+          <div class="knob-grid">
+            <div class="knob" id="watershed-basin"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Watershed Basin Size"       data-tip="Basin size. 0 = tiny pools. 1 = large catchment areas." tabindex="0"><span class="knob-label">Basin</span><span class="knob-val" id="watershed-basin-val">0.4</span></div>
+            <div class="knob" id="watershed-boundary" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Watershed Boundary"          data-tip="Boundary brightness. 0 = subtle dividing lines. 1 = bright sharp boundaries." tabindex="0"><span class="knob-label">Boundary</span><span class="knob-val" id="watershed-boundary-val">0.5</span></div>
+            <div class="knob" id="watershed-flat"     data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Watershed Flatness"          data-tip="Basin flatness. 0 = basins keep internal detail. 1 = flat averaged basins." tabindex="0"><span class="knob-label">Flat</span><span class="knob-val" id="watershed-flat-val">0.5</span></div>
+            <div class="knob" id="watershed-depth"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Watershed Depth Tint"        data-tip="Depth tint. 0 = uniform basins. 1 = basins tinted by their depth value." tabindex="0"><span class="knob-label">Depth</span><span class="knob-val" id="watershed-depth-val">0</span></div>
+          </div>
+        </section>
+
+        <section class="effect-card hidden" id="pixelsort-controls" data-card-effect="pixelsort" data-mode-section="synth" aria-label="Pixel Sort parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Pixel Sort</div><button class="card-reset-btn" type="button" data-reset-card="pixelsort" title="Reset Pixel Sort knobs" aria-label="Reset Pixel Sort knobs">×</button></div>
+          <div class="knob-grid">
+            <div class="knob" id="pixelsort-thresh"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Pixel Sort Threshold"  data-tip="Luminance threshold. 0 = everything casts streaks. 1 = only peaks." tabindex="0"><span class="knob-label">Thresh</span><span class="knob-val" id="pixelsort-thresh-val">0.4</span></div>
+            <div class="knob" id="pixelsort-length"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="Pixel Sort Length"     data-tip="Streak length (0–200px). How far the trails extend." tabindex="0"><span class="knob-label">Length</span><span class="knob-val" id="pixelsort-length-val">0.3</span></div>
+            <div class="knob" id="pixelsort-opacity" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.8" aria-label="Pixel Sort Opacity"    data-tip="Streak opacity. 0 = faint ghost trails. 1 = solid." tabindex="0"><span class="knob-label">Opacity</span><span class="knob-val" id="pixelsort-opacity-val">0.8</span></div>
+            <div class="knob" id="pixelsort-dir"     data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Pixel Sort Direction"  data-tip="Streak direction (0–1 = 0–360°). 0 = up, 0.25 = right, 0.5 = down, 0.75 = left." tabindex="0"><span class="knob-label">Dir</span><span class="knob-val" id="pixelsort-dir-val">0.5</span></div>
+          </div>
+        </section>
+
+        <section class="effect-card hidden" id="melt-controls" data-card-effect="melt" data-mode-section="synth" aria-label="Melt parameters">
+          <div class="effect-card-header"><div class="effect-card-title">Melt</div><button class="card-reset-btn" type="button" data-reset-card="melt" title="Reset Melt knobs" aria-label="Reset Melt knobs">×</button></div>
+          <div class="knob-grid">
+            <div class="knob" id="melt-amount"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Melt Amount"    data-tip="Melt amount. 0 = solid. 1 = fully liquid." tabindex="0"><span class="knob-label">Amount</span><span class="knob-val" id="melt-amount-val">0.5</span></div>
+            <div class="knob" id="melt-drip"      data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Melt Drip"      data-tip="Drip length. 0 = short. 1 = long drips." tabindex="0"><span class="knob-label">Drip</span><span class="knob-val" id="melt-drip-val">0.4</span></div>
+            <div class="knob" id="melt-viscosity" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Melt Viscosity" data-tip="Viscosity. 0 = water/fast. 1 = honey/slow thick drips." tabindex="0"><span class="knob-label">Visc</span><span class="knob-val" id="melt-viscosity-val">0.5</span></div>
+            <div class="knob" id="melt-dir"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Melt Direction" data-tip="Drip direction. 0 = down, 0.5 = sideways, 1 = up." tabindex="0"><span class="knob-label">Dir</span><span class="knob-val" id="melt-dir-val">0</span></div>
+          </div>
+        </section>
+
         <!-- ============ COLOR ============ -->
         <!-- COLOR rack untouched per "ignore color and fx for now". -->
         <div class="stage-divider" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">stack · 0–3 chained</span></div>
@@ -107,12 +140,32 @@
         </section>
 
         <div class="color-picker-popover hidden" id="color-picker-popover" role="dialog" aria-label="Pick a color for this slot">
-          <button type="button" class="color-pick" data-pick-color="none"       data-tip="Clear this slot. Slot becomes empty and is skipped in the chain.">None</button>
-          <button type="button" class="color-pick" data-pick-color="oxide"      data-tip="Oxide / patina material. Re-skins the input as corroded metal.">Oxide</button>
-          <button type="button" class="color-pick" data-pick-color="synth"      data-tip="Synthwave color grade. Maps luma to a 6-band palette.">Synth</button>
-          <button type="button" class="color-pick" data-pick-color="biolum"     data-tip="Bioluminescent glow. Re-tints the input as deep-water bioluminescence.">BioLum</button>
-          <button type="button" class="color-pick" data-pick-color="thermo"     data-tip="Thermal-camera ramp. Maps luma to deep blue → cyan → yellow → red → white.">Thermo</button>
-          <button type="button" class="color-pick" data-pick-color="falsecolor" data-tip="False-color palette swap. Cross-fades between four palettes.">FalseClr</button>
+          <button type="button" class="color-pick" data-pick-color="none"         data-tip="Clear this slot. Slot becomes empty and is skipped in the chain.">None</button>
+          <button type="button" class="color-pick" data-pick-color="oxide"        data-tip="Oxide / patina material. Re-skins the input as corroded metal.">Oxide</button>
+          <button type="button" class="color-pick" data-pick-color="synth"        data-tip="Synthwave color grade. Maps luma to a 6-band palette.">Synth</button>
+          <button type="button" class="color-pick" data-pick-color="biolum"       data-tip="Bioluminescent glow. Re-tints the input as deep-water bioluminescence.">BioLum</button>
+          <button type="button" class="color-pick" data-pick-color="thermo"       data-tip="Thermal-camera ramp. Maps luma to deep blue → cyan → yellow → red → white.">Thermo</button>
+          <button type="button" class="color-pick" data-pick-color="falsecolor"   data-tip="False-color palette swap. Cross-fades between four palettes.">FalseClr</button>
+          <button type="button" class="color-pick" data-pick-color="depthstack"   data-tip="Holographic spectral depth planes. Banded color zones shift with luminance gradients.">DepthStack</button>
+          <button type="button" class="color-pick" data-pick-color="prismatic"    data-tip="Warm spectral dispersion. Prismatic chromatic aberration with yellow-pink spectrum.">Prismatic</button>
+          <button type="button" class="color-pick" data-pick-color="acidwash"     data-tip="Psychedelic color banding. Sine-folded hue mapping creates repeating color cycles.">AcidWash</button>
+          <button type="button" class="color-pick" data-pick-color="xray"         data-tip="Medical radiograph aesthetic. Inverted exposure, edge enhancement, film tint.">X-Ray</button>
+          <button type="button" class="color-pick" data-pick-color="heatbleed"    data-tip="Thermal color that bleeds spatially based on intensity. Hot colors spread outward.">HeatBleed</button>
+          <button type="button" class="color-pick" data-pick-color="nebula"       data-tip="Cosmic gas cloud palette. Emission, reflection, or planetary nebula aesthetics.">Nebula</button>
+          <button type="button" class="color-pick" data-pick-color="solarize"     data-tip="Solarization / Sabattier effect. Tone folding at a luminance threshold.">Solarize</button>
+          <button type="button" class="color-pick" data-pick-color="aurorastorm"  data-tip="Violent solar storm aurora. Vertical curtain streaks with extreme color bands.">Aurora</button>
+          <button type="button" class="color-pick" data-pick-color="cyanotype"    data-tip="Blueprint paper aesthetic. Deep cobalt to pale cyan with paper grain.">Cyanotype</button>
+          <button type="button" class="color-pick" data-pick-color="infrared"     data-tip="Aerochrome infrared film. Magentas in foliage zones, deep blue shadows.">Infrared</button>
+          <button type="button" class="color-pick" data-pick-color="neontube"     data-tip="Emissive neon line-art. Edges glow as bright neon cores with atmospheric halo.">NeonTube</button>
+          <button type="button" class="color-pick" data-pick-color="deepfield"    data-tip="Hubble Ultra Deep Field aesthetic. Dark void with warm redshifted galaxy colors.">DeepField</button>
+          <button type="button" class="color-pick" data-pick-color="decayflow"    data-tip="Flow field advection trails. Pixels drift along gradient directions leaving color residue.">DecayFlow</button>
+          <button type="button" class="color-pick" data-pick-color="feedbackwarp" data-tip="Gradient-driven warp feedback. Image warped by its own luminance field recursively.">FbWarp</button>
+          <button type="button" class="color-pick" data-pick-color="bloom"        data-tip="Neon bloom glow. Bright areas spread with a blue energy halo.">Bloom</button>
+          <button type="button" class="color-pick" data-pick-color="crtrolling"   data-tip="CRT rolling distortion. Vertical sine waves with luma modulation and chroma offset.">CRT Roll</button>
+          <button type="button" class="color-pick" data-pick-color="noise"        data-tip="Adaptive film grain / sensor noise with shadow bias and optional color noise.">Noise</button>
+          <button type="button" class="color-pick" data-pick-color="scanlines"    data-tip="CRT/VHS scanline artifacts with per-row jitter and RGB fringing.">Scanlines</button>
+          <button type="button" class="color-pick" data-pick-color="degrade"      data-tip="Bit depth reduction and color banding. Macroblocks, dithering, pixelation.">Degrade</button>
+          <button type="button" class="color-pick" data-pick-color="crt"          data-tip="Full CRT simulation. Phosphor subpixels, bloom, barrel distortion, scanlines.">CRT</button>
         </div>
 
         <!-- ============ FX RACK (placeholder, untouched per "ignore fx") ============ -->

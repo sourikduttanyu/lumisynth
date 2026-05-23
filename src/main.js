@@ -21,6 +21,9 @@ const DEFAULTS = Object.freeze({
   structure: 'none', perBlob: 'none',
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
   erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
+  watershedBasin: 0.4, watershedBoundary: 0.5, watershedFlat: 0.5, watershedDepth: 0.0,
+  pixelsortThresh: 0.4, pixelsortLength: 0.3, pixelsortOpacity: 0.8, pixelsortDir: 0.5,
+  meltAmount: 0.5,     meltDrip: 0.4,         meltViscosity: 0.5,   meltDir: 0.0,
 
   // ============ TRACK-mode state ============
   // Top-level mode + composite selector.
@@ -142,15 +145,213 @@ const COLOR_PARAM_SCHEMAS = {
       { key: 'bandcnt', label: 'Bands',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Number of discrete color bands when Banding is On (4-20). Smaller = chunkier posterized look. Has no effect when Banding is Off.' },
       { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Brightness offset added to the input. 0.5 = neutral. Below 0.5 = darker (palette shifts cooler). Above 0.5 = brighter (palette shifts hotter).' },
     ],
-    // 0 = smooth ramp, 1 = banded. Discrete toggle, not a continuous knob.
     toggles: [
       { key: 'band', label: 'Banding', default: 0, options: [
         { value: 0, label: 'Off', tip: 'Smooth continuous palette ramp (no banding).' },
         { value: 1, label: 'On',  tip: 'Discrete banded ramp. Use the Bands knob to set how many color steps.' },
       ]},
     ],
-    // Shader uniform order: [palette, band, bandcnt, bright]
     order: ['palette', 'band', 'bandcnt', 'bright'],
+  },
+  depthstack: {
+    knobs: [
+      { key: 'layers',   label: 'Layers',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Number of depth planes (3–8). More layers = finer spectral banding.' },
+      { key: 'parallax', label: 'Parallax', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'How far each layer shifts along the gradient direction. Creates holographic depth separation.' },
+      { key: 'glow',     label: 'Glow',     min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Width of the glow halo around each depth plane edge.' },
+      { key: 'range',    label: 'Range',    min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Color range. 0 = narrow blue-dominant spectrum. 1 = wide violet-to-white spectrum.' },
+    ],
+    toggles: [],
+    order: ['layers', 'parallax', 'glow', 'range'],
+  },
+  prismatic: {
+    knobs: [
+      { key: 'disp',   label: 'Dispersion', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'How wide the prismatic spread is. 0 = tight. 1 = wide chromatic separation.' },
+      { key: 'warmth', label: 'Warmth',     min: 0, max: 1, step: 0.01, default: 0.7, tip: '0 = neutral white split. 1 = full warm yellow-pink prismatic spectrum.' },
+      { key: 'glow',   label: 'Glow',       min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Bloom boost on dispersed edges. 0 = sharp. 1 = soft atmospheric bleed.' },
+      { key: 'angle',  label: 'Angle',      min: 0, max: 1, step: 0.01, default: 0,   tip: 'Direction of the prismatic dispersion (0–1 maps to 0–360°).' },
+    ],
+    toggles: [],
+    order: ['disp', 'warmth', 'glow', 'angle'],
+  },
+  acidwash: {
+    knobs: [
+      { key: 'warp',   label: 'Warp',    min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Hue warp intensity. 0 = subtle banding. 1 = extreme psychedelic folding.' },
+      { key: 'bands',  label: 'Bands',   min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Band count (1–8 repeating hue cycles). Low = smooth. High = many sharp color bands.' },
+      { key: 'sat',    label: 'Sat',     min: 0, max: 1, step: 0.01, default: 0.8, tip: 'Saturation. 0 = pastel. 1 = electric vivid.' },
+      { key: 'phase',  label: 'Phase',   min: 0, max: 1, step: 0.01, default: 0,   tip: 'Phase offset shifting the entire color map. Animate for motion.' },
+    ],
+    toggles: [],
+    order: ['warp', 'bands', 'sat', 'phase'],
+  },
+  xray: {
+    knobs: [
+      { key: 'exposure', label: 'Exposure', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = underexposed (dark). 1 = overexposed (bright). Controls gamma curve.' },
+      { key: 'edge',     label: 'Edge',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Edge enhancement strength. 0 = smooth. 1 = sharp bone-like edges.' },
+      { key: 'tint',     label: 'Tint',     min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = pure greyscale. 0.5 = blue medical tint. 1 = amber vintage.' },
+      { key: 'invert',   label: 'Invert',   min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = standard xray (dark on light). 1 = negative (light on dark).' },
+    ],
+    toggles: [],
+    order: ['exposure', 'edge', 'tint', 'invert'],
+  },
+  heatbleed: {
+    knobs: [
+      { key: 'bleed',   label: 'Bleed',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Color bleed amount. 0 = normal thermal. 1 = heavy color bleeding across the frame.' },
+      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Bleed spread radius. 0 = tight. 1 = wide spread.' },
+      { key: 'range',   label: 'Range',  min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Temperature range. 0 = compressed (more uniform). 1 = full dynamic range.' },
+      { key: 'glowamt', label: 'Glow',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Glow intensity on hot areas. 0 = flat. 1 = hot areas bloom outward.' },
+    ],
+    toggles: [],
+    order: ['bleed', 'radius', 'range', 'glowamt'],
+  },
+  nebula: {
+    knobs: [
+      { key: 'type',    label: 'Type',    min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = emission nebula (red/pink). 0.5 = reflection nebula (blue). 1 = planetary nebula (teal/magenta).' },
+      { key: 'stars',   label: 'Stars',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Star density at luminance peaks. 0 = no stars. 1 = dense sparkles.' },
+      { key: 'density', label: 'Density', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = transparent wisps. 1 = dense opaque gas clouds.' },
+      { key: 'sat',     label: 'Sat',     min: 0, max: 1, step: 0.01, default: 0.8, tip: '0 = grey cosmic dust. 1 = vivid colored nebula gas.' },
+    ],
+    toggles: [],
+    order: ['type', 'stars', 'density', 'sat'],
+  },
+  solarize: {
+    knobs: [
+      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Fold threshold. Tones above this level get solarized; below stay normal.' },
+      { key: 'intens',  label: 'Intens',  min: 0, max: 1, step: 0.01, default: 0.8, tip: '0 = subtle solarize. 1 = full Sabattier effect.' },
+      { key: 'cycles',  label: 'Cycles',  min: 1, max: 8, step: 0.1,  default: 1,   tip: 'Number of fold cycles. 1 = single fold. Higher = multiple repeating inversions.' },
+      { key: 'shift',   label: 'Shift',   min: 0, max: 1, step: 0.01, default: 0,   tip: 'Per-channel color shift. 0 = uniform solarize. 1 = RGB offset for chromatic solarization.' },
+    ],
+    toggles: [],
+    order: ['thresh', 'intens', 'cycles', 'shift'],
+  },
+  aurorastorm: {
+    knobs: [
+      { key: 'storm',   label: 'Storm',   min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = gentle aurora. 1 = violent banding storm.' },
+      { key: 'curtain', label: 'Curtain', min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = no vertical smear. 1 = heavy curtain streaking.' },
+      { key: 'color',   label: 'Color',   min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = green dominant. 0.5 = magenta. 1 = mixed violent multi-color.' },
+      { key: 'stars',   label: 'Stars',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Star density in dark areas. 0 = no stars. 1 = dense starfield in the voids.' },
+    ],
+    toggles: [],
+    order: ['storm', 'curtain', 'color', 'stars'],
+  },
+  cyanotype: {
+    knobs: [
+      { key: 'depth',   label: 'Depth',   min: 0, max: 1, step: 0.01, default: 0.6, tip: '0 = lighter cyan. 1 = deep Prussian navy.' },
+      { key: 'contrast',label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = soft wash. 1 = hard blueprint print.' },
+      { key: 'grain',   label: 'Grain',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Paper fiber texture in highlights. 0 = clean. 1 = visible grain.' },
+      { key: 'edge',    label: 'Edge',    min: 0, max: 1, step: 0.01, default: 0.2, tip: '0 = smooth. 1 = sharp technical outlines etched into the highlights.' },
+    ],
+    toggles: [],
+    order: ['depth', 'contrast', 'grain', 'edge'],
+  },
+  infrared: {
+    knobs: [
+      { key: 'intens',   label: 'Intens',  min: 0, max: 1, step: 0.01, default: 0.7, tip: '0 = subtle red shift. 1 = heavy Aerochrome infrared.' },
+      { key: 'blueshift',label: 'Blue',    min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = neutral shadows. 1 = deep blue-black tint in the shadows.' },
+      { key: 'contrast', label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = soft film look. 1 = hard print.' },
+      { key: 'grain',    label: 'Grain',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = clean. 1 = heavy film grain on midtones and highlights.' },
+    ],
+    toggles: [],
+    order: ['intens', 'blueshift', 'contrast', 'grain'],
+  },
+  neontube: {
+    knobs: [
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.85, tip: 'Neon color hue. 0.85 = hot pink, 0.55 = cyan, 0.15 = amber.' },
+      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Edge threshold. Only edges stronger than this light up as neon tubes.' },
+      { key: 'halo',   label: 'Halo',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: '0 = crisp tube cores. 1 = wide soft atmospheric halo.' },
+      { key: 'bright', label: 'Bright', min: 0, max: 1, step: 0.01, default: 0.6,  tip: '0 = faint tubes. 1 = blinding hot neon cores.' },
+    ],
+    toggles: [],
+    order: ['hue', 'thresh', 'halo', 'bright'],
+  },
+  deepfield: {
+    knobs: [
+      { key: 'sat',    label: 'Sat',    min: 0, max: 1, step: 0.01, default: 0.8, tip: '0 = greyscale cosmic dust. 1 = full chroma galaxy colors.' },
+      { key: 'red',    label: 'Redshift',min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = blue/white nearby galaxies. 1 = red-shifted distant galaxies.' },
+      { key: 'glow',   label: 'Glow',   min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = tight galaxy points. 1 = wide halo spread on bright objects.' },
+      { key: 'boost',  label: 'Boost',  min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = hide faint galaxies. 1 = boost faint background objects into visibility.' },
+    ],
+    toggles: [],
+    order: ['sat', 'red', 'glow', 'boost'],
+  },
+  decayflow: {
+    knobs: [
+      { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow advection speed. How fast pixels drift along the gradient field.' },
+      { key: 'persist',label: 'Persist',min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Trail persistence. How much of the previous advected state carries forward.' },
+      { key: 'bright', label: 'Bright', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Trail brightness boost on gradient edges.' },
+      { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = pure trail. 1 = source mixed with trail.' },
+    ],
+    toggles: [],
+    order: ['speed', 'persist', 'bright', 'blend'],
+  },
+  feedbackwarp: {
+    knobs: [
+      { key: 'warp',    label: 'Warp',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Warp strength. How far pixels displace along the gradient direction per frame.' },
+      { key: 'persist', label: 'Persist', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Persistence of the warped state. High = long trails and drips.' },
+      { key: 'inject',  label: 'Inject',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Source injection. How much of the original frame is re-injected to prevent total blur.' },
+      { key: 'mode',    label: 'Mode',    min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = gradient warp. 0.5 = rotational warp. 1 = radial warp outward from center.' },
+    ],
+    toggles: [],
+    order: ['warp', 'persist', 'inject', 'mode'],
+  },
+  bloom: {
+    knobs: [
+      { key: 'thresh',  label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = everything glows. 1 = only the brightest areas bloom.' },
+      { key: 'intens',  label: 'Intens', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = subtle haze. 1 = blazing glow.' },
+      { key: 'blue',    label: 'Blue',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = natural color bloom. 0.5 = blue neon tint. 1 = deep blue energy.' },
+      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = tight glow close to source. 1 = wide soft bloom.' },
+    ],
+    toggles: [],
+    order: ['thresh', 'intens', 'blue', 'radius'],
+  },
+  crtrolling: {
+    knobs: [
+      { key: 'freq',   label: 'Freq',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = single giant wave. 1 = tight rapid rippling.' },
+      { key: 'amp',    label: 'Amp',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Horizontal displacement amplitude. 0 = none. 1 = heavy distortion.' },
+      { key: 'lumod',  label: 'LuMod',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Luma modulation. 0 = uniform wave. 1 = bright areas wobble more.' },
+      { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Rolling speed. 0 = static wave. 1 = fast rolling.' },
+    ],
+    toggles: [],
+    order: ['freq', 'amp', 'lumod', 'speed'],
+  },
+  noise: {
+    knobs: [
+      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Grain amount. 0 = clean. 1 = heavy noise.' },
+      { key: 'size',   label: 'Size',   min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Grain size. 0 = fine 35mm. 1 = chunky 8mm.' },
+      { key: 'shadow', label: 'Shadow', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shadow bias. 0 = uniform grain. 1 = heavier grain in dark areas.' },
+      { key: 'color',  label: 'Color',  min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = monochromatic grain. 1 = RGB color noise.' },
+    ],
+    toggles: [],
+    order: ['amount', 'size', 'shadow', 'color'],
+  },
+  scanlines: {
+    knobs: [
+      { key: 'density',  label: 'Density',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Line density (100–800 lines). Low = coarse VHS. High = fine CRT.' },
+      { key: 'darkness', label: 'Darkness', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'How dark the scanlines are. 0 = invisible. 1 = heavy black lines.' },
+      { key: 'jitter',   label: 'Jitter',   min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Per-row horizontal jitter. 0 = stable. 1 = wobbly analog VHS.' },
+      { key: 'rgb',      label: 'RGB',      min: 0, max: 1, step: 0.01, default: 0,   tip: 'RGB channel offset per row. 0 = none. 1 = full chroma fringing.' },
+    ],
+    toggles: [],
+    order: ['density', 'darkness', 'jitter', 'rgb'],
+  },
+  degrade: {
+    knobs: [
+      { key: 'bitdepth', label: 'Bits',    min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = clean 24-bit. 1 = extreme 2-bit posterization.' },
+      { key: 'dither',   label: 'Dither',  min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = hard banding. 1 = noise dithering softens quantization edges.' },
+      { key: 'bleed',    label: 'Bleed',   min: 0, max: 1, step: 0.01, default: 0.2, tip: '0 = clean channels. 1 = R and B bleed into neighbors.' },
+      { key: 'pixelate', label: 'Pixelate',min: 0, max: 1, step: 0.01, default: 0.2, tip: '0 = full resolution. 1 = chunky pixelated macroblocks.' },
+    ],
+    toggles: [],
+    order: ['bitdepth', 'dither', 'bleed', 'pixelate'],
+  },
+  crt: {
+    knobs: [
+      { key: 'phosphor', label: 'Phosphor', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = clean. 1 = visible RGB phosphor subpixel grid.' },
+      { key: 'bloom',    label: 'Bloom',    min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = sharp. 1 = bright areas bleed and glow.' },
+      { key: 'barrel',   label: 'Barrel',   min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = flat. 1 = curved CRT screen barrel distortion.' },
+      { key: 'scanline', label: 'Scanline', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = no scanlines. 1 = heavy dark horizontal lines.' },
+    ],
+    toggles: [],
+    order: ['phosphor', 'bloom', 'barrel', 'scanline'],
   },
 };
 
@@ -533,10 +734,15 @@ _hiddenCards.forEach(c => c.classList.add('hidden'));
 // none / ASCII / Erode (per "remove extras from UI" — voronoi, cellular,
 // shatter, wave were dropped because they're not in the spec's 9). COLOR
 // effects remain per-slot in the rack.
-const STRUCTURE_SECTIONS = ['ascii', 'erode'];
-const COLOR_SECTIONS     = ['oxide','synth','biolum','thermo','falsecolor'];
-// No GL_RESETS: ascii is stateless and erode is a single-frame
-// morphological op, so neither needs a per-source-switch reset.
+const STRUCTURE_SECTIONS = ['ascii', 'erode', 'watershed', 'pixelsort', 'melt'];
+const COLOR_SECTIONS     = [
+  'oxide','synth','biolum','thermo','falsecolor',
+  'depthstack','prismatic','acidwash','xray','heatbleed',
+  'nebula','solarize','aurorastorm','cyanotype','infrared',
+  'neontube','deepfield','decayflow','feedbackwarp','bloom',
+  'crtrolling','noise','scanlines','degrade','crt',
+];
+// No GL_RESETS: all current structure effects are stateless single-frame ops.
 const GL_RESETS          = {};
 
 // Centralized STRUCTURE effect dispatch: pulls per-effect knob values
@@ -552,11 +758,37 @@ function runEffect(name, opts) {
       }, opts);
     case 'erode':
       return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], opts);
+    case 'watershed':
+      return applyGLFilter('watershed', canvas.width, canvas.height, [state.watershedBasin, state.watershedBoundary, state.watershedFlat, state.watershedDepth], opts);
+    case 'pixelsort':
+      return applyGLFilter('pixelsort', canvas.width, canvas.height, [state.pixelsortThresh, state.pixelsortLength, state.pixelsortOpacity, state.pixelsortDir], opts);
+    case 'melt':
+      return applyGLFilter('melt', canvas.width, canvas.height, [state.meltAmount, state.meltDrip, state.meltViscosity, state.meltDir], opts);
     case 'oxide':
     case 'synth':
     case 'biolum':
     case 'thermo':
     case 'falsecolor':
+    case 'depthstack':
+    case 'prismatic':
+    case 'acidwash':
+    case 'xray':
+    case 'heatbleed':
+    case 'nebula':
+    case 'solarize':
+    case 'aurorastorm':
+    case 'cyanotype':
+    case 'infrared':
+    case 'neontube':
+    case 'deepfield':
+    case 'decayflow':
+    case 'feedbackwarp':
+    case 'bloom':
+    case 'crtrolling':
+    case 'noise':
+    case 'scanlines':
+    case 'degrade':
+    case 'crt':
       console.warn(`runEffect: ${name} is a per-slot COLOR effect; use runColorEffect(name, slotParams, opts).`);
       return;
     default:
@@ -584,13 +816,36 @@ function runColorEffect(name, params, opts) {
 // rule when a chain runs (use the COLOR stage's blend mode at the final
 // composite).
 const BLEND_MODES = {
-  ascii:      'source-over',
-  erode:      'source-over',
-  oxide:      'source-over',
-  synth:      'source-over',
-  biolum:     'source-over',
-  thermo:     'source-over',
-  falsecolor: 'source-over',
+  ascii:        'source-over',
+  erode:        'source-over',
+  watershed:    'source-over',
+  pixelsort:    'source-over',
+  melt:         'source-over',
+  oxide:        'source-over',
+  synth:        'source-over',
+  biolum:       'source-over',
+  thermo:       'source-over',
+  falsecolor:   'source-over',
+  depthstack:   'source-over',
+  prismatic:    'source-over',
+  acidwash:     'source-over',
+  xray:         'source-over',
+  heatbleed:    'source-over',
+  nebula:       'source-over',
+  solarize:     'source-over',
+  aurorastorm:  'source-over',
+  cyanotype:    'source-over',
+  infrared:     'source-over',
+  neontube:     'source-over',
+  deepfield:    'source-over',
+  decayflow:    'source-over',
+  feedbackwarp: 'source-over',
+  bloom:        'source-over',
+  crtrolling:   'source-over',
+  noise:        'source-over',
+  scanlines:    'source-over',
+  degrade:      'source-over',
+  crt:          'source-over',
 };
 
 const TOGGLE_CONFIG = [
