@@ -87,7 +87,9 @@ const DEFAULTS = Object.freeze({
 // Storage key bumped because the state schema changed: STRUCTURE lost
 // voronoi/cellular/wave/shatter, detection knobs renamed, BlobTracking
 // (TRACK-mode) state added. Old v2 saves are dropped silently.
-const STORAGE_KEY = 'fluxkit-state-v3';
+// v4: project renamed FluxKit → LumiSynth; key prefix updated accordingly.
+// Old fluxkit-state-v3 saves are dropped silently on first load.
+const STORAGE_KEY = 'lumisynth-state-v4';
 
 // Color rack: 3 fixed slots, each holding one COLOR effect (or empty), with
 // per-slot enable/disable + drag-to-reorder. Renders in series — slot 0 reads

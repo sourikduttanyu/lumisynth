@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-05-08T19:10:00Z",
-  "title": "Design System: FluxKit (Workbench palette — dark graphite)",
+  "title": "Design System: LumiSynth (Workbench palette — dark graphite)",
   "extensions": {
     "colorMeta": {
       "orange-signal": {
@@ -310,7 +310,7 @@
       {
         "name": "mobile",
         "value": "640px",
-        "purpose": "Below this, sidebar collapses to top stack, filter buttons go to 4-up grid. The only responsive breakpoint; FluxKit is desktop-first by design."
+        "purpose": "Below this, sidebar collapses to top stack, filter buttons go to 4-up grid. The only responsive breakpoint; LumiSynth is desktop-first by design."
       }
     ]
   },
@@ -414,7 +414,7 @@
   ],
   "narrative": {
     "northStar": "The Studio Workbench (dark)",
-    "overview": "FluxKit is built for a workbench in a dim studio. The chassis is dark, restrained, warm-grey graphite. The work — the canvas — sits inside an even darker display embedded in that chassis, the way a screen sits in an Elektron Octatrack body or an Ableton Push 3. The chassis recedes by being a quiet warm grey; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing or being touched. Everywhere else, the surface is a neutral warm graphite that the eye relaxes into without strain — a screen that can be looked at for hours without fatigue.\n\nThe aesthetic family is browser shader playground crossed with industrial sampler hardware, with named references to Teenage Engineering K.O. II / K.O. Sidekick (TE chrome language: knobs, type, button shapes), Lumen, Cables.gl, and Ableton Push. Where K.O. II is cream and built for daylight, FluxKit picks the dark sibling aesthetic — Octatrack, Push 3 black, Eurorack — for chassis lightness, because a screen-based instrument lives in a different lighting environment than physical hardware.\n\nFluxKit explicitly rejects three other families it could be mistaken for: generic SaaS dashboard, AI tool cliché, and hobbyist demo.\n\nDensity is high on purpose. Power users need every knob visible at once, newcomers learn the controls by touching them, and there is no tutorial layer to fall back on. The chrome must be tight enough to fit, terse enough to read at a glance, and consistent enough that muscle memory pays off — exactly the discipline a TE or Elektron device runs on.",
+    "overview": "LumiSynth is built for a workbench in a dim studio. The chassis is dark, restrained, warm-grey graphite. The work — the canvas — sits inside an even darker display embedded in that chassis, the way a screen sits in an Elektron Octatrack body or an Ableton Push 3. The chassis recedes by being a quiet warm grey; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing or being touched. Everywhere else, the surface is a neutral warm graphite that the eye relaxes into without strain — a screen that can be looked at for hours without fatigue.\n\nThe aesthetic family is browser shader playground crossed with industrial sampler hardware, with named references to Teenage Engineering K.O. II / K.O. Sidekick (TE chrome language: knobs, type, button shapes), Lumen, Cables.gl, and Ableton Push. Where K.O. II is cream and built for daylight, LumiSynth picks the dark sibling aesthetic — Octatrack, Push 3 black, Eurorack — for chassis lightness, because a screen-based instrument lives in a different lighting environment than physical hardware.\n\nLumiSynth explicitly rejects three other families it could be mistaken for: generic SaaS dashboard, AI tool cliché, and hobbyist demo.\n\nDensity is high on purpose. Power users need every knob visible at once, newcomers learn the controls by touching them, and there is no tutorial layer to fall back on. The chrome must be tight enough to fit, terse enough to read at a glance, and consistent enough that muscle memory pays off — exactly the discipline a TE or Elektron device runs on.",
     "keyCharacteristics": [
       "One signal color (orange-signal), reserved for change, active, or being-touched states. Orange against dark warm-grey graphite is the loudest possible accent the chrome supports.",
       "Red used rarely, only for danger state and the rare typographic emphasis.",
@@ -444,7 +444,7 @@
       {
         "name": "The Two-Color Rule",
         "section": "colors",
-        "body": "Orange and red are the only saturated chromas in the chrome. No greens, blues, purples, teals, pinks, or yellows appear as primary surface or accent colors anywhere. Stage labels and state colors are LOW-chroma — they read as tinted greyscale, not as color in the design sense. If you find yourself reaching for a fourth or fifth saturated hue, you are decorating, and FluxKit is not decorated. Filter button gradients are exempt because they are previewing canvas content, which is creative output and itself exempt from the rule."
+        "body": "Orange and red are the only saturated chromas in the chrome. No greens, blues, purples, teals, pinks, or yellows appear as primary surface or accent colors anywhere. Stage labels and state colors are LOW-chroma — they read as tinted greyscale, not as color in the design sense. If you find yourself reaching for a fourth or fifth saturated hue, you are decorating, and LumiSynth is not decorated. Filter button gradients are exempt because they are previewing canvas content, which is creative output and itself exempt from the rule."
       },
       {
         "name": "The Signal-Flow Rule",

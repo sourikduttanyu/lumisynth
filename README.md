@@ -1,4 +1,4 @@
-# FluxKit
+# LumiSynth
 
 A browser-based video art tool. Load a video or open your camera — it detects motion in real time, tracks blobs with a Kalman filter, and applies GPU-accelerated visual effects. No account, no server, no upload. Everything runs locally in your browser.
 
@@ -73,7 +73,7 @@ Independent of the main chain. Applied after STRUCTURE → COLOR composites, ins
 ## Code Layout
 
 ```
-FluxKit/
+LumiSynth/
 ├── index.html          ← sidebar + canvas layout
 ├── src/
 │   ├── main.js         ← render loop, state, control wiring
@@ -129,7 +129,7 @@ Hover any filter button or effect-card knob for ~350 ms — a description toolti
 | `Snap` — save current frame | `S` | PNG |
 | `Rec` — toggle clip recording | `R` | MP4 (or WebM/VP9 fallback) |
 
-`Rec` records exactly the pixels you see on the canvas (raw video + STRUCTURE → COLOR chain output + per-blob CPU pass + overlays). The button shows live elapsed time while recording with a pulsing red dot. Audio is not included — clips are video-only by design. Files download as `fluxkit-<timestamp>.<ext>` to your default downloads folder. Switching the source mid-recording auto-finalizes the clip.
+`Rec` records exactly the pixels you see on the canvas (raw video + STRUCTURE → COLOR chain output + per-blob CPU pass + overlays). The button shows live elapsed time while recording with a pulsing red dot. Audio is not included — clips are video-only by design. Files download as `lumisynth-<timestamp>.<ext>` to your default downloads folder. Switching the source mid-recording auto-finalizes the clip.
 
 ---
 
@@ -145,8 +145,8 @@ node --version
 ### 2 — Get the project
 
 ```
-git clone https://github.com/sourikduttanyu/fluxkit.git
-cd fluxkit
+git clone https://github.com/sourikduttanyu/lumisynth.git
+cd lumisynth
 ```
 
 Or unzip the folder and `cd` into it.

@@ -1,0 +1,171 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm install        # first time only
+npm run dev        # dev server at http://localhost:5173
+npm run build      # production build → dist/
+npm run preview    # serve dist/ locally
+```
+
+No test runner, no linter. The app is vanilla JS + Vite — verify correctness in the browser.
+
+## Tech stack constraints
+
+**Hard no** (see `PRD_DECISIONS.md`): TypeScript, React/Svelte/Solid, Tailwind, shadcn, three.js, any framework. This is intentionally vanilla JS + raw WebGL2 + Vite. Don't introduce build-time transpilation or component libraries.
+
+State lives in plain objects. Persistence is `localStorage` (`STORAGE_KEY = 'lumisynth-state-v4'`). Bump the storage key and explain why if the saved-state schema changes.
+
+## Architecture
+
+Signal flow: **STRUCTURE → COLOR rack → FX RACK → PER-BLOB overlays**
+
+```
+Video / webcam
+  ↓ blobDetector.js   grid local-maxima, 6 modes (motion/luma/dark/sat/edge/sharp)
+  ↓ kalman.js          Kalman + nearest-neighbour tracker, keeps blob identities stable
+  ↓ STRUCTURE pass     one full-frame WebGL effect (or none)
+  ↓ COLOR rack         0–3 slots chained in series, each an independent WebGL pass
+  ↓ FX RACK            placeholder (P3 — not real yet)
+  ↓ PER-BLOB pass      CPU-side filter (inv / thermal) inside blob bounding boxes
+  ↓ overlays.js        Canvas 2D shapes, labels, connection lines drawn on top
+```
+
+### GL pipeline (critical to understand before touching any GL file)
+
+All WebGL2 effect modules share **one offscreen GL canvas, one context, one video texture, one quad VAO** — `glContext.js`. The orchestrator (`renderFrame` in `main.js`) owns the per-frame sequence:
+
+1. `ensureContext(cw, ch)` — idempotent resize
+2. `uploadVideoFrame(video)` — one texture upload per frame
+3. `apply{Effect}(cw, ch, params, opts)` — pure GL passes, no upload/composite inside
+4. `compositeToCanvas2D(ctx, cw, ch, op)` — one `drawImage` to the display canvas
+
+Chain FBOs (in `glContext.js`): STRUCTURE writes → `chainFBOs.a`, compose pass reads a + video writes → `chainFBOs.b`, COLOR reads `chainFBOs.b`. Never read and write the same FBO texture in one draw call.
+
+Effect modules receive `opts = { inputTex, outputFBO }`. Stateful effects (Voronoi, Cellular, Wave) ignore `inputTex` — they always seed from raw video internally.
+
+Every effect vertex shader **must** call `gl.bindAttribLocation(prog, 0, 'a_pos')` before linking.
+
+### renderFrame wiring (detailed, in `main.js`)
+
+`renderFrame` is the RAF loop that ties everything together. Per-frame sequence:
+
+```
+1. FPS cap gate (60Hz accumulator)
+2. ctx.drawImage(srcEl) — video/image to 2D display canvas (always happens first)
+3. Detection: offscreen.drawImage(srcEl @ 0.5×scale) → detectBlobs → trackBlobs → cachedBlobs
+   - Only runs when source is playing (not paused/still)
+   - Runs every `updateInterval` frames
+4. smoothBlobs(cachedBlobs) — One Euro Filter sub-pixel smoothing
+5. GL dispatch — resolveActivePipeline() determines active stages:
+   a. totalStages === 0: no GL runs, raw video on display
+   b. totalStages === 1: single fast path — effect → compositeToCanvas2D(blend)
+   c. totalStages > 1:  multi-stage ping-pong via chain.a ↔ chain.b FBOs
+      - STRUCTURE (if any): reads raw video → writes chain.a
+        - If STRUCTURE blend = 'screen': applyCompose(structTex, chain.b) to bake screen blend
+      - COLORS: each reads previous tex → writes to next FBO; last writes to null (GL canvas)
+      - compositeToCanvas2D with last color's blend mode
+6. PER-BLOB CPU pass (inv/thermal): getImageData → applyFilterToSubregion → putImageData
+7. TRACK mode overlay: drawTrackOverlay(ctx, blobs, ...) — Canvas 2D on top
+```
+
+**`resolveActivePipeline()`** returns `{ structure: string|null, colors: [{type, params}] }` — only enabled, non-empty slots make it in. This is called once per frame and drives the entire GL dispatch.
+
+**`runEffect(name, opts)`** dispatches STRUCTURE effects: `'ascii'` → `applyASCII`, `'erode'` → `applyGLFilter('erode', ...)`.
+
+**`runColorEffect(type, params, opts)`** dispatches COLOR effects: all go through `applyGLFilter(type, cw, ch, orderedParams, opts)` where `orderedParams` is built from `COLOR_PARAM_SCHEMAS[type].order`.
+
+### Shader anatomy
+
+All effect shaders share a **single vertex shader pattern**:
+```glsl
+#version 300 es
+in vec2 a_pos;        // clip-space position, attr 0
+out vec2 vUV;
+void main() {
+  vUV = a_pos * 0.5 + 0.5;   // [-1,1] → [0,1] UV
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+```
+The quad covers the full clip-space (±1), and `UNPACK_FLIP_Y_WEBGL=true` in `glUtil.js` ensures video row 0 (visual top) lands at `vUV.y=1` (GL top), keeping rendered video right-side up.
+
+All fragment shaders have the same interface:
+- `uniform sampler2D u_video` — the input texture (may be raw video tex or upstream FBO tex via `opts.inputTex`)
+- `uniform vec4 uParams` — four packed floats; the `order` array in `COLOR_PARAM_SCHEMAS` maps slot params to xyzw positions
+- `out vec4 fragColor`
+
+**Shaders by effect:**
+
+| Effect | File | uParams mapping | Notes |
+|---|---|---|---|
+| `erode` | `glFilters.js` | x=dilate(0/1), y=radius, z=strength, w=edgeRing | Morphological erode/dilate + edge ring overlay |
+| `oxide` | `glFilters.js` | x=corrosion, y=metal(0=copper/0.5=iron/1=silver), z=roughness, w=sheen | Hash-noise roughness; 3 metal palettes |
+| `synth` | `glFilters.js` | x=warmth, y=sep(bands 3–12), z=resonance, w=dynRange(gamma) | Luma-based color ramp with sin resonance modulation |
+| `biolum` | `glFilters.js` | x=glow, y=color(hue 0=cyan/1=violet), z=pulse, w=depth | HSV→RGB; glow pow + sin pulse |
+| `thermo` | `glFilters.js` | x=contrast, y=hot(bias), z=cold(floor), w=whitePt | 5-stop thermal ramp black→blue→cyan→yellow→red→white |
+| `falsecolor` | `glFilters.js` | x=palette(0–1 cross-fades thermal/neon/acid/ice), y=band(0/1), z=bandcnt, w=bright | 4 built-in palettes cross-faded by x |
+| `ascii` | `ascii.js` | x=cellSize, y=contrast, z=blackThreshold, w=glyphStrength | 5×7 bitmap font; 26 glyphs encoded as hex bitmasks in GLSL |
+| compose pass | `glCompose.js` | no uParams — 2 samplers: u_video + u_struct | Screen blend formula: `1-(1-a)*(1-b)` |
+
+**Shader compile pattern** (identical in all modules):
+1. `compileShader(gl, type, src)` — creates, sources, compiles; logs error on failure
+2. `createProgram(gl, vSrc, fSrc)` — attaches, calls `bindAttribLocation(prog, 0, 'a_pos')` before link
+3. Uniform locations cached in module-level `M` (or `_programs[name]` in glFilters) on first call
+
+### glContext.js internals
+
+`S` (module-level singleton) holds: `{ canvas, gl, vao, videoTex, w, h }`.
+
+`chain` (module-level) holds: `{ a: {fb, tex}, b: {fb, tex} }` — lazily allocated by `getChainFBOs()`, disposed and reallocated on resize. **Do not cache `fb`/`tex` handles across frames** — they become stale after resize.
+
+Exported API:
+- `ensureContext(w, h)` → `S` — creates context + VAO + videoTex on first call; resizes canvas + disposes chain on dimension change
+- `uploadVideoFrame(video)` → delegates to `glUtil.uploadVideoTexture` (allocate-once + `texSubImage2D` fast-path)
+- `compositeToCanvas2D(ctx, cw, ch, op)` — `drawImage(S.canvas)` with given composite op
+- `getChainFBOs()` → `{ a, b }` — lazy alloc
+- `getGL()`, `getCanvas()`, `getVideoTex()`, `getQuadVAO()` — accessors for module use
+
+### BLEND_MODES
+
+`BLEND_MODES` (in `main.js`) maps effect names to their Canvas 2D composite operation used in `compositeToCanvas2D`. STRUCTURE effects that are `'screen'` trigger the compose pass in multi-stage chains. `'source-over'` effects replace the video directly (ascii, erode) — no compose pass needed.
+
+### Key files
+
+| File | Role |
+|---|---|
+| `src/main.js` | App entry, `DEFAULTS`, `COLOR_PARAM_SCHEMAS`, render loop, all UI wiring |
+| `src/glContext.js` | Shared GL context + chain FBO allocator. Read the contract comment at the top before touching any GL module |
+| `src/glCompose.js` | STRUCTURE → COLOR compose pass (screen-blend STRUCTURE output over raw video) |
+| `src/glFilters.js` | Stateless full-frame GL effects: shatter, erode, oxide, synth, biolum, thermo, falsecolor |
+| `src/blobDetector.js` | CPU blob detection, all 6 modes |
+| `src/kalman.js` | 1D Kalman filter + nearest-neighbour tracker |
+| `src/overlays.js` | Canvas 2D track overlay: shapes, labels, connection lines |
+| `src/oneEuroFilter.js` | One Euro Filter for sub-pixel blob position smoothing |
+| `src/filters.js` | CPU per-blob effects (inv, thermal) applied to ImageData subregions |
+| `src/ascii.js` | WebGL2 ASCII luma (single-pass, stateless) |
+| `src/glUtil.js` | `uploadVideoTexture` — allocate-once + `texSubImage2D` fast-path (saves ~8 MB GPU alloc/free per frame at 1080p); also handles UNPACK_FLIP_Y_WEBGL |
+
+Voronoi / cellular / wave were removed; they are not in the current `src/`.
+
+### Color rack (COLOR_PARAM_SCHEMAS)
+
+3 fixed slots. Each slot holds one color effect (oxide / synth / biolum / thermo / falsecolor) or is empty. Each slot has its own independent copy of that effect's knob params. Slots run in series — slot 0 output feeds slot 1, etc. Disabled slots are skipped entirely. Schemas live in `COLOR_PARAM_SCHEMAS` in `main.js`; `order` array must match shader uniform order exactly.
+
+### Design system
+
+Tokens defined in `DESIGN.md` / `DESIGN.json`. Key palette: warm-grey graphite chassis (`--bg-stage: #1f1c19`), orange signal (`#ff5722`). Typography: Inter, 9–13px, heavy letter-spacing. Stage accent colors: OSC = amber (`#b89669`), FILTER = rose (`#b66575`), FX = slate-blue (`#7a96b1`). CSS variables are the source of truth — don't hardcode color values.
+
+### Two top-level modes
+
+`state.mode` is `'synth'` or `'track'`. `body[data-mode]` attribute controls which sidebar sections are visible via CSS. SYNTH mode shows STRUCTURE / COLOR rack pipeline. TRACK mode shows the blob-tracking controls and track FX rack.
+
+### Track FX rack (TRACK_FX_PARAM_SCHEMAS)
+
+3 fixed slots mirroring the COLOR rack, but for TRACK mode only. Effects: `echo` (ghost bboxes of past blob positions), `radar` (sweep-ring per blob), `heatmap` (canvas residue layer). Schemas live in `TRACK_FX_PARAM_SCHEMAS`; rack initialized via `makeTrackFxRack()` in `main.js`. CPU-side Canvas 2D — no GL passes.
+
+## Active work context
+
+See `lumisynthprd.md` for implementation status vs the original PRD. P2 (STRUCTURE → COLOR FBO chain) shipped. Track FX rack (echo/radar/heatmap) is implemented in TRACK mode. P3 (real FX RACK GL shaders, drag-reorder, Inv/Thermal moving from PER-BLOB into FX RACK) is not started. `PRD_DECISIONS.md` logs what is deliberately out of scope.

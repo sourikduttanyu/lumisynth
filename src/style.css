@@ -817,17 +817,31 @@ label.section-label { cursor: pointer; }
   gap: var(--space-xs);
   flex-wrap: wrap;
 }
-/* Detect-mode picker: 6 modes (motion, luma, dark, sat, edge, sharp).
-   3-column grid keeps two clean rows of three at the 240px sidebar width;
-   mirrors the class-scoped pattern .filter-swatch-group uses across the
-   STRUCTURE / COLOR / PER-BLOB filter sections. */
-#detect-mode-group {
+/* Lumi-channel picker: 7 modes (motion, luma, dark, sat, edge, sharp, color).
+   3-column grid → rows of 3 / 3 / 1 at the 240px sidebar width. */
+#lumi-channel-group {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-xs);
-  flex-wrap: initial;
 }
-#detect-mode-group .toggle-btn { flex: initial; }
+#lumi-channel-group .toggle-btn { flex: initial; }
+
+/* Track-lines picker: 7 types (off, dist, velocity, pulse, const, mst, star).
+   4-column grid → rows of 4 / 3. Short abbreviations fit the narrow cells. */
+#track-lines-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-xs);
+}
+#track-lines-group .toggle-btn {
+  flex: initial;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: var(--space-sm) var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .toggle-btn {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
