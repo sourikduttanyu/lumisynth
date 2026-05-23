@@ -1376,6 +1376,95 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 #fps-overlay.hidden { display: none; }
 
 /* ============================================================
+   INTRO PANEL — first-run orientation, display surface.
+   Short text only; dismissible so it never blocks power users twice.
+   ============================================================ */
+#intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(0% 0 0 / 0.68);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+}
+#intro-overlay.hidden { display: none; }
+#intro-panel {
+  background: var(--display-screen);
+  border: 1px solid var(--display-hairline);
+  border-radius: 10px;
+  padding: var(--space-2xl);
+  max-width: 440px;
+  width: 100%;
+  box-shadow: var(--modal-lift);
+  position: relative;
+  contain: layout style paint;
+}
+.intro-kicker {
+  color: oklch(92% 0.005 70 / 0.58);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-sm);
+}
+#intro-panel h2 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-on-display);
+  margin-bottom: var(--space-lg);
+}
+#intro-panel p {
+  color: oklch(92% 0.005 70 / 0.84);
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-lg);
+}
+.intro-action {
+  margin-top: var(--space-xs);
+  background: var(--display-bezel);
+  color: var(--text-on-display);
+  border: 1px solid var(--display-hairline);
+  border-radius: 4px;
+  padding: var(--space-md) var(--space-lg);
+  min-height: 30px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+.intro-action:hover {
+  background: oklch(12% 0.006 70);
+  border-color: var(--orange-signal);
+  color: var(--text-key);
+}
+#intro-close {
+  position: absolute;
+  top: var(--space-md); right: var(--space-lg);
+  background: transparent;
+  border: none;
+  color: oklch(92% 0.005 70 / 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  width: 28px; height: 28px;
+  border-radius: 3px;
+  transition:
+    color      var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
+}
+#intro-close:hover { color: var(--text-on-display); background: oklch(92% 0.005 70 / 0.10); }
+
+/* ============================================================
    HELP PANEL — display surface, the only chrome surface allowed
    --modal-lift. Backdrop is solid dark, no blur (per Flat-By-Default Rule).
    ============================================================ */

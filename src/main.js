@@ -54,6 +54,9 @@ const btnRecordLbl = document.getElementById('btn-record-label');
 const btnReset     = document.getElementById('btn-reset');
 const btnFps       = document.getElementById('btn-fps');
 const btnHelp      = document.getElementById('btn-help');
+const introOverlay = document.getElementById('intro-overlay');
+const introClose   = document.getElementById('intro-close');
+const introStart   = document.getElementById('intro-start');
 const helpOverlay  = document.getElementById('help-overlay');
 const helpClose    = document.getElementById('help-close');
 const dropOverlay  = document.getElementById('drop-overlay');
@@ -1767,6 +1770,29 @@ function handleSourceChangeForRecording() {
 }
 
 // ---- Help panel ----
+const INTRO_DISMISSED_KEY = 'lumisynth-intro-dismissed';
+
+function introDismissed() {
+  try { return localStorage.getItem(INTRO_DISMISSED_KEY) === 'true'; }
+  catch (_) { return false; }
+}
+
+function dismissIntro() {
+  if (!introOverlay) return;
+  introOverlay.classList.add('hidden');
+  try { localStorage.setItem(INTRO_DISMISSED_KEY, 'true'); } catch (_) {}
+}
+
+function showIntroIfNeeded() {
+  if (!introOverlay || introDismissed()) return;
+  introOverlay.classList.remove('hidden');
+  if (introStart) introStart.focus();
+}
+
+introClose?.addEventListener('click', dismissIntro);
+introStart?.addEventListener('click', dismissIntro);
+introOverlay?.addEventListener('click', (e) => { if (e.target === introOverlay) dismissIntro(); });
+
 function openHelp()  { helpOverlay.classList.remove('hidden'); helpClose.focus(); }
 function closeHelp() { helpOverlay.classList.add('hidden'); }
 btnHelp.addEventListener('click', openHelp);
@@ -1803,6 +1829,9 @@ document.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'textarea') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+  if (e.key === 'Escape' && introOverlay && !introOverlay.classList.contains('hidden')) {
+    dismissIntro(); e.preventDefault(); return;
+  }
   if (e.key === 'Escape' && !helpOverlay.classList.contains('hidden')) {
     closeHelp(); e.preventDefault(); return;
   }
@@ -2798,6 +2827,7 @@ if (projectNameEl) {
 loadProjectName();
 loadPersistedState();
 applyStateToUI();
+showIntroIfNeeded();
 canvas.width  = canvasArea.clientWidth;
 canvas.height = canvasArea.clientHeight;
 btnSnapshot.disabled = !state.hasSource;
