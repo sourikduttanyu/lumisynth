@@ -2563,6 +2563,72 @@ document.addEventListener('mouseleave', hideHelpTip);
 document.addEventListener('mousedown', hideHelpTip);
 window.addEventListener('blur', hideHelpTip);
 
+// ---- Lag cursor ----
+// Pearl Fisher-inspired custom cursor: one solid delayed pointer, no trail.
+// Desktop/fine-pointer only, disabled when reduced motion is requested.
+const lagCursorMedia = window.matchMedia('(pointer: fine) and (prefers-reduced-motion: no-preference)');
+const lagCursor = document.createElement('div');
+lagCursor.className = 'lag-cursor';
+lagCursor.setAttribute('aria-hidden', 'true');
+document.body.appendChild(lagCursor);
+
+const lagCursorState = {
+  enabled: false,
+  initialized: false,
+  raf: 0,
+  x: 0,
+  y: 0,
+  tx: 0,
+  ty: 0,
+};
+
+function isTextCursorTarget(el) {
+  return !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]'));
+}
+
+function renderLagCursor() {
+  if (!lagCursorState.enabled) return;
+  lagCursorState.x += (lagCursorState.tx - lagCursorState.x) * 0.12;
+  lagCursorState.y += (lagCursorState.ty - lagCursorState.y) * 0.12;
+  lagCursor.style.transform = `translate3d(${lagCursorState.x}px, ${lagCursorState.y}px, 0) translate(-50%, -50%)`;
+  lagCursorState.raf = requestAnimationFrame(renderLagCursor);
+}
+
+function setLagCursorEnabled(enabled) {
+  lagCursorState.enabled = enabled;
+  document.body.classList.toggle('lag-cursor-enabled', enabled);
+  if (!enabled) {
+    document.body.classList.remove('lag-cursor-text-mode');
+    lagCursor.classList.remove('visible', 'is-text');
+    if (lagCursorState.raf) cancelAnimationFrame(lagCursorState.raf);
+    lagCursorState.raf = 0;
+    return;
+  }
+  if (!lagCursorState.raf) lagCursorState.raf = requestAnimationFrame(renderLagCursor);
+}
+
+function updateLagCursor(e) {
+  if (!lagCursorState.enabled) return;
+  lagCursorState.tx = e.clientX;
+  lagCursorState.ty = e.clientY;
+  if (!lagCursorState.initialized) {
+    lagCursorState.x = e.clientX;
+    lagCursorState.y = e.clientY;
+    lagCursorState.initialized = true;
+  }
+
+  const textMode = isTextCursorTarget(e.target);
+  document.body.classList.toggle('lag-cursor-text-mode', textMode);
+  lagCursor.classList.toggle('is-text', textMode);
+  lagCursor.classList.add('visible');
+}
+
+document.addEventListener('pointermove', updateLagCursor, { passive: true });
+document.addEventListener('pointerleave', () => lagCursor.classList.remove('visible'));
+window.addEventListener('blur', () => lagCursor.classList.remove('visible'));
+setLagCursorEnabled(lagCursorMedia.matches);
+lagCursorMedia.addEventListener('change', (e) => setLagCursorEnabled(e.matches));
+
 // Convention guard: future filter buttons (in any of the structure / color /
 // per-blob groups) and future effect-card controls (knobs + toggles inside
 // .effect-card) must ship with a data-tip describing them. The hover-tip

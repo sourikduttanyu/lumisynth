@@ -556,9 +556,9 @@ label.section-label { cursor: pointer; }
     color        var(--duration-base) var(--ease-out);
 }
 .color-rack-toggle[aria-pressed="true"] {
-  background: var(--orange-signal);
+  background: oklch(70% 0.21 45 / 0.20);
   border-color: var(--orange-signal);
-  color: var(--knob-cap-black);
+  color: var(--orange-signal);
 }
 .color-rack-toggle:hover { border-color: var(--orange-signal); }
 
@@ -702,9 +702,9 @@ label.section-label { cursor: pointer; }
   border-color: var(--orange-signal);
 }
 .color-rack-slot-toggle-btn.active {
-  background: var(--orange-signal);
+  background: oklch(70% 0.21 45 / 0.22);
   border-color: var(--orange-signal);
-  color: var(--knob-cap-black);
+  color: var(--text-key);
 }
 
 /* Disabled slot: chip dims, swatch dims. Slot border stays solid (the
@@ -891,9 +891,9 @@ label.section-label { cursor: pointer; }
 .toggle-btn.active,
 .toggle-btn[aria-pressed="true"],
 .toggle-btn[aria-checked="true"] {
-  background: var(--orange-signal);
-  color: oklch(15% 0.05 30);
-  border-color: transparent;
+  background: oklch(70% 0.21 45 / 0.22);
+  color: var(--text-key);
+  border-color: var(--orange-signal);
   font-weight: 700;
 }
 
@@ -1503,6 +1503,49 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 }
 
 /* ============================================================
+   LAG CURSOR — single delayed cursor, no trail.
+   Desktop-only; native cursor returns for text/edit fields and reduced
+   motion users keep the system cursor.
+   ============================================================ */
+.lag-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--text-key);
+  border: none;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2000;
+  transform: translate3d(-50%, -50%, 0) scale(1);
+  transition: opacity var(--duration-fast) var(--ease-out);
+  will-change: transform;
+  mix-blend-mode: difference;
+}
+.lag-cursor.visible { opacity: 1; }
+.lag-cursor.is-text {
+  opacity: 0;
+}
+
+@media (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  body.lag-cursor-enabled,
+  body.lag-cursor-enabled * {
+    cursor: none !important;
+  }
+  body.lag-cursor-enabled.lag-cursor-text-mode,
+  body.lag-cursor-enabled.lag-cursor-text-mode * {
+    cursor: auto !important;
+  }
+  body.lag-cursor-enabled.lag-cursor-text-mode input,
+  body.lag-cursor-enabled.lag-cursor-text-mode textarea,
+  body.lag-cursor-enabled.lag-cursor-text-mode [contenteditable] {
+    cursor: text !important;
+  }
+}
+
+/* ============================================================
    TOAST — bottom-center, full border (NO side-stripe).
    Lives on a display surface (display-bezel) per The Display-Vs-Chassis
    Rule — toasts read as a status display floating above the chassis.
@@ -1582,10 +1625,91 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
 .topbar-mode .toggle-btn:hover { background: oklch(12% 0.005 70); }
 .topbar-mode .toggle-btn.active,
 .topbar-mode .toggle-btn[aria-checked="true"] {
-  background: var(--orange-signal);
-  color: oklch(15% 0.05 30);
-  border-color: transparent;
+  background: oklch(70% 0.21 45 / 0.22);
+  color: var(--text-on-display);
+  border-color: var(--orange-signal);
   font-weight: 700;
+}
+
+/* ============================================================
+   DESKTOP TYPE SCALE — client use on 1080p / 1440p / 4K monitors.
+   Keep canvas dominant, but scale chrome enough to read from a normal
+   workstation distance. Breakpoints match common desktop widths.
+   ============================================================ */
+@media (min-width: 1600px) {
+  :root { --sidebar-width: 280px; }
+
+  html, body { font-size: 13px; }
+  .logo { font-size: 14px; }
+  .logo-sub,
+  .stage-divider,
+  .section-label { font-size: 10px; }
+  .stage-divider .stage-sub { font-size: 9px; }
+
+  .icon-btn { font-size: 10px; min-height: 30px; }
+  .action-btn { font-size: 12px; min-height: 34px; }
+  .toggle-btn {
+    font-size: 11px;
+    min-height: 32px;
+  }
+  #track-lines-group .toggle-btn { font-size: 10px; }
+  .filter-swatch-group .toggle-btn { min-height: 48px; }
+
+  .effect-card-title { font-size: 11px; }
+  .knob-svg { width: 44px; height: 44px; }
+  .knob-label { font-size: 10px; }
+  .knob-val { font-size: 11px; }
+  .color-rack-chip,
+  .color-pick { font-size: 11px; }
+  #canvas-topbar { font-size: 11px; }
+  .topbar-mode .toggle-btn { font-size: 10px; min-height: 26px; }
+}
+
+@media (min-width: 2400px) {
+  :root { --sidebar-width: 330px; }
+
+  html, body { font-size: 14px; }
+  .logo { font-size: 15px; }
+  .logo-sub,
+  .stage-divider,
+  .section-label { font-size: 11px; }
+  .stage-divider .stage-sub { font-size: 10px; }
+
+  .icon-btn { font-size: 11px; min-height: 32px; }
+  .action-btn { font-size: 13px; min-height: 36px; }
+  .toggle-btn {
+    font-size: 12px;
+    min-height: 34px;
+  }
+  #track-lines-group .toggle-btn { font-size: 11px; }
+  .filter-swatch-group .toggle-btn { min-height: 54px; }
+
+  .effect-card-title { font-size: 12px; }
+  .knob-svg { width: 48px; height: 48px; }
+  .knob-label { font-size: 11px; }
+  .knob-val { font-size: 12px; }
+  .color-rack-chip,
+  .color-pick { font-size: 12px; }
+  #canvas-topbar { font-size: 12px; }
+  .topbar-mode .toggle-btn { font-size: 11px; min-height: 28px; }
+}
+
+@media (min-width: 3200px) {
+  :root { --sidebar-width: 380px; }
+
+  html, body { font-size: 15px; }
+  .logo { font-size: 16px; }
+  .icon-btn { font-size: 12px; min-height: 34px; }
+  .action-btn { font-size: 14px; min-height: 38px; }
+  .toggle-btn {
+    font-size: 13px;
+    min-height: 36px;
+  }
+  .filter-swatch-group .toggle-btn { min-height: 60px; }
+
+  .knob-svg { width: 52px; height: 52px; }
+  .knob-label { font-size: 12px; }
+  .knob-val { font-size: 13px; }
 }
 
 /* ============================================================
