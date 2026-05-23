@@ -151,7 +151,84 @@ const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step,
 // The callback approach keeps the 140-line knob implementation single
 // and avoids two parallel implementations drifting apart. Slot knobs
 // still get full keyboard / wheel / drag / dblclick-reset behavior.
+function initSliderControl(el, opts = {}) {
+  const id       = el.id;
+  const min      = parseFloat(el.dataset.min);
+  const max      = parseFloat(el.dataset.max);
+  const step     = parseFloat(el.dataset.step);
+  const def      = parseFloat(el.dataset.default);
+  const stateKey = el.dataset.state || kebabToCamel(id);
+  const isInt    = step >= 1 && Number.isInteger(min) && Number.isInteger(max);
+  const valEl    = document.getElementById(`${id}-val`);
+  const isSlotKnob = !!opts.writeValue;
+  const seed = (opts.initialValue !== undefined) ? opts.initialValue : def;
+  let currentValue = clamp(seed, min, max);
+
+  el.classList.add('param-slider');
+  el.removeAttribute('role');
+  el.removeAttribute('aria-valuemin');
+  el.removeAttribute('aria-valuemax');
+  el.removeAttribute('aria-valuenow');
+  el.removeAttribute('aria-valuetext');
+  el.removeAttribute('tabindex');
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'param-slider-input';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(currentValue);
+  input.dataset.knob = '';
+  input.setAttribute('aria-label', el.getAttribute('aria-label') || id);
+  input.setAttribute('aria-valuemin', String(min));
+  input.setAttribute('aria-valuemax', String(max));
+
+  const labelEl = el.querySelector('.knob-label');
+  if (labelEl) labelEl.insertAdjacentElement('afterend', input);
+  else el.prepend(input);
+
+  function paint(v) {
+    const t = (v - min) / (max - min);
+    const display = formatValue(v, step);
+    input.value = String(v);
+    input.style.setProperty('--slider-t', `${clamp(t, 0, 1) * 100}%`);
+    input.setAttribute('aria-valuenow', String(v));
+    input.setAttribute('aria-valuetext', display);
+    if (valEl) valEl.textContent = display;
+    el.classList.toggle('modified', !nearlyEqual(v, def));
+  }
+
+  function setValue(v, { persist = true } = {}) {
+    let next = snapToStep(clamp(v, min, max), min, step);
+    if (isInt) next = Math.round(next);
+    if (next === currentValue) return;
+    currentValue = next;
+    if (isSlotKnob) opts.writeValue(next);
+    else            state[stateKey] = next;
+    paint(next);
+    if (persist) schedulePersist();
+  }
+  function getValue() { return currentValue; }
+
+  input.addEventListener('input', () => setValue(parseFloat(input.value)));
+  el.addEventListener('dblclick', (e) => { setValue(def); e.preventDefault(); });
+
+  paint(currentValue);
+  if (isSlotKnob) {
+    opts.writeValue(currentValue);
+  } else {
+    state[stateKey] = currentValue;
+    knobRegistry.set(id, { setValue, getValue, min, max, step, default: def, stateKey, el });
+  }
+}
+
 function initKnob(el, opts = {}) {
+  if (el.dataset.control === 'slider') {
+    initSliderControl(el, opts);
+    return;
+  }
+
   const id      = el.id;
   const min     = parseFloat(el.dataset.min);
   const max     = parseFloat(el.dataset.max);
@@ -680,11 +757,11 @@ function renderColorRack() {
       chev.type = 'button';
       chev.className = 'color-rack-chevron';
       chev.dataset.action = 'expand';
-      chev.setAttribute('aria-label', expanded ? 'Collapse slot knobs' : 'Expand slot knobs');
+      chev.setAttribute('aria-label', expanded ? 'Collapse slot controls' : 'Expand slot controls');
       chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       chev.dataset.tip = expanded
-        ? 'Hide this slot\'s knobs.'
-        : 'Show this slot\'s knobs. Each slot has its own copy — tweaking these only affects THIS slot.';
+        ? 'Hide this slot\'s controls.'
+        : 'Show this slot\'s controls. Each slot has its own copy — tweaking these only affects THIS slot.';
       chev.textContent = expanded ? '▴' : '▾';
       row.appendChild(chev);
 
@@ -722,7 +799,7 @@ function renderColorRack() {
   }
 }
 
-// Build the inline knob/toggle panel for an expanded slot. All knobs are
+// Build the inline control panel for an expanded slot. All controls are
 // slot-bound (writeValue closes over slot.params); the panel's reset
 // button restores factory defaults via resetSlotParams.
 function renderSlotPanel(slot) {
@@ -736,14 +813,14 @@ function renderSlotPanel(slot) {
   phead.className = 'color-rack-slot-panel-head';
   const ptitle = document.createElement('span');
   ptitle.className = 'color-rack-slot-panel-title';
-  ptitle.textContent = `${RACK_LABEL[slot.type] || slot.type} knobs`;
+  ptitle.textContent = `${RACK_LABEL[slot.type] || slot.type} controls`;
   phead.appendChild(ptitle);
   const presetBtn = document.createElement('button');
   presetBtn.type = 'button';
   presetBtn.className = 'color-rack-slot-reset';
   presetBtn.dataset.action = 'reset-params';
-  presetBtn.setAttribute('aria-label', 'Reset this slot\'s knobs to factory');
-  presetBtn.dataset.tip = 'Reset only THIS slot\'s knobs to factory defaults. Other slots untouched.';
+  presetBtn.setAttribute('aria-label', 'Reset this slot\'s controls to factory');
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s controls to factory defaults. Other slots untouched.';
   presetBtn.textContent = '⟲';
   phead.appendChild(presetBtn);
   panel.appendChild(phead);
@@ -799,6 +876,7 @@ function renderSlotPanel(slot) {
     knobEl.dataset.max     = String(k.max);
     knobEl.dataset.step    = String(k.step);
     knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
     knobEl.dataset.tip     = k.tip;
     knobEl.tabIndex = 0;
     knobEl.setAttribute('aria-label', `${RACK_LABEL[slot.type]} ${k.label}`);
@@ -1099,7 +1177,7 @@ function renderTrackFxRack() {
       chev.className = 'color-rack-chevron';
       chev.dataset.action = 'expand';
       chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      chev.dataset.tip = expanded ? 'Hide this slot\'s knobs.' : 'Show this slot\'s knobs.';
+      chev.dataset.tip = expanded ? 'Hide this slot\'s controls.' : 'Show this slot\'s controls.';
       chev.textContent = expanded ? '▴' : '▾';
       row.appendChild(chev);
 
@@ -1140,13 +1218,13 @@ function renderTrackFxSlotPanel(slot) {
   phead.className = 'color-rack-slot-panel-head';
   const ptitle = document.createElement('span');
   ptitle.className = 'color-rack-slot-panel-title';
-  ptitle.textContent = `${TRACK_FX_LABEL[slot.type] || slot.type} knobs`;
+  ptitle.textContent = `${TRACK_FX_LABEL[slot.type] || slot.type} controls`;
   phead.appendChild(ptitle);
   const presetBtn = document.createElement('button');
   presetBtn.type = 'button';
   presetBtn.className = 'color-rack-slot-reset';
   presetBtn.dataset.action = 'reset-params';
-  presetBtn.dataset.tip = 'Reset only THIS slot\'s knobs to factory.';
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s controls to factory.';
   presetBtn.textContent = '⟲';
   phead.appendChild(presetBtn);
   panel.appendChild(phead);
@@ -1164,6 +1242,7 @@ function renderTrackFxSlotPanel(slot) {
     knobEl.dataset.max     = String(k.max);
     knobEl.dataset.step    = String(k.step);
     knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
     knobEl.dataset.tip     = k.tip;
     knobEl.tabIndex = 0;
     knobEl.setAttribute('aria-label', `${TRACK_FX_LABEL[slot.type]} ${k.label}`);
@@ -1826,7 +1905,9 @@ btnFps.addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   // Ignore when typing in input/textarea or interacting with knob/toggle
   const tag = (document.activeElement?.tagName || '').toLowerCase();
-  if (tag === 'input' || tag === 'textarea') return;
+  const activeParamControl = document.activeElement?.dataset?.knob !== undefined
+    || document.activeElement?.classList?.contains('knob');
+  if ((tag === 'input' && !activeParamControl) || tag === 'textarea') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
   if (e.key === 'Escape' && introOverlay && !introOverlay.classList.contains('hidden')) {
@@ -1836,14 +1917,14 @@ document.addEventListener('keydown', (e) => {
     closeHelp(); e.preventDefault(); return;
   }
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) { openHelp(); e.preventDefault(); return; }
-  if ((e.key === 's' || e.key === 'S') && document.activeElement?.dataset?.knob === undefined) {
+  if ((e.key === 's' || e.key === 'S') && !activeParamControl) {
     if (!document.activeElement?.classList?.contains('knob')) { takeSnapshot(); e.preventDefault(); }
     return;
   }
-  if ((e.key === 'f' || e.key === 'F') && !document.activeElement?.classList?.contains('knob')) {
+  if ((e.key === 'f' || e.key === 'F') && !activeParamControl) {
     btnFps.click(); e.preventDefault();
   }
-  if ((e.key === 'r' || e.key === 'R') && !document.activeElement?.classList?.contains('knob')) {
+  if ((e.key === 'r' || e.key === 'R') && !activeParamControl) {
     if (btnRecord && !btnRecord.disabled && btnRecord.style.display !== 'none') {
       btnRecord.click();
       e.preventDefault();

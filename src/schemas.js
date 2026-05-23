@@ -127,7 +127,7 @@ export const COLOR_PARAM_SCHEMAS = {
   synth: {
     knobs: [
       { key: 'warm', label: 'Warmth',    min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Warm-cool color bias inside each band. Low = cool (blue / teal lean). High = warm (red / orange lean).' },
-      { key: 'sep',  label: 'Sep',       min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Number of discrete color bands (3-12). Off below ~0.1 (smooth ramp). Higher = more posterized banding.' },
+      { key: 'sep',  label: 'Sep',       min: 0, max: 1, step: 0.01, default: 0.3, control: 'slider', tip: 'Number of discrete color bands (3-12). Off below ~0.1 (smooth ramp). Higher = more posterized banding.' },
       { key: 'res',  label: 'Res',       min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Resonance modulation inside each band. 0 = clean steps. 1 = strong sinusoidal brightness ripples per band.' },
       { key: 'dyn',  label: 'Dyn Range', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Dynamic range / gamma. Low = compressed midtones (flat, washed). High = stretched midtones (punchy, contrasty).' },
     ],
@@ -147,9 +147,9 @@ export const COLOR_PARAM_SCHEMAS = {
   thermo: {
     knobs: [
       { key: 'cont',  label: 'Contrast', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Thermal map contrast around the midpoint. Higher = sharper hot/cold separation; lower = flatter pseudo-color.' },
-      { key: 'hot',   label: 'Hot',      min: 0, max: 1, step: 0.01, default: 0,   tip: 'Bias the entire ramp toward hot. 0 = baseline. 1 = everything reads as yellow / red / white (overheated).' },
-      { key: 'cold',  label: 'Cold',     min: 0, max: 1, step: 0.01, default: 0.1, tip: 'Cold floor. Lifts the darkest regions toward blue. 0 = pure black floor. 1 = blue-tinted shadows (more visible cold side).' },
-      { key: 'white', label: 'White Pt', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'White-hot clipping. Bright peaks above ~0.85 fade to pure white as this rises (simulates sensor saturation).' },
+      { key: 'hot',   label: 'Hot',      min: 0, max: 1, step: 0.01, default: 0,   control: 'slider', tip: 'Bias the entire ramp toward hot. 0 = baseline. 1 = everything reads as yellow / red / white (overheated).' },
+      { key: 'cold',  label: 'Cold',     min: 0, max: 1, step: 0.01, default: 0.1, control: 'slider', tip: 'Cold floor. Lifts the darkest regions toward blue. 0 = pure black floor. 1 = blue-tinted shadows (more visible cold side).' },
+      { key: 'white', label: 'White Pt', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: 'White-hot clipping. Bright peaks above ~0.85 fade to pure white as this rises (simulates sensor saturation).' },
     ],
     toggles: [],
     order: ['cont', 'hot', 'cold', 'white'],
@@ -157,8 +157,8 @@ export const COLOR_PARAM_SCHEMAS = {
   falsecolor: {
     knobs: [
       { key: 'palette', label: 'Palette', min: 0, max: 1, step: 0.01, default: 0.25, tip: 'Cross-fade between four palettes: Thermal (0) → Neon (0.25) → Acid (0.5) → Ice (0.75) → back to Thermal (1).' },
-      { key: 'bandcnt', label: 'Bands',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Number of discrete color bands when Banding is On (4-20). Smaller = chunkier posterized look. Has no effect when Banding is Off.' },
-      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Brightness offset added to the input. 0.5 = neutral. Below 0.5 = darker (palette shifts cooler). Above 0.5 = brighter (palette shifts hotter).' },
+      { key: 'bandcnt', label: 'Bands',   min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: 'Number of discrete color bands when Banding is On (4-20). Smaller = chunkier posterized look. Has no effect when Banding is Off.' },
+      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: 'Brightness offset added to the input. 0.5 = neutral. Below 0.5 = darker (palette shifts cooler). Above 0.5 = brighter (palette shifts hotter).' },
     ],
     toggles: [
       { key: 'band', label: 'Banding', default: 0, options: [
@@ -203,9 +203,13 @@ export const COLOR_PARAM_SCHEMAS = {
       { key: 'exposure', label: 'Exposure', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = underexposed (dark). 1 = overexposed (bright). Controls gamma curve.' },
       { key: 'edge',     label: 'Edge',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Edge enhancement strength. 0 = smooth. 1 = sharp bone-like edges.' },
       { key: 'tint',     label: 'Tint',     min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = pure greyscale. 0.5 = blue medical tint. 1 = amber vintage.' },
-      { key: 'invert',   label: 'Invert',   min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = standard xray (dark on light). 1 = negative (light on dark).' },
     ],
-    toggles: [],
+    toggles: [
+      { key: 'invert', label: 'Invert', default: 0, options: [
+        { value: 0, label: 'Off', tip: 'Standard xray: dark structures on a pale film base.' },
+        { value: 1, label: 'On',  tip: 'Negative xray: light structures on a dark film base.' },
+      ]},
+    ],
     order: ['exposure', 'edge', 'tint', 'invert'],
   },
   heatbleed: {
@@ -230,9 +234,9 @@ export const COLOR_PARAM_SCHEMAS = {
   },
   solarize: {
     knobs: [
-      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Fold threshold. Tones above this level get solarized; below stay normal.' },
-      { key: 'intens',  label: 'Intens',  min: 0, max: 1, step: 0.01, default: 0.8, tip: '0 = subtle solarize. 1 = full Sabattier effect.' },
-      { key: 'cycles',  label: 'Cycles',  min: 1, max: 8, step: 0.1,  default: 1,   tip: 'Number of fold cycles. 1 = single fold. Higher = multiple repeating inversions.' },
+      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: 'Fold threshold. Tones above this level get solarized; below stay normal.' },
+      { key: 'intens',  label: 'Intens',  min: 0, max: 1, step: 0.01, default: 0.8, control: 'slider', tip: '0 = subtle solarize. 1 = full Sabattier effect.' },
+      { key: 'cycles',  label: 'Cycles',  min: 1, max: 8, step: 0.1,  default: 1,   control: 'slider', tip: 'Number of fold cycles. 1 = single fold. Higher = multiple repeating inversions.' },
       { key: 'shift',   label: 'Shift',   min: 0, max: 1, step: 0.01, default: 0,   tip: 'Per-channel color shift. 0 = uniform solarize. 1 = RGB offset for chromatic solarization.' },
     ],
     toggles: [],
@@ -271,7 +275,7 @@ export const COLOR_PARAM_SCHEMAS = {
   neontube: {
     knobs: [
       { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.85, tip: 'Neon color hue. 0.85 = hot pink, 0.55 = cyan, 0.15 = amber.' },
-      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Edge threshold. Only edges stronger than this light up as neon tubes.' },
+      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3, control: 'slider', tip: 'Edge threshold. Only edges stronger than this light up as neon tubes.' },
       { key: 'halo',   label: 'Halo',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: '0 = crisp tube cores. 1 = wide soft atmospheric halo.' },
       { key: 'bright', label: 'Bright', min: 0, max: 1, step: 0.01, default: 0.6,  tip: '0 = faint tubes. 1 = blinding hot neon cores.' },
     ],
@@ -310,10 +314,10 @@ export const COLOR_PARAM_SCHEMAS = {
   },
   bloom: {
     knobs: [
-      { key: 'thresh',  label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = everything glows. 1 = only the brightest areas bloom.' },
-      { key: 'intens',  label: 'Intens', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = subtle haze. 1 = blazing glow.' },
+      { key: 'thresh',  label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = everything glows. 1 = only the brightest areas bloom.' },
+      { key: 'intens',  label: 'Intens', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = subtle haze. 1 = blazing glow.' },
       { key: 'blue',    label: 'Blue',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = natural color bloom. 0.5 = blue neon tint. 1 = deep blue energy.' },
-      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = tight glow close to source. 1 = wide soft bloom.' },
+      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: '0 = tight glow close to source. 1 = wide soft bloom.' },
     ],
     toggles: [],
     order: ['thresh', 'intens', 'blue', 'radius'],
@@ -330,8 +334,8 @@ export const COLOR_PARAM_SCHEMAS = {
   },
   noise: {
     knobs: [
-      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Grain amount. 0 = clean. 1 = heavy noise.' },
-      { key: 'size',   label: 'Size',   min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Grain size. 0 = fine 35mm. 1 = chunky 8mm.' },
+      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Grain amount. 0 = clean. 1 = heavy noise.' },
+      { key: 'size',   label: 'Size',   min: 0, max: 1, step: 0.01, default: 0.2, control: 'slider', tip: 'Grain size. 0 = fine 35mm. 1 = chunky 8mm.' },
       { key: 'shadow', label: 'Shadow', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shadow bias. 0 = uniform grain. 1 = heavier grain in dark areas.' },
       { key: 'color',  label: 'Color',  min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = monochromatic grain. 1 = RGB color noise.' },
     ],
@@ -379,8 +383,8 @@ export const COLOR_PARAM_SCHEMAS = {
 export const TRACK_FX_PARAM_SCHEMAS = {
   echo: {
     knobs: [
-      { key: 'depth',   label: 'Depth',   min: 1, max: 10, step: 1,    default: 4,   tip: 'How many past blob positions show. 1 = single ghost. 10 = long fading trail of bbox echoes.' },
-      { key: 'opacity', label: 'Opacity', min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Visibility of the echo bboxes. 0 = invisible. 1 = full strength echoes.' },
+      { key: 'depth',   label: 'Depth',   min: 1, max: 10, step: 1,    default: 4,   control: 'slider', tip: 'How many past blob positions show. 1 = single ghost. 10 = long fading trail of bbox echoes.' },
+      { key: 'opacity', label: 'Opacity', min: 0, max: 1,  step: 0.01, default: 0.5, control: 'slider', tip: 'Visibility of the echo bboxes. 0 = invisible. 1 = full strength echoes.' },
       { key: 'decay',   label: 'Decay',   min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Falloff curve. 0 = chunky (equal opacity per echo step). 1 = smooth exponential taper.' },
       { key: 'offset',  label: 'Offset',  min: 0, max: 1,  step: 0.01, default: 0,   tip: '0 = echoes sit exactly where the blob was. 1 = scaled-down or scaled-up slightly per step (depth pulse).' },
     ],
@@ -389,17 +393,17 @@ export const TRACK_FX_PARAM_SCHEMAS = {
   radar: {
     knobs: [
       { key: 'speed',      label: 'Speed', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Rotation speed of the sweep arm.' },
-      { key: 'trail',      label: 'Trail', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'How long blobs persist after the sweep crosses them. 0 = brief flash. 1 = lingering glow.' },
-      { key: 'sweepWidth', label: 'Width', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Width of the rotating arc. 0 = laser line. 1 = wide pie-slice.' },
+      { key: 'trail',      label: 'Trail', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'How long blobs persist after the sweep crosses them. 0 = brief flash. 1 = lingering glow.' },
+      { key: 'sweepWidth', label: 'Width', min: 0, max: 1, step: 0.01, default: 0.3, control: 'slider', tip: 'Width of the rotating arc. 0 = laser line. 1 = wide pie-slice.' },
       { key: 'direction',  label: 'Dir',   min: -1, max: 1, step: 0.01, default: 1,   tip: '-1 = sweeps counterclockwise. 0 = oscillates back and forth. +1 = sweeps clockwise.' },
     ],
     order: ['speed', 'trail', 'sweepWidth', 'direction'],
   },
   heatmap: {
     knobs: [
-      { key: 'intensity', label: 'Int',    min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Visibility of the heatmap layer.' },
-      { key: 'decay',     label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'How quickly old positions fade. 0 = forever. 1 = quick.' },
-      { key: 'spread',    label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Radius of the glow around each blob position. Low = pinpoint. High = wide bloom.' },
+      { key: 'intensity', label: 'Int',    min: 0, max: 1, step: 0.01, default: 0.6, control: 'slider', tip: 'Visibility of the heatmap layer.' },
+      { key: 'decay',     label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.3, control: 'slider', tip: 'How quickly old positions fade. 0 = forever. 1 = quick.' },
+      { key: 'spread',    label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Radius of the glow around each blob position. Low = pinpoint. High = wide bloom.' },
       { key: 'palette',   label: 'Pal',    min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = thermal (red-yellow-white). 0.5 = cool (blue-cyan-white). 1 = rainbow.' },
     ],
     order: ['intensity', 'decay', 'spread', 'palette'],
