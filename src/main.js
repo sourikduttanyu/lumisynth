@@ -57,6 +57,18 @@ const btnHelp      = document.getElementById('btn-help');
 const introOverlay = document.getElementById('intro-overlay');
 const introClose   = document.getElementById('intro-close');
 const introStart   = document.getElementById('intro-start');
+const accountStatus = document.getElementById('account-status');
+const accountAuth   = document.getElementById('account-auth');
+const authEmail     = document.getElementById('auth-email');
+const authSendCode  = document.getElementById('auth-send-code');
+const authCodeRow   = document.getElementById('auth-code-row');
+const authCode      = document.getElementById('auth-code');
+const authVerifyCode= document.getElementById('auth-verify-code');
+const authLogout    = document.getElementById('auth-logout');
+const presetName    = document.getElementById('preset-name');
+const presetSave    = document.getElementById('preset-save');
+const presetRefresh = document.getElementById('preset-refresh');
+const presetList    = document.getElementById('preset-list');
 const helpOverlay  = document.getElementById('help-overlay');
 const helpClose    = document.getElementById('help-close');
 const dropOverlay  = document.getElementById('drop-overlay');
@@ -135,6 +147,371 @@ function nearlyEqual(a, b) { return Math.abs(a - b) < 1e-6; }
 function structureOutputModeValue() {
   return STRUCTURE_OUTPUT_MODE_VALUE[state.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
 }
+
+// ---- Account / Cloud Presets ----
+const INTERNAL_AUTH_KEY = 'lumisynth-internal-auth';
+const INTERNAL_PRESETS_KEY = 'lumisynth-internal-presets';
+const authState = {
+  loading: true,
+  user: null,
+  presets: [],
+  internal: false,
+};
+
+let internalLoginChallenge = null;
+
+function setBusy(el, busy) {
+  if (!el) return;
+  el.disabled = !!busy;
+}
+
+function internalAuthAllowed() {
+  return ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+}
+
+function readInternalUser() {
+  if (!internalAuthAllowed()) return null;
+  try { return JSON.parse(localStorage.getItem(INTERNAL_AUTH_KEY) || 'null'); }
+  catch { return null; }
+}
+
+function writeInternalUser(user) {
+  try { localStorage.setItem(INTERNAL_AUTH_KEY, JSON.stringify(user)); } catch { /* ignore */ }
+}
+
+function clearInternalUser() {
+  try { localStorage.removeItem(INTERNAL_AUTH_KEY); } catch { /* ignore */ }
+}
+
+function randomInternalCode() {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return (new DataView(bytes.buffer).getUint32(0) % 1_000_000).toString().padStart(6, '0');
+}
+
+function readInternalPresets() {
+  if (!internalAuthAllowed()) return [];
+  try {
+    const rows = JSON.parse(localStorage.getItem(INTERNAL_PRESETS_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeInternalPresets(presets) {
+  try { localStorage.setItem(INTERNAL_PRESETS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`/api${path}`, {
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) throw new Error('API unavailable');
+  const body = await res.json();
+  if (!res.ok) {
+    const message = body.error || `Request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+function presetStateSnapshot() {
+  const { hasSource, sourceKind, ...persistable } = state;
+  return JSON.parse(JSON.stringify(persistable));
+}
+
+function renderAccountUi() {
+  const loggedIn = !!authState.user;
+  if (accountStatus) {
+    accountStatus.textContent = authState.loading
+      ? 'Checking session...'
+      : loggedIn
+        ? `Logged in as ${authState.user.email}${authState.internal ? ' · internal' : ''}`
+        : 'Login to unlock export and cloud presets.';
+    accountStatus.classList.toggle('is-authed', loggedIn);
+  }
+  accountAuth?.classList.toggle('hidden', loggedIn);
+  authLogout?.classList.toggle('hidden', !loggedIn);
+  if (presetSave) presetSave.disabled = !loggedIn;
+  if (presetRefresh) presetRefresh.disabled = !loggedIn;
+  renderPresetList();
+}
+
+function renderPresetList() {
+  if (!presetList) return;
+  presetList.innerHTML = '';
+  if (!authState.user) {
+    presetList.textContent = 'Login to use cloud presets.';
+    return;
+  }
+  if (!authState.presets.length) {
+    presetList.textContent = 'No cloud presets yet.';
+    return;
+  }
+  for (const preset of authState.presets) {
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const load = document.createElement('button');
+    load.type = 'button';
+    load.className = 'action-btn mini-action preset-load';
+    load.textContent = preset.name;
+    load.title = `Load ${preset.name}`;
+    load.addEventListener('click', () => applyCloudPreset(preset));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'action-btn mini-action preset-delete';
+    del.textContent = '×';
+    del.title = `Delete ${preset.name}`;
+    del.addEventListener('click', () => deleteCloudPreset(preset.id));
+
+    row.append(load, del);
+    presetList.append(row);
+  }
+}
+
+async function initAuth() {
+  try {
+    const data = await apiFetch('/me', { method: 'GET', headers: {} });
+    authState.user = data.user || null;
+    authState.internal = false;
+  } catch (_) {
+    authState.user = readInternalUser();
+    authState.internal = !!authState.user;
+  } finally {
+    authState.loading = false;
+    renderAccountUi();
+  }
+  if (authState.user) loadCloudPresets();
+}
+
+async function sendLoginCode() {
+  const email = authEmail?.value.trim();
+  if (!email) {
+    showToast('Enter an email first', 'error');
+    authEmail?.focus();
+    return;
+  }
+  setBusy(authSendCode, true);
+  try {
+    const data = await apiFetch('/auth/start', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    authCodeRow?.classList.remove('hidden');
+    authCode?.focus();
+    showToast(data.devCode ? `Dev login code: ${data.devCode}` : 'Login code sent', 'ok');
+  } catch (err) {
+    if (!internalAuthAllowed()) {
+      showToast(err.message || 'Could not send login code', 'error');
+      return;
+    }
+    const code = randomInternalCode();
+    internalLoginChallenge = { email: email.toLowerCase(), code, expiresAt: Date.now() + 10 * 60 * 1000 };
+    authCodeRow?.classList.remove('hidden');
+    authCode?.focus();
+    showToast(`Internal login code: ${code}`, 'ok', 8000);
+  } finally {
+    setBusy(authSendCode, false);
+  }
+}
+
+async function verifyLoginCode() {
+  const email = authEmail?.value.trim();
+  const code = authCode?.value.trim();
+  setBusy(authVerifyCode, true);
+  try {
+    const data = await apiFetch('/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    authState.user = data.user;
+    authState.internal = false;
+    authState.presets = [];
+    authCodeRow?.classList.add('hidden');
+    if (authCode) authCode.value = '';
+    renderAccountUi();
+    showToast('Logged in', 'ok');
+    loadCloudPresets();
+  } catch (err) {
+    const normalizedEmail = String(email || '').toLowerCase();
+    const challengeOk = internalAuthAllowed()
+      && internalLoginChallenge
+      && internalLoginChallenge.email === normalizedEmail
+      && internalLoginChallenge.code === code
+      && internalLoginChallenge.expiresAt > Date.now();
+    if (!challengeOk) {
+      showToast(err.message || 'Login failed', 'error');
+      return;
+    }
+    const user = { id: `internal:${normalizedEmail}`, email: normalizedEmail };
+    writeInternalUser(user);
+    authState.user = user;
+    authState.internal = true;
+    authState.presets = readInternalPresets();
+    internalLoginChallenge = null;
+    authCodeRow?.classList.add('hidden');
+    if (authCode) authCode.value = '';
+    renderAccountUi();
+    showToast('Logged in internally', 'ok');
+  } finally {
+    setBusy(authVerifyCode, false);
+  }
+}
+
+async function logout() {
+  if (authState.internal) clearInternalUser();
+  else {
+    try { await apiFetch('/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
+  }
+  authState.user = null;
+  authState.internal = false;
+  authState.presets = [];
+  renderAccountUi();
+  showToast('Logged out', 'ok');
+}
+
+async function requireExportAccess(type) {
+  if (!authState.user) {
+    showToast('Login to export from LumiSynth', 'error');
+    authEmail?.focus();
+    return false;
+  }
+  if (authState.internal) return true;
+  try {
+    await apiFetch('/export-events', {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+    });
+    return true;
+  } catch (err) {
+    if (err.status === 401) {
+      authState.user = null;
+      renderAccountUi();
+      showToast('Session expired. Login again to export.', 'error');
+      return false;
+    }
+    showToast(err.message || 'Export check failed', 'error');
+    return false;
+  }
+}
+
+async function loadCloudPresets() {
+  if (!authState.user) return;
+  if (authState.internal) {
+    authState.presets = readInternalPresets();
+    renderPresetList();
+    return;
+  }
+  setBusy(presetRefresh, true);
+  try {
+    const data = await apiFetch('/presets', { method: 'GET', headers: {} });
+    authState.presets = data.presets || [];
+    renderPresetList();
+  } catch (err) {
+    showToast(err.message || 'Could not load presets', 'error');
+  } finally {
+    setBusy(presetRefresh, false);
+  }
+}
+
+async function saveCloudPreset() {
+  if (!authState.user) {
+    showToast('Login to save cloud presets', 'error');
+    return;
+  }
+  const name = presetName?.value.trim() || `LumiSynth ${new Date().toLocaleString()}`;
+  setBusy(presetSave, true);
+  try {
+    if (authState.internal) {
+      const presets = readInternalPresets();
+      presets.unshift({
+        id: crypto.randomUUID(),
+        name,
+        state: presetStateSnapshot(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      writeInternalPresets(presets);
+      authState.presets = presets;
+      if (presetName) presetName.value = '';
+      renderPresetList();
+      showToast('Internal preset saved', 'ok');
+      return;
+    }
+    await apiFetch('/presets', {
+      method: 'POST',
+      body: JSON.stringify({ name, state: presetStateSnapshot() }),
+    });
+    if (presetName) presetName.value = '';
+    showToast('Preset saved', 'ok');
+    await loadCloudPresets();
+  } catch (err) {
+    showToast(err.message || 'Could not save preset', 'error');
+  } finally {
+    setBusy(presetSave, false);
+  }
+}
+
+function applyCloudPreset(preset) {
+  if (!preset || !preset.state || typeof preset.state !== 'object') {
+    showToast('Preset is missing state', 'error');
+    return;
+  }
+  for (const k of Object.keys(DEFAULTS)) {
+    if (k in preset.state) state[k] = preset.state[k];
+  }
+  if (Array.isArray(preset.state.colorRack) && preset.state.colorRack.length === RACK_SLOTS) {
+    state.colorRack = preset.state.colorRack;
+  }
+  if (Array.isArray(preset.state.trackFxRack) && preset.state.trackFxRack.length === RACK_SLOTS) {
+    state.trackFxRack = preset.state.trackFxRack;
+  }
+  applyStateToUI();
+  schedulePersist();
+  showToast(`Loaded ${preset.name}`, 'ok');
+}
+
+async function deleteCloudPreset(id) {
+  if (!id) return;
+  try {
+    if (authState.internal) {
+      authState.presets = readInternalPresets().filter((p) => p.id !== id);
+      writeInternalPresets(authState.presets);
+      renderPresetList();
+      showToast('Internal preset deleted', 'ok');
+      return;
+    }
+    await apiFetch(`/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    authState.presets = authState.presets.filter((p) => p.id !== id);
+    renderPresetList();
+    showToast('Preset deleted', 'ok');
+  } catch (err) {
+    showToast(err.message || 'Could not delete preset', 'error');
+  }
+}
+
+authSendCode?.addEventListener('click', sendLoginCode);
+authVerifyCode?.addEventListener('click', verifyLoginCode);
+authLogout?.addEventListener('click', logout);
+presetSave?.addEventListener('click', saveCloudPreset);
+presetRefresh?.addEventListener('click', loadCloudPresets);
+authEmail?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendLoginCode();
+});
+authCode?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') verifyLoginCode();
+});
 
 // ---- Knob component ----
 const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step, default, stateKey, el }
@@ -1653,11 +2030,12 @@ document.addEventListener('click', (e) => {
 });
 
 // ---- Snapshot ----
-function takeSnapshot() {
+async function takeSnapshot() {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
     return;
   }
+  if (!(await requireExportAccess('snapshot'))) return;
   canvas.toBlob((blob) => {
     if (!blob) { showToast('Snapshot failed', 'error'); return; }
     const url = URL.createObjectURL(blob);
@@ -1672,7 +2050,7 @@ function takeSnapshot() {
     showToast('Frame saved', 'ok', 2000);
   }, 'image/png');
 }
-btnSnapshot.addEventListener('click', takeSnapshot);
+btnSnapshot.addEventListener('click', () => { takeSnapshot(); });
 
 // ---- Clip recording (MediaRecorder against canvas.captureStream) ----
 //
@@ -1744,11 +2122,12 @@ function tickRecordLabel() {
   _recordTickRaf = requestAnimationFrame(tickRecordLabel);
 }
 
-function startRecording() {
+async function startRecording() {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
     return;
   }
+  if (!(await requireExportAccess('recording'))) return;
   if (_recorder) return; // guard double-clicks
   _recordFormat = pickRecorderFormat();
   if (!_recordFormat) {
@@ -2922,6 +3301,8 @@ loadProjectName();
 loadPersistedState();
 applyStateToUI();
 showIntroIfNeeded();
+renderAccountUi();
+initAuth();
 canvas.width  = canvasArea.clientWidth;
 canvas.height = canvasArea.clientHeight;
 btnSnapshot.disabled = !state.hasSource;
