@@ -68,7 +68,11 @@ const colorKeyHueTolKnob = document.getElementById('color-key-huetol');
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
-const DETECT_SCALE = 0.5;
+// Blob detection runs on CPU ImageData, so bound its pixel budget instead of
+// scaling linearly with 4K/retina canvas sizes.
+const DETECT_TARGET_PIXELS = 360000; // ~800x450, enough for stable blob centers.
+const DETECT_MAX_SCALE = 0.5;
+const DETECT_MIN_SCALE = 0.125;
 
 // Render-loop FPS cap. Capped at 60 regardless of source video frame rate
 // or display refresh rate. Reasoning:
@@ -77,10 +81,8 @@ const DETECT_SCALE = 0.5;
 //    monitor (the source video tops out at 24/30/60 fps anyway — there's
 //    no new input data at the higher cadence).
 //  - Display refresh < 60Hz: hardware ceiling applies; the cap is a no-op.
-//  - Source video at 24/30 fps: detect/track still runs every render frame,
-//    but with cached video pixels it's mostly a no-op until the video
-//    advances. The compositor still runs at 60 to keep UI overlays / blob
-//    smoothing animations feeling smooth.
+//  - Source video at 24/30 fps: the compositor still runs at 60 to keep UI
+//    overlays / blob smoothing animations feeling smooth.
 //
 // FRAME_BUDGET_MS is the per-frame time budget. Tracked via accumulator
 // (not raw "time since last frame") so the cap holds at exactly 60Hz on
@@ -2252,6 +2254,27 @@ function smoothBlobs(latest, canvasW) {
     : _smoothBlobsEMALegacy(latest);
 }
 
+function needsBlobPipeline() {
+  return state.mode === 'track' || state.perBlob !== 'none';
+}
+
+function resolveDetectScale(cw, ch) {
+  const pixels = Math.max(1, cw * ch);
+  const budgetScale = Math.sqrt(DETECT_TARGET_PIXELS / pixels);
+  return clamp(budgetScale, DETECT_MIN_SCALE, DETECT_MAX_SCALE);
+}
+
+function clearBlobPipelineCaches() {
+  if (!cachedBlobs.length && frameCount === 0 && !_activeFilters.size && !_deadFilters.size && !_displayBlobs.size) return;
+  cachedBlobs = [];
+  frameCount = 0;
+  resetFrameHistory();
+  resetTracker();
+  _activeFilters.clear();
+  _deadFilters.clear();
+  _displayBlobs.clear();
+}
+
 // ---- Render loop ----
 // FPS-cap state (closure across frames). _accumMs accumulates real time
 // between RAF ticks; once it exceeds FRAME_BUDGET_MS, we render a frame
@@ -2287,48 +2310,55 @@ function renderFrame(nowDOMHi) {
   const ch = canvas.height;
   ctx.drawImage(srcEl, 0, 0, cw, ch);
 
-  const ow = Math.max(1, Math.round(cw * DETECT_SCALE));
-  const oh = Math.max(1, Math.round(ch * DETECT_SCALE));
-  if (offscreen.width !== ow || offscreen.height !== oh) {
-    offscreen.width = ow; offscreen.height = oh;
-  }
-  // Detection/tracking only runs while the source is actually playing. When
-  // paused (video) or static (image), motion-mode would see zero frame-diff
-  // and starve every tracker until they cull, making blobs vanish. Luma-mode
-  // would re-detect the same bright pixels every tick, churning IDs. Either
-  // way: a frozen frame should freeze detection. cachedBlobs is preserved
-  // from the last playing frame so overlays + per-blob filter still render
-  // against the frozen frame (and the user can keep tweaking shape / size /
-  // color knobs to see the effect on a still). For image sources detection
-  // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
-  // so an image renders without overlays. (One-shot detection on stills is
-  // a deliberate v2 follow-up — out of scope for this image-input pass.)
-  if (!activeSourcePaused()) {
-    offCtx.drawImage(srcEl, 0, 0, ow, oh);
-    const offImageData = offCtx.getImageData(0, 0, ow, oh);
-
-    frameCount++;
-    if (frameCount % Math.max(1, state.updateInterval) === 0) {
-      const minSizeDetect = state.trackMinSize * DETECT_SCALE;
-      const cap = Math.min(30, state.trackMaxBlobs);
-      if (state.trackChannel === 'color') {
-        const hex = state.colorKeyHex.replace('#', '');
-        const cr = parseInt(hex.slice(0, 2), 16);
-        const cg = parseInt(hex.slice(2, 4), 16);
-        const cb = parseInt(hex.slice(4, 6), 16);
-        setColorKeyTarget(cr, cg, cb, state.colorKeyHueTol, state.colorKeySatMin, 0.10);
-      } else {
-        clearColorKeyTarget();
-      }
-      const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
-      const sx = cw / ow, sy = ch / oh;
-      const scaledRaw = rawBlobs.map(b => ({
-        ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
-      }));
-      cachedBlobs = trackBlobs(scaledRaw, cw, cap);
+  const blobPipelineActive = needsBlobPipeline();
+  let blobs = [];
+  if (blobPipelineActive) {
+    const detectScale = resolveDetectScale(cw, ch);
+    const ow = Math.max(1, Math.round(cw * detectScale));
+    const oh = Math.max(1, Math.round(ch * detectScale));
+    if (offscreen.width !== ow || offscreen.height !== oh) {
+      offscreen.width = ow; offscreen.height = oh;
     }
+    // Detection/tracking only runs while the source is actually playing. When
+    // paused (video) or static (image), motion-mode would see zero frame-diff
+    // and starve every tracker until they cull, making blobs vanish. Luma-mode
+    // would re-detect the same bright pixels every tick, churning IDs. Either
+    // way: a frozen frame should freeze detection. cachedBlobs is preserved
+    // from the last playing frame so overlays + per-blob filter still render
+    // against the frozen frame (and the user can keep tweaking shape / size /
+    // color knobs to see the effect on a still). For image sources detection
+    // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
+    // so an image renders without overlays. (One-shot detection on stills is
+    // a deliberate v2 follow-up — out of scope for this image-input pass.)
+    if (!activeSourcePaused()) {
+      offCtx.drawImage(srcEl, 0, 0, ow, oh);
+      const offImageData = offCtx.getImageData(0, 0, ow, oh);
+
+      frameCount++;
+      if (frameCount % Math.max(1, state.updateInterval) === 0) {
+        const minSizeDetect = state.trackMinSize * detectScale;
+        const cap = Math.min(30, state.trackMaxBlobs);
+        if (state.trackChannel === 'color') {
+          const hex = state.colorKeyHex.replace('#', '');
+          const cr = parseInt(hex.slice(0, 2), 16);
+          const cg = parseInt(hex.slice(2, 4), 16);
+          const cb = parseInt(hex.slice(4, 6), 16);
+          setColorKeyTarget(cr, cg, cb, state.colorKeyHueTol, state.colorKeySatMin, 0.10);
+        } else {
+          clearColorKeyTarget();
+        }
+        const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
+        const sx = cw / ow, sy = ch / oh;
+        const scaledRaw = rawBlobs.map(b => ({
+          ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
+        }));
+        cachedBlobs = trackBlobs(scaledRaw, cw, cap);
+      }
+    }
+    blobs = smoothBlobs(cachedBlobs, cw);
+  } else {
+    clearBlobPipelineCaches();
   }
-  const blobs = smoothBlobs(cachedBlobs, cw);
 
   // GL dispatch — multi-stage chain pipeline.
   //
