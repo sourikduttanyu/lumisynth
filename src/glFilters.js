@@ -25,12 +25,24 @@ precision highp int;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
+uniform float uOutputMode;
 out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
+  vec3 inkCream = vec3(0.92, 0.88, 0.78);
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(inkBlack, inkCream, poster);
+}
 
 void main() {
   vec2 uv = vUV;
   vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
-  float val = texture(u_video, uv).r;
+  vec3 src = texture(u_video, uv).rgb;
+  float val = src.r;
   int radius = int(mix(1.0, 6.0, uParams.y));
   float strength = mix(0.3, 1.0, uParams.z);
   bool dilate = uParams.x > 0.5;
@@ -48,7 +60,7 @@ void main() {
   float morphed  = mix(val, morphVal, strength);
   float edgeRing = abs(val - morphVal) * 3.0;
   float out_v    = mix(morphed, clamp(edgeRing, 0.0, 1.0), uParams.w);
-  fragColor = vec4(out_v, out_v, out_v, 1.0);
+  fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
 }`;
 
 const FRAG_OXIDE = `#version 300 es
@@ -213,13 +225,920 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
+// ---- STRUCTURE additions ----
+
+const FRAG_WATERSHED = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uOutputMode;
+out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
+  vec3 inkCream = vec3(0.92, 0.88, 0.78);
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(inkBlack, inkCream, poster);
+}
+
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  vec3 src = texture(u_video, uv).rgb;
+  float val = src.r;
+  float scale = mix(2.0, 12.0, uParams.x);
+  vec2 st = texel * scale;
+  vec2 pos = uv;
+  float minVal = val;
+  for (int i = 0; i < 4; i++) {
+    float cN = texture(u_video, pos + vec2(0.0, st.y)).r;
+    float cS = texture(u_video, pos - vec2(0.0, st.y)).r;
+    float cE = texture(u_video, pos + vec2(st.x, 0.0)).r;
+    float cW = texture(u_video, pos - vec2(st.x, 0.0)).r;
+    float minN = min(min(cN, cS), min(cE, cW));
+    if (minN < minVal) {
+      if (cN == minN) pos += vec2(0.0, st.y);
+      else if (cS == minN) pos -= vec2(0.0, st.y);
+      else if (cE == minN) pos += vec2(st.x, 0.0);
+      else pos -= vec2(st.x, 0.0);
+      minVal = minN;
+    }
+  }
+  float basinVal = texture(u_video, clamp(pos, 0.0, 1.0)).r;
+  float boundary = abs(basinVal - texture(u_video, clamp(pos + vec2(st.x, 0.0), 0.0, 1.0)).r);
+  boundary += abs(basinVal - texture(u_video, clamp(pos + vec2(0.0, st.y), 0.0, 1.0)).r);
+  boundary = clamp(boundary * mix(5.0, 30.0, uParams.y), 0.0, 1.0);
+  float interior = mix(val, basinVal, uParams.z);
+  interior *= mix(1.0, 0.5 + basinVal * 0.5, uParams.w);
+  float result = interior + boundary * 0.6;
+  result = clamp(result, 0.0, 1.0);
+  fragColor = vec4(applyStructureOutput(result, src, uOutputMode), 1.0);
+}`;
+
+const FRAG_PIXELSORT = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uOutputMode;
+out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
+  vec3 inkCream = vec3(0.92, 0.88, 0.78);
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(inkBlack, inkCream, poster);
+}
+
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  vec3 src = texture(u_video, uv).rgb;
+  float srcVal = src.r;
+  float threshold = mix(0.02, 0.8, uParams.x);
+  int maxLen = int(uParams.y * 200.0);
+  float opacity = uParams.z;
+  float angle = uParams.w * 6.2832;
+  vec2 streakDir = vec2(sin(angle), cos(angle));
+  vec2 lookStep = -streakDir * texel;
+  float bestVal = 0.0;
+  float bestDist = -1.0;
+  for (int i = 1; i <= 200; i++) {
+    if (i > maxLen) break;
+    vec2 sUV = uv + lookStep * float(i);
+    if (sUV.x < 0.0 || sUV.y < 0.0 || sUV.x > 1.0 || sUV.y > 1.0) break;
+    float sv = texture(u_video, sUV).r;
+    if (sv >= threshold && sv > bestVal) { bestVal = sv; bestDist = float(i); }
+  }
+  if (bestDist < 0.0) {
+    fragColor = vec4(applyStructureOutput(srcVal, src, uOutputMode), 1.0);
+    return;
+  }
+  float fade = clamp(1.0 - (bestDist / float(max(maxLen, 1))), 0.0, 1.0);
+  float streakVal = bestVal * fade;
+  float out_v = max(srcVal, streakVal * opacity);
+  fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
+}`;
+
+const FRAG_MELT = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uOutputMode;
+out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
+  vec3 inkCream = vec3(0.92, 0.88, 0.78);
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(inkBlack, inkCream, poster);
+}
+
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 src = texture(u_video, uv).rgb;
+  float val = src.r;
+  float angle = uParams.w * 3.14159;
+  vec2 dripDir = vec2(sin(angle), -cos(angle));
+  int maxDrip = int(mix(5.0, 80.0, uParams.y));
+  float meltAmt = uParams.x;
+  float bestVal = val;
+  for (int i = 1; i <= 80; i++) {
+    if (i > maxDrip) break;
+    vec2 sUV = uv - dripDir * texel * float(i);
+    if (sUV.x < 0.0 || sUV.y < 0.0 || sUV.x > 1.0 || sUV.y > 1.0) break;
+    float sv = texture(u_video, sUV).r;
+    float dripReach = sv * float(maxDrip) * meltAmt;
+    if (float(i) < dripReach && sv > bestVal) {
+      float fade = 1.0 - (float(i) / dripReach);
+      fade = pow(fade, mix(0.3, 2.0, uParams.z));
+      float drippedVal = sv * fade;
+      if (drippedVal > bestVal) bestVal = drippedVal;
+    }
+  }
+  fragColor = vec4(applyStructureOutput(bestVal, src, uOutputMode), 1.0);
+}`;
+
+// ---- COLOR additions ----
+
+const FRAG_DEPTHSTACK = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 depthColor(float depth, float range) {
+  float t = 1.0 - depth;
+  vec3 deep=vec3(0.02,0.02,0.12); vec3 violet=vec3(0.25,0.05,0.55);
+  vec3 blue=vec3(0.1,0.3,0.95); vec3 cyan=vec3(0.0,0.75,0.9); vec3 wh=vec3(0.8,0.9,1.0);
+  vec3 narrow, wide;
+  if (t<0.25){narrow=mix(deep,blue*0.6,t*4.0);wide=mix(deep,violet,t*4.0);}
+  else if (t<0.5){narrow=mix(blue*0.6,blue,(t-0.25)*4.0);wide=mix(violet,blue,(t-0.25)*4.0);}
+  else if (t<0.75){narrow=mix(blue,blue*1.1,(t-0.5)*4.0);wide=mix(blue,cyan,(t-0.5)*4.0);}
+  else{narrow=mix(blue*1.1,cyan*0.8,(t-0.75)*4.0);wide=mix(cyan,wh,(t-0.75)*4.0);}
+  return mix(narrow, wide, range);
+}
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  int numLayers = int(mix(3.0, 8.0, uParams.x));
+  float maxOff = uParams.y * 0.02;
+  float glowSz = mix(0.005, 0.06, uParams.z);
+  float vL=texture(u_video,uv-vec2(texel.x*4.0,0.0)).r;
+  float vR=texture(u_video,uv+vec2(texel.x*4.0,0.0)).r;
+  float vD=texture(u_video,uv-vec2(0.0,texel.y*4.0)).r;
+  float vU=texture(u_video,uv+vec2(0.0,texel.y*4.0)).r;
+  vec2 gradDir = normalize(vec2(vR-vL, vU-vD) + 0.0001);
+  vec3 res_c = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    if (i >= numLayers) break;
+    float layerD = float(i) / float(numLayers - 1);
+    vec2 offset = gradDir * (layerD - 0.5) * 2.0 * maxOff;
+    float sVal = texture(u_video, clamp(uv + offset, 0.0, 1.0)).r;
+    float bandCenter = 1.0 - layerD;
+    float bandW = 1.0 / float(numLayers);
+    float inBand = 1.0 - smoothstep(bandW*0.3, bandW*0.3 + glowSz, abs(sVal - bandCenter));
+    res_c += depthColor(layerD, uParams.w) * inBand * (0.6 + sVal * 0.8);
+  }
+  fragColor = vec4(clamp(res_c, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_PRISMATIC = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 spectralColor(float t) {
+  if (t < 0.25)      return mix(vec3(0.5,0.2,0.8), vec3(1.0,0.4,0.7), t*4.0);
+  else if (t < 0.5)  return mix(vec3(1.0,0.4,0.7), vec3(1.0,0.85,0.3), (t-0.25)*4.0);
+  else if (t < 0.75) return mix(vec3(1.0,0.85,0.3), vec3(1.0,0.6,0.15), (t-0.5)*4.0);
+  else               return mix(vec3(1.0,0.6,0.15), vec3(0.9,0.2,0.1), (t-0.75)*4.0);
+}
+void main() {
+  vec2 uv = vUV;
+  float val = texture(u_video, uv).r;
+  float angle = uParams.w * 6.2832;
+  vec2 dispDir = vec2(cos(angle), sin(angle));
+  float spread = uParams.x * 0.04;
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 5; i++) {
+    float t = float(i) / 4.0;
+    float offset = (t - 0.5) * 2.0;
+    vec2 sUV = clamp(uv + dispDir * offset * spread * val, 0.0, 1.0);
+    float sv = texture(u_video, sUV).r;
+    vec3 tint = mix(vec3(1.0), spectralColor(t), uParams.y);
+    col += sv * tint;
+  }
+  col /= 3.0;
+  float edge = abs(
+    texture(u_video, clamp(uv - dispDir * spread * val, 0.0, 1.0)).r -
+    texture(u_video, clamp(uv + dispDir * spread * val, 0.0, 1.0)).r
+  );
+  col += col * edge * uParams.z * 2.0;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_ACIDWASH = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0,2.0/3.0,1.0/3.0,3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+void main() {
+  vec2 uv = vUV;
+  float val = texture(u_video, uv).r;
+  float warp = uParams.x * 4.0;
+  float bands = mix(1.0, 8.0, uParams.y);
+  float hueBase = val * bands + uParams.w;
+  float hue = fract(hueBase + sin(val * warp * 6.2832) * 0.3);
+  float sat = mix(0.4, 1.0, uParams.z) * (0.7 + 0.3 * sin(val * bands * 3.14159));
+  float bri = val * 0.5 + 0.5 * sin(val * 3.14159);
+  bri = max(bri, val * 0.3);
+  vec3 col = hsv2rgb(vec3(hue, sat, bri));
+  fragColor = vec4(col, 1.0);
+}`;
+
+const FRAG_XRAY = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  float vL = texture(u_video, uv - vec2(texel.x, 0.0)).r;
+  float vR = texture(u_video, uv + vec2(texel.x, 0.0)).r;
+  float vD = texture(u_video, uv - vec2(0.0, texel.y)).r;
+  float vU = texture(u_video, uv + vec2(0.0, texel.y)).r;
+  float edgeMag = length(vec2(vR - vL, vU - vD));
+  float edgeBoost = edgeMag * uParams.y * 8.0;
+  float xray = mix(1.0 - val, val, uParams.w);
+  xray = pow(clamp(xray, 0.0, 1.0), mix(1.5, 0.5, uParams.x));
+  xray = clamp(xray + edgeBoost, 0.0, 1.0);
+  vec3 col;
+  float tint = uParams.z;
+  if (tint < 0.5) {
+    vec3 grey = vec3(xray);
+    vec3 blue = vec3(xray*0.7, xray*0.8, xray*1.1);
+    col = mix(grey, blue, tint * 2.0);
+  } else {
+    vec3 blue = vec3(xray*0.7, xray*0.8, xray*1.1);
+    vec3 amber = vec3(xray*1.1, xray*0.95, xray*0.7);
+    col = mix(blue, amber, (tint - 0.5) * 2.0);
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_HEATBLEED = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 thermalRamp(float t) {
+  if (t < 0.15) return mix(vec3(0.0,0.0,0.08), vec3(0.0,0.0,0.5), t/0.15);
+  if (t < 0.35) return mix(vec3(0.0,0.0,0.5), vec3(0.0,0.5,0.7), (t-0.15)/0.2);
+  if (t < 0.55) return mix(vec3(0.0,0.5,0.7), vec3(0.8,0.8,0.0), (t-0.35)/0.2);
+  if (t < 0.75) return mix(vec3(0.8,0.8,0.0), vec3(1.0,0.2,0.0), (t-0.55)/0.2);
+  return mix(vec3(1.0,0.2,0.0), vec3(1.0,1.0,0.9), (t-0.75)/0.25);
+}
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  float radius = mix(2.0, 12.0, uParams.y);
+  float maxNearby = val;
+  float totalNearby = val;
+  float count = 1.0;
+  float weights[7] = float[7](1.0, 0.9, 0.75, 0.55, 0.35, 0.2, 0.1);
+  for (int i = 1; i <= 6; i++) {
+    float r = float(i) * radius / 6.0;
+    float w = weights[i];
+    float sH1 = texture(u_video, clamp(uv + vec2(r*texel.x, 0.0), 0.0, 1.0)).r;
+    float sH2 = texture(u_video, clamp(uv - vec2(r*texel.x, 0.0), 0.0, 1.0)).r;
+    float sV1 = texture(u_video, clamp(uv + vec2(0.0, r*texel.y), 0.0, 1.0)).r;
+    float sV2 = texture(u_video, clamp(uv - vec2(0.0, r*texel.y), 0.0, 1.0)).r;
+    maxNearby = max(maxNearby, max(max(sH1,sH2), max(sV1,sV2)));
+    totalNearby += (sH1+sH2+sV1+sV2) * w;
+    count += 4.0 * w;
+  }
+  float avgNearby = totalNearby / count;
+  float bleedVal = mix(val, mix(avgNearby, maxNearby, 0.5), uParams.x);
+  bleedVal = mix(bleedVal * 0.5 + 0.25, bleedVal, uParams.z);
+  bleedVal = clamp(bleedVal, 0.0, 1.0);
+  vec3 col = thermalRamp(bleedVal);
+  float heatExcess = max(0.0, bleedVal - val);
+  col += vec3(1.0,0.6,0.2) * heatExcess * uParams.w * 3.0;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_NEBULA = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  float density = pow(val, mix(2.0, 0.5, uParams.z));
+  float t = uParams.x;
+  vec3 darkGas, midGas, brightGas;
+  if (t < 0.33) { darkGas=vec3(0.15,0.02,0.05); midGas=vec3(0.6,0.1,0.2); brightGas=vec3(1.0,0.6,0.7); }
+  else if (t < 0.66) { darkGas=vec3(0.02,0.05,0.18); midGas=vec3(0.1,0.2,0.6); brightGas=vec3(0.5,0.7,1.0); }
+  else { darkGas=vec3(0.08,0.02,0.12); midGas=vec3(0.1,0.4,0.45); brightGas=vec3(0.7,0.3,0.8); }
+  vec3 col;
+  if (density < 0.3) col = mix(vec3(0.005,0.005,0.015), darkGas, density/0.3);
+  else if (density < 0.6) col = mix(darkGas, midGas, (density-0.3)/0.3);
+  else col = mix(midGas, brightGas, (density-0.6)/0.4);
+  float grey = dot(col, vec3(0.299,0.587,0.114));
+  col = mix(vec3(grey), col, uParams.w);
+  if (uParams.y > 0.01) {
+    float starHash = hash(floor(uv * res / 2.0));
+    float starThresh = mix(0.999, 0.98, uParams.y);
+    if (starHash > starThresh && val > 0.7) {
+      float starBright = (starHash - starThresh) / (1.0 - starThresh);
+      col += vec3(starBright * 2.0);
+    }
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_SOLARIZE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float solarize(float val, float thresh, float cycles) {
+  float t = val * cycles;
+  float folded = abs(mod(t, 2.0) - 1.0);
+  return val > thresh ? folded : val;
+}
+void main() {
+  vec2 uv = vUV;
+  vec4 src = texture(u_video, uv);
+  float threshold = clamp(uParams.x, 0.0, 1.0);
+  float intensity = clamp(uParams.y, 0.0, 1.0);
+  float cycles = max(1.0, uParams.z);
+  float colorShift = clamp(uParams.w, 0.0, 1.0);
+  float rThresh = threshold + colorShift * 0.08;
+  float gThresh = threshold;
+  float bThresh = threshold - colorShift * 0.08;
+  vec3 solar = vec3(
+    solarize(src.r, rThresh, cycles),
+    solarize(src.g, gThresh, cycles),
+    solarize(src.b, bThresh, cycles)
+  );
+  vec3 result = mix(src.rgb, solar, intensity);
+  fragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_AURORASTORM = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float streakVal = val;
+  if (uParams.y > 0.01) {
+    float acc = val; float tw = 1.0;
+    int streakLen = int(mix(2.0, 20.0, uParams.y));
+    for (int i = 1; i <= 20; i++) {
+      if (i > streakLen) break;
+      float w = 1.0 / float(i + 1);
+      acc += texture(u_video, uv + vec2(0.0, texel.y * float(i) * 2.0)).r * w;
+      acc += texture(u_video, uv - vec2(0.0, texel.y * float(i) * 2.0)).r * w;
+      tw += w * 2.0;
+    }
+    streakVal = acc / tw;
+  }
+  float band = streakVal * mix(3.0, 12.0, uParams.x);
+  float bandFrac = fract(band);
+  vec3 col; float cs = uParams.z;
+  vec3 green1=vec3(0.0,0.6,0.2); vec3 green2=vec3(0.2,1.0,0.4);
+  vec3 mag1=vec3(0.5,0.0,0.4);   vec3 mag2=vec3(1.0,0.3,0.7);
+  vec3 vio1=vec3(0.2,0.0,0.5);   vec3 vio2=vec3(0.5,0.3,1.0);
+  if (cs < 0.33) { col = mix(green1,green2,bandFrac)*streakVal; col += vio1*smoothstep(0.7,1.0,streakVal)*0.5; }
+  else if (cs < 0.66) { col = mix(mag1,mag2,bandFrac)*streakVal; col += green1*smoothstep(0.5,0.8,streakVal)*0.4; }
+  else { float selector=fract(band*0.5); vec3 c1=mix(green1,mag2,selector); vec3 c2=mix(vio2,green2,selector); col=mix(c1,c2,bandFrac)*streakVal; }
+  col *= smoothstep(0.02, 0.15, streakVal);
+  col = mix(col, vec3(0.8,1.0,0.7), smoothstep(0.85,1.0,streakVal)*0.6);
+  if (uParams.w > 0.01 && val < 0.2) {
+    vec2 starGrid = floor(uv * res / 2.0);
+    float sh = hash(starGrid);
+    if (sh > 1.0 - uParams.w * 0.04) {
+      float starBright = (sh - (1.0 - uParams.w * 0.04)) * 25.0;
+      float starDist = length(fract(uv * res / 2.0) - 0.5);
+      if (starDist < 0.25) {
+        vec3 starCol = mix(vec3(0.8,0.85,1.0), vec3(1.0,0.9,0.7), hash(starGrid * 3.1));
+        col += starCol * starBright * (1.0 - starDist/0.25) * (1.0 - val * 5.0);
+      }
+    }
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_CYANOTYPE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float c = mix(1.0, 2.5, uParams.y);
+  float adj = clamp(0.5 + (val - 0.5) * c, 0.0, 1.0);
+  vec3 deepBlue = mix(vec3(0.10,0.20,0.45), vec3(0.02,0.08,0.25), uParams.x);
+  vec3 midBlue = vec3(0.45,0.65,0.85);
+  vec3 paper = vec3(0.92,0.93,0.88);
+  vec3 col;
+  if (adj < 0.5) col = mix(deepBlue, midBlue, adj * 2.0);
+  else col = mix(midBlue, paper, (adj - 0.5) * 2.0);
+  col *= smoothstep(0.0, 0.1, val);
+  if (uParams.z > 0.01) {
+    float fiber = hash(uv * res * 0.7) * 0.5 + hash(uv * res * 2.1) * 0.3;
+    float grainMask = smoothstep(0.4, 0.85, val);
+    col -= fiber * uParams.z * 0.15 * grainMask;
+  }
+  if (uParams.w > 0.01) {
+    float l = texture(u_video, uv - vec2(texel.x, 0.0)).r;
+    float r = texture(u_video, uv + vec2(texel.x, 0.0)).r;
+    float d = texture(u_video, uv - vec2(0.0, texel.y)).r;
+    float u2 = texture(u_video, uv + vec2(0.0, texel.y)).r;
+    float edge = length(vec2(r - l, u2 - d));
+    col -= edge * uParams.w * vec3(0.3,0.2,0.1) * smoothstep(0.05, 0.2, val);
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_INFRARED = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  float c = mix(1.0, 2.2, uParams.z);
+  float adj = clamp(0.5 + (val - 0.5) * c, 0.0, 1.0);
+  vec3 col;
+  if (adj < 0.25) {
+    float t = adj / 0.25;
+    vec3 shadow = mix(vec3(0.04,0.02,0.18), vec3(0.15,0.05,0.35), t);
+    shadow = mix(vec3(0.08,0.08,0.10), shadow, uParams.y);
+    col = shadow;
+  } else if (adj < 0.55) {
+    float t = (adj - 0.25) / 0.30;
+    col = mix(vec3(0.15,0.05,0.35), vec3(0.75,0.15,0.30), t);
+  } else if (adj < 0.80) {
+    float t = (adj - 0.55) / 0.25;
+    vec3 irRed = mix(vec3(0.75,0.15,0.30), vec3(0.95,0.50,0.20), t);
+    col = mix(mix(vec3(0.75,0.15,0.30), vec3(0.85,0.40,0.25), t), irRed, uParams.x);
+  } else {
+    float t = (adj - 0.80) / 0.20;
+    col = mix(vec3(0.95,0.50,0.20), vec3(0.98,0.88,0.80), t);
+  }
+  col *= smoothstep(0.0, 0.06, val);
+  if (uParams.w > 0.01) {
+    float grainMask = smoothstep(0.1, 0.4, val);
+    float grain = (hash(uv * res * 1.3) - 0.5) * uParams.w * 0.25 * grainMask;
+    col += grain;
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_NEONTUBE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0,2.0/3.0,1.0/3.0,3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float l = texture(u_video, uv - vec2(texel.x, 0.0)).r;
+  float r = texture(u_video, uv + vec2(texel.x, 0.0)).r;
+  float d = texture(u_video, uv - vec2(0.0, texel.y)).r;
+  float u2 = texture(u_video, uv + vec2(0.0, texel.y)).r;
+  float edgeCore = length(vec2(r - l, u2 - d));
+  float haloR = mix(3.0, 20.0, uParams.z);
+  float haloAccum = 0.0; float haloW = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float angle = float(i) / 8.0 * 6.2832;
+    vec2 dir = vec2(cos(angle), sin(angle));
+    for (int j = 1; j <= 4; j++) {
+      float dist = float(j) * haloR / 4.0;
+      float w = 1.0 / (1.0 + dist * 0.1);
+      vec2 sp = uv + dir * texel * dist;
+      float sl = texture(u_video, sp - vec2(texel.x, 0.0)).r;
+      float sr = texture(u_video, sp + vec2(texel.x, 0.0)).r;
+      float sd = texture(u_video, sp - vec2(0.0, texel.y)).r;
+      float su = texture(u_video, sp + vec2(0.0, texel.y)).r;
+      haloAccum += length(vec2(sr - sl, su - sd)) * w;
+      haloW += w;
+    }
+  }
+  float edgeHalo = haloAccum / haloW;
+  float thresh = uParams.y * 0.15;
+  float core = smoothstep(thresh, thresh * 2.5, edgeCore);
+  float halo = smoothstep(0.01, 0.15, edgeHalo);
+  vec3 tubeColor = hsv2rgb(vec3(uParams.x, 0.9, 1.0));
+  vec3 coreCol = mix(tubeColor, vec3(1.0), core * 0.7) * core * mix(0.8, 2.5, uParams.w);
+  vec3 haloCol = tubeColor * halo * 0.4;
+  vec3 col = haloCol + coreCol;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_DEEPFIELD = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  float v = pow(val, mix(1.6, 0.6, uParams.w));
+  vec3 voidCol = vec3(0.005,0.008,0.02);
+  vec3 dimGalaxy = vec3(0.1,0.07,0.18);
+  vec3 midGalaxy = vec3(0.7,0.45,0.25);
+  vec3 brightGalaxy = vec3(1.0,0.85,0.6);
+  float rs = uParams.y;
+  if (rs > 0.01) {
+    midGalaxy = mix(midGalaxy, vec3(0.8,0.25,0.1), rs * 0.6);
+    brightGalaxy = mix(brightGalaxy, vec3(1.0,0.6,0.35), rs * 0.5);
+    dimGalaxy = mix(dimGalaxy, vec3(0.18,0.05,0.05), rs * 0.5);
+  }
+  vec3 col;
+  if (v < 0.1) col = mix(voidCol, dimGalaxy * 0.3, v / 0.1);
+  else if (v < 0.4) col = mix(dimGalaxy * 0.3, dimGalaxy, (v-0.1)/0.3);
+  else if (v < 0.7) col = mix(dimGalaxy, midGalaxy, (v-0.4)/0.3);
+  else if (v < 0.9) col = mix(midGalaxy, brightGalaxy, (v-0.7)/0.2);
+  else col = brightGalaxy * (1.0 + (v - 0.9) * 1.5);
+  if (uParams.z > 0.01) {
+    float halo = 0.0;
+    float halMax = mix(2.0, 5.0, uParams.z);
+    for (int i = -3; i <= 3; i++) {
+      for (int j = -3; j <= 3; j++) {
+        if (i == 0 && j == 0) continue;
+        float d = length(vec2(i, j));
+        if (d > halMax) continue;
+        vec2 sp = uv + vec2(i, j) * texel * 1.5;
+        float nv = texture(u_video, sp).r;
+        if (nv > 0.7) halo += (nv - 0.7) / 0.3 * (1.0 - d / halMax);
+      }
+    }
+    halo /= 24.0;
+    col += brightGalaxy * halo * 0.5 * uParams.z;
+  }
+  float grey = dot(col, vec3(0.299,0.587,0.114));
+  col = mix(vec3(grey), col, uParams.x);
+  col *= smoothstep(-0.05, 0.1, val);
+  fragColor = vec4(clamp(col, 0.0, 2.0), 1.0);
+}`;
+
+const FRAG_DECAYFLOW = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 src = texture(u_video, uv).rgb;
+  float lum = dot(src, vec3(0.299,0.587,0.114));
+  float lR = dot(texture(u_video, uv + vec2(texel.x, 0.0)).rgb, vec3(0.299,0.587,0.114));
+  float lL = dot(texture(u_video, uv - vec2(texel.x, 0.0)).rgb, vec3(0.299,0.587,0.114));
+  float lU = dot(texture(u_video, uv + vec2(0.0, texel.y)).rgb, vec3(0.299,0.587,0.114));
+  float lD = dot(texture(u_video, uv - vec2(0.0, texel.y)).rgb, vec3(0.299,0.587,0.114));
+  vec2 grad = vec2(lR - lL, lU - lD);
+  float gradMag = length(grad);
+  vec2 flowDir = vec2(-grad.y, grad.x);
+  vec2 advectUV = clamp(uv - flowDir * uParams.x * 0.02, 0.0, 1.0);
+  vec3 trail = texture(u_video, advectUV).rgb * uParams.y;
+  trail += src * gradMag * uParams.z * 4.0;
+  vec3 result_c = mix(trail, src + trail * 0.5, uParams.w);
+  fragColor = vec4(clamp(result_c, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_FEEDBACKWARP = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 src = texture(u_video, uv).rgb;
+  float fbLum = dot(src, vec3(0.299,0.587,0.114));
+  float lR = dot(texture(u_video, uv + vec2(texel.x, 0.0)).rgb, vec3(0.299,0.587,0.114));
+  float lL = dot(texture(u_video, uv - vec2(texel.x, 0.0)).rgb, vec3(0.299,0.587,0.114));
+  float lU = dot(texture(u_video, uv + vec2(0.0, texel.y)).rgb, vec3(0.299,0.587,0.114));
+  float lD = dot(texture(u_video, uv - vec2(0.0, texel.y)).rgb, vec3(0.299,0.587,0.114));
+  vec2 grad = vec2(lR - lL, lU - lD);
+  float strength = uParams.x * 0.03;
+  vec2 fromCenter = uv - 0.5;
+  vec2 rotated = vec2(-grad.y, grad.x);
+  vec2 radial = normalize(fromCenter + 0.0001) * fbLum;
+  float mode = uParams.w;
+  vec2 warpDir;
+  if (mode < 0.33) warpDir = mix(grad, rotated, mode * 3.0);
+  else if (mode < 0.66) warpDir = mix(rotated, radial, (mode - 0.33) * 3.0);
+  else warpDir = mix(radial, grad, (mode - 0.66) * 3.0);
+  vec2 warpedUV = clamp(uv + warpDir * strength, 0.0, 1.0);
+  vec3 warped = texture(u_video, warpedUV).rgb;
+  vec3 result_c = warped * uParams.y;
+  result_c = mix(result_c, src, uParams.z);
+  fragColor = vec4(clamp(result_c, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_BLOOM = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 col = texture(u_video, uv).rgb;
+  float threshold = uParams.x;
+  float intensity = uParams.y * 2.0;
+  float blueShift = uParams.z;
+  float radius = mix(2.0, 16.0, uParams.w);
+  vec3 bloom = vec3(0.0);
+  float tw = 0.0;
+  float weights[7] = float[7](1.0, 0.85, 0.65, 0.45, 0.28, 0.15, 0.07);
+  for (int i = -6; i <= 6; i++) {
+    vec2 sUV = uv + vec2(float(i) * texel.x * radius, 0.0);
+    vec3 s = texture(u_video, clamp(sUV, 0.0, 1.0)).rgb;
+    float lum = dot(s, vec3(0.299,0.587,0.114));
+    float bright = smoothstep(threshold, threshold + 0.15, lum);
+    s *= bright;
+    float w = weights[abs(i)];
+    bloom += s * w; tw += w;
+  }
+  for (int i = -6; i <= 6; i++) {
+    if (i == 0) continue;
+    vec2 sUV = uv + vec2(0.0, float(i) * texel.y * radius);
+    vec3 s = texture(u_video, clamp(sUV, 0.0, 1.0)).rgb;
+    float lum = dot(s, vec3(0.299,0.587,0.114));
+    float bright = smoothstep(threshold, threshold + 0.15, lum);
+    s *= bright;
+    float w = weights[abs(i)];
+    bloom += s * w; tw += w;
+  }
+  bloom /= tw;
+  if (blueShift > 0.01) {
+    float bloomLum = dot(bloom, vec3(0.299,0.587,0.114));
+    vec3 blueNeon = vec3(0.15,0.35,1.0) * bloomLum;
+    vec3 cyanNeon = vec3(0.2,0.7,1.0) * bloomLum;
+    vec3 tinted = mix(bloom, mix(cyanNeon, blueNeon, 0.5), blueShift);
+    bloom = mix(bloom, tinted, blueShift * 0.8);
+  }
+  vec3 result = col + bloom * intensity;
+  result = result - result * bloom * intensity * 0.15;
+  fragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_CRTROLLING = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float freq = mix(3.0, 40.0, uParams.x);
+  float roll = uParams.w * 2.0;
+  vec3 selfColor = texture(u_video, uv).rgb;
+  float luma = dot(selfColor, vec3(0.299,0.587,0.114));
+  float lumaFactor = mix(1.0, luma, uParams.z);
+  float phase = uv.y * freq + roll;
+  float wave = sin(phase * 6.2832);
+  float amp = uParams.y * 0.05 * lumaFactor;
+  float disp = wave * amp;
+  float chromaAmt = 0.015;
+  float rOffset = disp + chromaAmt * wave;
+  float gOffset = disp;
+  float bOffset = disp - chromaAmt * wave;
+  vec3 result;
+  result.r = texture(u_video, vec2(uv.x + rOffset, uv.y)).r;
+  result.g = texture(u_video, vec2(uv.x + gOffset, uv.y)).g;
+  result.b = texture(u_video, vec2(uv.x + bOffset, uv.y)).b;
+  fragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_NOISE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec4 col = texture(u_video, uv);
+  float lum = dot(col.rgb, vec3(0.299,0.587,0.114));
+  float grainScale = mix(1.0, 8.0, uParams.y);
+  vec2 grainCoord = floor(uv * res / grainScale);
+  float n = hash(grainCoord + fract(col.rg * 100.0)) * 2.0 - 1.0;
+  float bias = max(mix(1.0, 2.5 - lum * 2.0, uParams.z), 0.3);
+  float strength = uParams.x * 0.3 * bias;
+  vec3 grain;
+  if (uParams.w > 0.01) {
+    float nr = hash(grainCoord + vec2(1.0, 0.0)) * 2.0 - 1.0;
+    float nb = hash(grainCoord + vec2(0.0, 1.0)) * 2.0 - 1.0;
+    grain = mix(vec3(n * strength), vec3(nr, n, nb) * strength, uParams.w);
+  } else {
+    grain = vec3(n * strength);
+  }
+  fragColor = vec4(clamp(col.rgb + grain, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_SCANLINES = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float lineCount = mix(100.0, 800.0, uParams.x);
+  float row = floor(uv.y * lineCount);
+  float rowFrac = fract(uv.y * lineCount);
+  float jit = (hash(row * 7.13) - 0.5) * uParams.z * 0.008;
+  vec2 jitUV = vec2(clamp(uv.x + jit, 0.0, 1.0), uv.y);
+  float rgbOff = uParams.w * 0.002;
+  float r = texture(u_video, vec2(jitUV.x + rgbOff, jitUV.y)).r;
+  float g = texture(u_video, jitUV).g;
+  float b = texture(u_video, vec2(jitUV.x - rgbOff, jitUV.y)).b;
+  vec3 col = vec3(r, g, b);
+  float scanline = smoothstep(0.0, 0.4, rowFrac) * smoothstep(1.0, 0.6, rowFrac);
+  col *= mix(1.0, scanline, uParams.y) * (1.0 + (hash(row * 3.7) - 0.5) * 0.05);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_DEGRADE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float pixSize = mix(1.0, 32.0, uParams.w * uParams.w);
+  vec2 pixUV = floor(uv * res / pixSize) * pixSize / res + (pixSize * 0.5) / res;
+  vec3 col = texture(u_video, pixUV).rgb;
+  if (uParams.z > 0.01) {
+    float bleed = uParams.z * 0.005;
+    col.r = texture(u_video, pixUV + vec2(bleed, 0.0)).r;
+    col.b = texture(u_video, pixUV - vec2(bleed, 0.0)).b;
+  }
+  float levels = mix(256.0, 4.0, uParams.x);
+  if (uParams.y > 0.01) {
+    float dither = (hash(pixUV * res) - 0.5) / levels;
+    col += vec3(dither * uParams.y);
+  }
+  col = floor(col * levels + 0.5) / levels;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_CRT = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 centered = uv * 2.0 - 1.0;
+  float barrel = uParams.z * 0.15;
+  float r2 = dot(centered, centered);
+  vec2 warped = centered * (1.0 + barrel * r2);
+  vec2 warpedUV = warped * 0.5 + 0.5;
+  if (warpedUV.x < 0.0 || warpedUV.x > 1.0 || warpedUV.y < 0.0 || warpedUV.y > 1.0) {
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0); return;
+  }
+  vec3 col = texture(u_video, warpedUV).rgb;
+  if (uParams.y > 0.01) {
+    vec2 texel = 1.0 / res;
+    vec3 bloom = vec3(0.0);
+    float bw = uParams.y * 3.0;
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        vec3 s = texture(u_video, warpedUV + vec2(float(dx), float(dy)) * texel * bw).rgb;
+        float sl = dot(s, vec3(0.299,0.587,0.114));
+        bloom += s * smoothstep(0.5, 1.0, sl);
+      }
+    }
+    bloom /= 25.0;
+    col += bloom * uParams.y * 2.0;
+  }
+  if (uParams.x > 0.01) {
+    float px = gl_FragCoord.x;
+    int subpx = int(mod(px, 3.0));
+    vec3 mask = vec3(0.7);
+    if (subpx == 0) mask = vec3(1.0,0.7,0.7);
+    else if (subpx == 1) mask = vec3(0.7,1.0,0.7);
+    else mask = vec3(0.7,0.7,1.0);
+    col *= mix(vec3(1.0), mask, uParams.x);
+  }
+  if (uParams.w > 0.01) {
+    float scanline = sin(warpedUV.y * res.y * 3.14159);
+    scanline = scanline * 0.5 + 0.5;
+    col *= mix(1.0, scanline, uParams.w * 0.5);
+  }
+  float vig = 1.0 - r2 * 0.3 * uParams.z;
+  col *= vig;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 const FRAGS = {
-  erode:      FRAG_ERODE,
-  oxide:      FRAG_OXIDE,
-  synth:      FRAG_SYNTH,
-  biolum:     FRAG_BIOLUM,
-  thermo:     FRAG_THERMO,
-  falsecolor: FRAG_FALSECOLOR,
+  erode:        FRAG_ERODE,
+  oxide:        FRAG_OXIDE,
+  synth:        FRAG_SYNTH,
+  biolum:       FRAG_BIOLUM,
+  thermo:       FRAG_THERMO,
+  falsecolor:   FRAG_FALSECOLOR,
+  // STRUCTURE additions
+  watershed:    FRAG_WATERSHED,
+  pixelsort:    FRAG_PIXELSORT,
+  melt:         FRAG_MELT,
+  // COLOR additions
+  depthstack:   FRAG_DEPTHSTACK,
+  prismatic:    FRAG_PRISMATIC,
+  acidwash:     FRAG_ACIDWASH,
+  xray:         FRAG_XRAY,
+  heatbleed:    FRAG_HEATBLEED,
+  nebula:       FRAG_NEBULA,
+  solarize:     FRAG_SOLARIZE,
+  aurorastorm:  FRAG_AURORASTORM,
+  cyanotype:    FRAG_CYANOTYPE,
+  infrared:     FRAG_INFRARED,
+  neontube:     FRAG_NEONTUBE,
+  deepfield:    FRAG_DEEPFIELD,
+  decayflow:    FRAG_DECAYFLOW,
+  feedbackwarp: FRAG_FEEDBACKWARP,
+  bloom:        FRAG_BLOOM,
+  crtrolling:   FRAG_CRTROLLING,
+  noise:        FRAG_NOISE,
+  scanlines:    FRAG_SCANLINES,
+  degrade:      FRAG_DEGRADE,
+  crt:          FRAG_CRT,
 };
 
 // ---- WebGL helpers ----
@@ -268,6 +1187,7 @@ function getProgram(name) {
     prog,
     video:  gl.getUniformLocation(prog, 'u_video'),
     params: gl.getUniformLocation(prog, 'uParams'),
+    outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
   };
   _programs[name] = entry;
   return entry;
@@ -301,5 +1221,6 @@ export function applyGLFilter(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
   gl.bindTexture(gl.TEXTURE_2D, inTex);
   gl.uniform1i(entry.video, 0);
   gl.uniform4f(entry.params, params[0], params[1], params[2], params[3]);
+  if (entry.outputMode) gl.uniform1f(entry.outputMode, opts.outputMode ?? 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

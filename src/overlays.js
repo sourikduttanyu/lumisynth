@@ -3,7 +3,7 @@
  * BlobTracking section: Shape × Lines × Effects on top of detected blobs.
  *
  *   SHAPE (4):    solid rect | hollow rect | dotted rect | corner brackets
- *   LINES (5):    off | distance threshold | velocity trails | pulse trail | constellation
+ *   LINES (8):    off | distance threshold | velocity trails | pulse trail | constellation | mst | star | hub curves
  *   EFFECTS (3):  echo blobs | radar sweep | heatmap residue   (stack 0–3)
  *
  * All control values come in via the opts bag — this module is stateless
@@ -61,6 +61,7 @@ const HISTORY_MAX = 60;       // ~1 second at 60 fps; long enough for trails up 
 // frame size changes. Owned here so resetTrackOverlay() can blow it away.
 let _heatCanvas = null;
 let _heatCtx    = null;
+let _hubPoint   = null;
 
 function ensureHeatCanvas(w, h) {
   if (_heatCanvas && _heatCanvas.width === w && _heatCanvas.height === h) return;
@@ -78,6 +79,7 @@ export function resetTrackOverlay() {
   _history.clear();
   if (_heatCtx && _heatCanvas) _heatCtx.clearRect(0, 0, _heatCanvas.width, _heatCanvas.height);
   _frameCounter = 0;
+  _hubPoint = null;
 }
 
 // ---- Public entry point ----
@@ -95,6 +97,7 @@ export function resetTrackOverlay() {
  *     shape:   { type, hueColor, thickness, padding, styleParam },
  *     lines:   { type, hueColor, thickness, param, taper },
  *     effects: [{ type, params: {...} }, ...]   // 0-3, in render order
+ *     labels:  { show, markerStyle, fontSize, hueColor }   // Tracery-style XY coords + center marker
  *   }
  */
 export function drawTrackOverlay(ctx, blobs, cw, ch, opts) {
@@ -133,7 +136,7 @@ export function drawTrackOverlay(ctx, blobs, cw, ch, opts) {
 
   // ---- Lines (under shapes so shapes draw on top of line endpoints) ----
   if (opts.lines.type !== 'off' && blobs.length > 0) {
-    drawLines(ctx, blobs, opts.lines);
+    drawLines(ctx, blobs, opts.lines, cw, ch);
   }
 
   // ---- Shapes (with optional echo-blob ghosts behind the live shape) ----
@@ -151,6 +154,11 @@ export function drawTrackOverlay(ctx, blobs, cw, ch, opts) {
   // (alpha proportional to TRAIL knob), giving the same read.
   for (const eff of opts.effects) {
     if (eff.type === 'radar') drawRadarSweepFg(ctx, cw, ch, eff.params);
+  }
+
+  // ---- Labels + center markers (topmost so they read over everything) ----
+  if (opts.labels && opts.labels.show) {
+    drawLabelsAndMarkers(ctx, blobs, opts.labels);
   }
 }
 
@@ -258,7 +266,7 @@ function drawCornerBrackets(ctx, x, y, w, h, len) {
 // LINES
 // ============================================================
 
-function drawLines(ctx, blobs, L) {
+function drawLines(ctx, blobs, L, cw, ch) {
   const baseColor = hueToRgba(L.hueColor, 1);
   ctx.save();
   ctx.lineWidth = L.thickness;
@@ -268,6 +276,9 @@ function drawLines(ctx, blobs, L) {
     case 'velocity':      drawVelocityTrails(ctx, blobs, L); break;
     case 'pulse':         drawPulseTrail(ctx, blobs, L);    break;
     case 'constellation': drawConstellation(ctx, blobs, L); break;
+    case 'mst':           drawMST(ctx, blobs, L);           break;
+    case 'star':          drawStar(ctx, blobs, L);          break;
+    case 'hubcurve':      drawHubCurves(ctx, blobs, L, cw, ch); break;
   }
   ctx.restore();
 }
@@ -297,6 +308,74 @@ function strokeSegment(ctx, x1, y1, x2, y2, L) {
   ctx.closePath();
   ctx.fillStyle = ctx.strokeStyle;
   ctx.fill();
+}
+
+function quadraticPoint(x0, y0, cx, cy, x1, y1, t) {
+  const inv = 1 - t;
+  return {
+    x: inv * inv * x0 + 2 * inv * t * cx + t * t * x1,
+    y: inv * inv * y0 + 2 * inv * t * cy + t * t * y1,
+  };
+}
+
+function strokeQuadraticCurve(ctx, x0, y0, cx, cy, x1, y1, L) {
+  if (L.taper <= 0.01) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(cx, cy, x1, y1);
+    ctx.stroke();
+    return;
+  }
+
+  const segments = 18;
+  const prevWidth = ctx.lineWidth;
+  for (let i = 1; i <= segments; i++) {
+    const t0 = (i - 1) / segments;
+    const t1 = i / segments;
+    const p0 = quadraticPoint(x0, y0, cx, cy, x1, y1, t0);
+    const p1 = quadraticPoint(x0, y0, cx, cy, x1, y1, t1);
+    ctx.lineWidth = Math.max(0.25, L.thickness * (1 - L.taper * t1));
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+  ctx.lineWidth = prevWidth;
+}
+
+function estimateHub(blobs, cw, ch) {
+  let sx = 0;
+  let sy = 0;
+  let sw = 0;
+  for (const b of blobs) {
+    const areaWeight = Math.sqrt(Math.max(1, b.area || b.w * b.h || 1));
+    const scoreWeight = 0.5 + Math.max(0, b.score || 0);
+    const weight = areaWeight * scoreWeight;
+    sx += b.cx * weight;
+    sy += b.cy * weight;
+    sw += weight;
+  }
+  if (sw <= 0) return null;
+
+  let x = sx / sw;
+  let y = sy / sw;
+
+  // Sparse detections make a centroid unstable; pull gently toward frame
+  // center until enough blobs define their own reliable hub.
+  const pull = blobs.length === 1 ? 0.65 : blobs.length === 2 ? 0.25 : 0;
+  if (pull > 0) {
+    x = x * (1 - pull) + (cw / 2) * pull;
+    y = y * (1 - pull) + (ch / 2) * pull;
+  }
+
+  if (!_hubPoint) {
+    _hubPoint = { x, y };
+  } else {
+    const alpha = 0.14;
+    _hubPoint.x += (x - _hubPoint.x) * alpha;
+    _hubPoint.y += (y - _hubPoint.y) * alpha;
+  }
+  return _hubPoint;
 }
 
 function drawDistThresh(ctx, blobs, L) {
@@ -384,6 +463,171 @@ function drawConstellation(ctx, blobs, L) {
       strokeSegment(ctx, a.cx, a.cy, b.cx, b.cy, L);
     }
   }
+}
+
+// Hub Curves — general center-to-blob topology. The hub is a smoothed,
+// weighted centroid of the current tracked blobs, not an object-specific
+// detector. param = curve amount; taper narrows the spokes toward endpoints.
+function drawHubCurves(ctx, blobs, L, cw, ch) {
+  if (blobs.length < 1) return;
+  const hub = estimateHub(blobs, cw, ch);
+  if (!hub) return;
+
+  const curveAmount = 0.08 + L.param * 0.36;
+  const alpha = 0.82;
+  ctx.strokeStyle = hueToRgba(L.hueColor, alpha);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (let i = 0; i < blobs.length; i++) {
+    const b = blobs[i];
+    const dx = b.cx - hub.x;
+    const dy = b.cy - hub.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) continue;
+
+    const mx = hub.x + dx * 0.52;
+    const my = hub.y + dy * 0.52;
+    const nx = -dy / d;
+    const ny = dx / d;
+    const bend = d * curveAmount;
+    const controlX = mx + nx * bend;
+    const controlY = my + ny * bend;
+
+    strokeQuadraticCurve(ctx, hub.x, hub.y, controlX, controlY, b.cx, b.cy, L);
+  }
+
+  const r = Math.max(3, L.thickness * 2.5);
+  ctx.fillStyle = hueToRgba(L.hueColor, Math.min(1, alpha + 0.2));
+  ctx.beginPath();
+  ctx.arc(hub.x, hub.y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============================================================
+// LABELS + CENTER MARKERS (Tracery-style XY readouts)
+// ============================================================
+
+// Center-marker styles:
+//   'dot'   — filled circle
+//   'plus'  — +  crosshair (no diagonal)
+//   'cross' — × crosshair (diagonal)
+function drawLabelsAndMarkers(ctx, blobs, L) {
+  if (!blobs.length) return;
+  const color   = hueToRgba(L.hueColor, 0.9);
+  const fsize   = Math.max(8, Math.min(16, L.fontSize || 10));
+  const mStyle  = L.markerStyle || 'dot';
+  const armLen  = fsize * 0.7;
+  const pad     = 4;
+
+  ctx.save();
+  ctx.font      = `${fsize}px "Inter", monospace`;
+  ctx.textAlign = 'left';
+
+  for (const b of blobs) {
+    const cx = b.cx, cy = b.cy;
+
+    // Center marker
+    ctx.strokeStyle = color;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = 1.5;
+    if (mStyle === 'dot') {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (mStyle === 'plus') {
+      ctx.beginPath();
+      ctx.moveTo(cx - armLen, cy); ctx.lineTo(cx + armLen, cy);
+      ctx.moveTo(cx, cy - armLen); ctx.lineTo(cx, cy + armLen);
+      ctx.stroke();
+    } else if (mStyle === 'cross') {
+      ctx.beginPath();
+      ctx.moveTo(cx - armLen, cy - armLen); ctx.lineTo(cx + armLen, cy + armLen);
+      ctx.moveTo(cx + armLen, cy - armLen); ctx.lineTo(cx - armLen, cy + armLen);
+      ctx.stroke();
+    }
+
+    // XY text label — drawn slightly above-right of the centroid, inside
+    // the canvas bounds. Nudge inward on edges.
+    const xStr = `X:${Math.round(cx)}`;
+    const yStr = `Y:${Math.round(cy)}`;
+    const lx = cx + pad + 2;
+    const lyTop = cy - pad;
+    const lyBot = cy + fsize + pad - 2;
+
+    // Dark shadow for legibility on any background
+    ctx.fillStyle   = 'rgba(0,0,0,0.55)';
+    ctx.fillText(xStr, lx + 1, lyTop + 1);
+    ctx.fillText(yStr, lx + 1, lyBot + 1);
+    ctx.fillStyle = color;
+    ctx.fillText(xStr, lx, lyTop);
+    ctx.fillText(yStr, lx, lyBot);
+  }
+  ctx.restore();
+}
+
+// Minimum Spanning Tree — Kruskal's algorithm on Euclidean distances.
+// param = not used for topology (MST is unique); we reuse param as
+// OPACITY so you can still fade the MST lines. taper still applies.
+function drawMST(ctx, blobs, L) {
+  if (blobs.length < 2) return;
+  const n = blobs.length;
+
+  // Build all edges sorted ascending by distance.
+  const edges = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const dx = blobs[i].cx - blobs[j].cx;
+      const dy = blobs[i].cy - blobs[j].cy;
+      edges.push({ i, j, d: Math.hypot(dx, dy) });
+    }
+  }
+  edges.sort((a, b) => a.d - b.d);
+
+  // Union-Find (path compression + union by rank).
+  const parent = Array.from({ length: n }, (_, i) => i);
+  const rank   = new Uint8Array(n);
+  function find(x) {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+    return x;
+  }
+  function union(x, y) {
+    const px = find(x), py = find(y);
+    if (px === py) return false;
+    if (rank[px] < rank[py]) { parent[px] = py; }
+    else if (rank[px] > rank[py]) { parent[py] = px; }
+    else { parent[py] = px; rank[px]++; }
+    return true;
+  }
+
+  const alpha = 0.3 + L.param * 0.7;
+  ctx.strokeStyle = hueToRgba(L.hueColor, alpha);
+  let edgesAdded = 0;
+  for (const e of edges) {
+    if (edgesAdded === n - 1) break;
+    if (union(e.i, e.j)) {
+      strokeSegment(ctx, blobs[e.i].cx, blobs[e.i].cy, blobs[e.j].cx, blobs[e.j].cy, L);
+      edgesAdded++;
+    }
+  }
+}
+
+// Star topology — connect every blob to blob[0] (the strongest / oldest
+// tracked blob, whatever comes first in the array). param = opacity.
+function drawStar(ctx, blobs, L) {
+  if (blobs.length < 2) return;
+  const hub = blobs[0];
+  const alpha = 0.3 + L.param * 0.7;
+  ctx.strokeStyle = hueToRgba(L.hueColor, alpha);
+  for (let i = 1; i < blobs.length; i++) {
+    strokeSegment(ctx, hub.cx, hub.cy, blobs[i].cx, blobs[i].cy, L);
+  }
+  // Draw a distinct hub marker (filled circle) at blob[0] centroid.
+  const r = Math.max(3, L.thickness * 2.5);
+  ctx.fillStyle = hueToRgba(L.hueColor, alpha);
+  ctx.beginPath();
+  ctx.arc(hub.cx, hub.cy, r, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // ============================================================

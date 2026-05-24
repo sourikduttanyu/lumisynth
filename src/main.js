@@ -1,5 +1,5 @@
 import './style.css';
-import { detectBlobs, resetFrameHistory } from './blobDetector.js';
+import { detectBlobs, resetFrameHistory, setColorKeyTarget, clearColorKeyTarget } from './blobDetector.js';
 import { applyFilterToSubregion } from './filters.js';
 import { drawTrackOverlay, resetTrackOverlay } from './overlays.js';
 import { trackBlobs, resetTracker } from './kalman.js';
@@ -8,236 +8,13 @@ import { applyGLFilter } from './glFilters.js';
 import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs } from './glContext.js';
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
-
-const DEFAULTS = Object.freeze({
-  // Source / playback.
-  speed: 1,
-
-  // SYNTH-mode pipeline.
-  // - structure: 'none' | 'ascii' | 'erode'
-  // - colorRack: array of 3 slots (see makeColorRack()) — initialized at
-  //   startup, not in DEFAULTS, because each slot has a fresh per-instance id.
-  // - perBlob: 'none' | 'inv' | 'thermal' (legacy holding pen)
-  structure: 'none', perBlob: 'none',
-  asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
-  erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
-
-  // ============ TRACK-mode state ============
-  // Top-level mode + composite selector.
-  //   mode:           'synth' | 'track'  — controls body[data-mode] attr
-  //                                         and which sidebar sections show
-  //   trackComposite: 'overlay' | 'isolated'
-  mode: 'synth',
-  trackComposite: 'overlay',
-
-  // Detection (TRACK mode owns these; SYNTH mode silently uses them too,
-  // since the per-blob legacy path needs detected blobs).
-  //   trackChannel:    'motion' | 'luma' | 'dark' | 'sat' | 'edge' | 'sharp'
-  //   threshold        10..100 — direct detection threshold passed to blobDetector
-  //   trackMinSize     4..200 px (in source pixels) — passed to blobDetector
-  //   trackStability   0..1   — feeds the one-euro smoother
-  //   trackMaxBlobs    5..30  — max blobs returned per frame
-  //   updateInterval   1..30  — run detection every N frames (1 = every frame)
-  trackChannel: 'motion',
-  threshold: 30,
-  trackMinSize: 8,
-  trackStability: 0,
-  trackMaxBlobs: 12,
-  updateInterval: 1,
-
-  // Shape (one active style + 4 knobs).
-  //   trackShape:           'solid' | 'hollow' | 'dotted' | 'corners'
-  //   trackShapeColor       0..1  — hue knob (0=white)
-  //   trackShapeThickness   1..8  — line/dot weight
-  //   trackShapePadding   -20..20 — bbox padding
-  //   trackShapeStyle       0..1  — style-specific knob (varies per shape)
-  trackShape: 'solid',
-  trackShapeColor: 0, trackShapeThickness: 2, trackShapePadding: 0, trackShapeStyle: 0.5,
-
-  // Lines (5 graph types + 4 knobs).
-  //   trackLines:           'off' | 'distthresh' | 'velocity' | 'pulse' | 'constellation'
-  //   trackLinesColor       0..1
-  //   trackLinesThickness   1..6
-  //   trackLinesParam       0..1  — type-specific
-  //   trackLinesTaper       0..1
-  trackLines: 'off',
-  trackLinesColor: 0, trackLinesThickness: 1, trackLinesParam: 0.5, trackLinesTaper: 0,
-
-  // Track FX rack (3 slots, like colorRack) — initialized via makeTrackFxRack()
-  // at startup. Stores up to 3 stackable tracking effects: echo / radar / heatmap.
-});
-
-// Storage key bumped because the state schema changed: STRUCTURE lost
-// voronoi/cellular/wave/shatter, detection knobs renamed, BlobTracking
-// (TRACK-mode) state added. Old v2 saves are dropped silently.
-const STORAGE_KEY = 'fluxkit-state-v3';
-
-// Color rack: 3 fixed slots, each holding one COLOR effect (or empty), with
-// per-slot enable/disable + drag-to-reorder. Renders in series — slot 0 reads
-// STRUCTURE's output (or raw video), each subsequent slot reads the previous
-// slot's output. Disabled slots are skipped in the chain entirely.
-//
-// Always exactly RACK_SLOTS slots — the user fills, empties, and reorders
-// them but never adds/removes the slot itself. Keeping a fixed-shape array
-// makes the DOM stable for drag-and-drop and simplifies persistence.
-const RACK_SLOTS = 3;
-
-// Schema for COLOR effect parameters. Source of truth for what knobs/toggles
-// each color effect exposes, their defaults, and human-readable copy. Lives
-// in JS (not in HTML data-attrs as before) because color knobs no longer
-// exist in the right-panel cards — they're rendered inline inside the rack
-// slot when expanded, and each slot owns its OWN copy of these params. So
-// "synth in slot 0" and "synth in slot 2" can have different knob values.
-//
-// Param keys are SHORT names (corr, metal) not the legacy long stateKeys
-// (oxideCorr, oxideMetal). They live under `slot.params[paramKey]` so they
-// can't collide across effect types — the slot always knows what type it is.
-//
-// `order` is the [4]-tuple ordering passed to applyGLFilter (uniform layout
-// in the shader). Must match the shader's expected uniform order exactly.
-const COLOR_PARAM_SCHEMAS = {
-  oxide: {
-    knobs: [
-      { key: 'corr',  label: 'Corrosion', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Corrosion blend. 0 = fresh polished metal. 1 = fully aged patina (dark, mottled).' },
-      { key: 'metal', label: 'Metal',     min: 0, max: 1, step: 0.01, default: 0,   tip: 'Metal type. 0 = copper / verdigris. 0.5 = iron / rust. 1 = silver / tarnish.' },
-      { key: 'rough', label: 'Rough',     min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Surface roughness noise. 0 = smooth metal. 1 = pitted, granular surface.' },
-      { key: 'sheen', label: 'Sheen',     min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Edge specular highlight. 0 = matte. 1 = polished metal with bright edges along luma transitions.' },
-    ],
-    toggles: [],
-    order: ['corr', 'metal', 'rough', 'sheen'],
-  },
-  synth: {
-    knobs: [
-      { key: 'warm', label: 'Warmth',    min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Warm-cool color bias inside each band. Low = cool (blue / teal lean). High = warm (red / orange lean).' },
-      { key: 'sep',  label: 'Sep',       min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Number of discrete color bands (3-12). Off below ~0.1 (smooth ramp). Higher = more posterized banding.' },
-      { key: 'res',  label: 'Res',       min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Resonance modulation inside each band. 0 = clean steps. 1 = strong sinusoidal brightness ripples per band.' },
-      { key: 'dyn',  label: 'Dyn Range', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Dynamic range / gamma. Low = compressed midtones (flat, washed). High = stretched midtones (punchy, contrasty).' },
-    ],
-    toggles: [],
-    order: ['warm', 'sep', 'res', 'dyn'],
-  },
-  biolum: {
-    knobs: [
-      { key: 'glow',  label: 'Glow',  min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Glow intensity. Low = subtle deep-sea darkness. High = strong luminous bloom on bright regions.' },
-      { key: 'color', label: 'Color', min: 0, max: 1, step: 0.01, default: 0,   tip: 'Hue of the glow. 0 = green-cyan. 1 = violet. Smooth interpolation in between.' },
-      { key: 'pulse', label: 'Pulse', min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Pulse modulation. 0 = steady glow. 1 = strong sinusoidal pulsing tied to local brightness.' },
-      { key: 'depth', label: 'Depth', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Depth fade. 0 = uniform glow regardless of brightness. 1 = darker regions stay deep / unlit (sense of underwater depth).' },
-    ],
-    toggles: [],
-    order: ['glow', 'color', 'pulse', 'depth'],
-  },
-  thermo: {
-    knobs: [
-      { key: 'cont',  label: 'Contrast', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Thermal map contrast around the midpoint. Higher = sharper hot/cold separation; lower = flatter pseudo-color.' },
-      { key: 'hot',   label: 'Hot',      min: 0, max: 1, step: 0.01, default: 0,   tip: 'Bias the entire ramp toward hot. 0 = baseline. 1 = everything reads as yellow / red / white (overheated).' },
-      { key: 'cold',  label: 'Cold',     min: 0, max: 1, step: 0.01, default: 0.1, tip: 'Cold floor. Lifts the darkest regions toward blue. 0 = pure black floor. 1 = blue-tinted shadows (more visible cold side).' },
-      { key: 'white', label: 'White Pt', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'White-hot clipping. Bright peaks above ~0.85 fade to pure white as this rises (simulates sensor saturation).' },
-    ],
-    toggles: [],
-    order: ['cont', 'hot', 'cold', 'white'],
-  },
-  falsecolor: {
-    knobs: [
-      { key: 'palette', label: 'Palette', min: 0, max: 1, step: 0.01, default: 0.25, tip: 'Cross-fade between four palettes: Thermal (0) → Neon (0.25) → Acid (0.5) → Ice (0.75) → back to Thermal (1).' },
-      { key: 'bandcnt', label: 'Bands',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Number of discrete color bands when Banding is On (4-20). Smaller = chunkier posterized look. Has no effect when Banding is Off.' },
-      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Brightness offset added to the input. 0.5 = neutral. Below 0.5 = darker (palette shifts cooler). Above 0.5 = brighter (palette shifts hotter).' },
-    ],
-    // 0 = smooth ramp, 1 = banded. Discrete toggle, not a continuous knob.
-    toggles: [
-      { key: 'band', label: 'Banding', default: 0, options: [
-        { value: 0, label: 'Off', tip: 'Smooth continuous palette ramp (no banding).' },
-        { value: 1, label: 'On',  tip: 'Discrete banded ramp. Use the Bands knob to set how many color steps.' },
-      ]},
-    ],
-    // Shader uniform order: [palette, band, bandcnt, bright]
-    order: ['palette', 'band', 'bandcnt', 'bright'],
-  },
-};
-
-// Build a fresh factory-defaults params object for an effect type. Every
-// new slot pick goes through this — the user's request was "factory" for
-// every slot (not "inherit current global tweaks"), so this is the only
-// initializer for slot params. There's no "inherit" path.
-function makeFactoryParams(type) {
-  const schema = COLOR_PARAM_SCHEMAS[type];
-  if (!schema) return {};
-  const p = {};
-  for (const k of schema.knobs)   p[k.key] = k.default;
-  for (const t of schema.toggles) p[t.key] = t.default;
-  return p;
-}
-
-// Per-instance slot ids. Used as DOM keys + drag-and-drop identity. Stable
-// across re-renders so dragging a slot doesn't recreate its DOM mid-drag.
-function makeSlotId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function makeColorRack() {
-  return Array.from({ length: RACK_SLOTS }, () => ({
-    id: makeSlotId(),
-    type: 'none',
-    enabled: false,
-    // Per-slot params — factory defaults via makeFactoryParams when the
-    // slot is filled. Empty slots carry an empty {} so the field is always
-    // present (avoids undefined checks throughout the render path).
-    params: {},
-  }));
-}
-
-// ============================================================
-// TRACK FX RACK — same 3-slot pattern as colorRack but for the spec's
-// three TRACK-mode effects (echo blobs / radar sweep / heatmap residue).
-// Each slot has the same shape (id, type, enabled, params); the picker,
-// schemas, and dispatch are independent.
-// ============================================================
-const TRACK_FX_PARAM_SCHEMAS = {
-  echo: {
-    knobs: [
-      { key: 'depth',   label: 'Depth',   min: 1, max: 10, step: 1,    default: 4,   tip: 'How many past blob positions show. 1 = single ghost. 10 = long fading trail of bbox echoes.' },
-      { key: 'opacity', label: 'Opacity', min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Visibility of the echo bboxes. 0 = invisible. 1 = full strength echoes.' },
-      { key: 'decay',   label: 'Decay',   min: 0, max: 1,  step: 0.01, default: 0.5, tip: 'Falloff curve. 0 = chunky (equal opacity per echo step). 1 = smooth exponential taper.' },
-      { key: 'offset',  label: 'Offset',  min: 0, max: 1,  step: 0.01, default: 0,   tip: '0 = echoes sit exactly where the blob was. 1 = scaled-down or scaled-up slightly per step (depth pulse).' },
-    ],
-    order: ['depth', 'opacity', 'decay', 'offset'],
-  },
-  radar: {
-    knobs: [
-      { key: 'speed',      label: 'Speed', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Rotation speed of the sweep arm.' },
-      { key: 'trail',      label: 'Trail', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'How long blobs persist after the sweep crosses them. 0 = brief flash. 1 = lingering glow.' },
-      { key: 'sweepWidth', label: 'Width', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Width of the rotating arc. 0 = laser line. 1 = wide pie-slice.' },
-      { key: 'direction',  label: 'Dir',   min: -1, max: 1, step: 0.01, default: 1,   tip: '-1 = sweeps counterclockwise. 0 = oscillates back and forth. +1 = sweeps clockwise.' },
-    ],
-    order: ['speed', 'trail', 'sweepWidth', 'direction'],
-  },
-  heatmap: {
-    knobs: [
-      { key: 'intensity', label: 'Int',    min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Visibility of the heatmap layer.' },
-      { key: 'decay',     label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'How quickly old positions fade. 0 = forever. 1 = quick.' },
-      { key: 'spread',    label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Radius of the glow around each blob position. Low = pinpoint. High = wide bloom.' },
-      { key: 'palette',   label: 'Pal',    min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = thermal (red-yellow-white). 0.5 = cool (blue-cyan-white). 1 = rainbow.' },
-    ],
-    order: ['intensity', 'decay', 'spread', 'palette'],
-  },
-};
-
-function makeTrackFxFactoryParams(type) {
-  const schema = TRACK_FX_PARAM_SCHEMAS[type];
-  if (!schema) return {};
-  const p = {};
-  for (const k of schema.knobs) p[k.key] = k.default;
-  return p;
-}
-
-function makeTrackFxRack() {
-  return Array.from({ length: RACK_SLOTS }, () => ({
-    id: makeSlotId(),
-    type: 'none',
-    enabled: false,
-    params: {},
-  }));
-}
+import {
+  STORAGE_KEY, RACK_SLOTS, DEFAULTS,
+  COLOR_PARAM_SCHEMAS, TRACK_FX_PARAM_SCHEMAS,
+  STRUCTURE_SECTIONS, COLOR_SECTIONS, BLEND_MODES, GL_RESETS,
+  makeSlotId, makeFactoryParams, makeColorRack,
+  makeTrackFxFactoryParams, makeTrackFxRack,
+} from './schemas.js';
 
 // state.sourceKind tracks which input element is currently driving the chain:
 //   null    — no source loaded
@@ -277,6 +54,21 @@ const btnRecordLbl = document.getElementById('btn-record-label');
 const btnReset     = document.getElementById('btn-reset');
 const btnFps       = document.getElementById('btn-fps');
 const btnHelp      = document.getElementById('btn-help');
+const introOverlay = document.getElementById('intro-overlay');
+const introClose   = document.getElementById('intro-close');
+const introStart   = document.getElementById('intro-start');
+const accountStatus = document.getElementById('account-status');
+const accountAuth   = document.getElementById('account-auth');
+const authEmail     = document.getElementById('auth-email');
+const authSendCode  = document.getElementById('auth-send-code');
+const authCodeRow   = document.getElementById('auth-code-row');
+const authCode      = document.getElementById('auth-code');
+const authVerifyCode= document.getElementById('auth-verify-code');
+const authLogout    = document.getElementById('auth-logout');
+const presetName    = document.getElementById('preset-name');
+const presetSave    = document.getElementById('preset-save');
+const presetRefresh = document.getElementById('preset-refresh');
+const presetList    = document.getElementById('preset-list');
 const helpOverlay  = document.getElementById('help-overlay');
 const helpClose    = document.getElementById('help-close');
 const dropOverlay  = document.getElementById('drop-overlay');
@@ -285,11 +77,16 @@ const btnPlay      = document.getElementById('btn-play');
 const videoScrub   = document.getElementById('video-scrub');
 const videoTime    = document.getElementById('video-time');
 const fpsOverlay   = document.getElementById('fps-overlay');
+const colorKeyInput   = document.getElementById('color-key-input');
 // (overlay-color swatch grid retired — replaced by per-shape/per-lines hue knob)
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
-const DETECT_SCALE = 0.5;
+// Blob detection runs on CPU ImageData, so bound its pixel budget instead of
+// scaling linearly with 4K/retina canvas sizes.
+const DETECT_TARGET_PIXELS = 360000; // ~800x450, enough for stable blob centers.
+const DETECT_MAX_SCALE = 0.5;
+const DETECT_MIN_SCALE = 0.125;
 
 // Render-loop FPS cap. Capped at 60 regardless of source video frame rate
 // or display refresh rate. Reasoning:
@@ -298,10 +95,8 @@ const DETECT_SCALE = 0.5;
 //    monitor (the source video tops out at 24/30/60 fps anyway — there's
 //    no new input data at the higher cadence).
 //  - Display refresh < 60Hz: hardware ceiling applies; the cap is a no-op.
-//  - Source video at 24/30 fps: detect/track still runs every render frame,
-//    but with cached video pixels it's mostly a no-op until the video
-//    advances. The compositor still runs at 60 to keep UI overlays / blob
-//    smoothing animations feeling smooth.
+//  - Source video at 24/30 fps: the compositor still runs at 60 to keep UI
+//    overlays / blob smoothing animations feeling smooth.
 //
 // FRAME_BUDGET_MS is the per-frame time budget. Tracked via accumulator
 // (not raw "time since last frame") so the cap holds at exactly 60Hz on
@@ -328,6 +123,7 @@ const KNOB_DRAG_PX = 150;
 // notch / one trackpad line). Threshold-based accumulation prevents trackpad
 // runaway; deltaMode normalization handles devices that report lines or pages.
 const WHEEL_TICK_PX = 40;
+const STRUCTURE_OUTPUT_MODE_VALUE = { mono: 0, source: 1, ink: 2 };
 
 function kebabToCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 function snapToStep(v, min, step) {
@@ -347,6 +143,374 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 function nearlyEqual(a, b) { return Math.abs(a - b) < 1e-6; }
+function structureOutputModeValue() {
+  return STRUCTURE_OUTPUT_MODE_VALUE[state.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
+}
+
+// ---- Account / Cloud Presets ----
+const INTERNAL_AUTH_KEY = 'lumisynth-internal-auth';
+const INTERNAL_PRESETS_KEY = 'lumisynth-internal-presets';
+const authState = {
+  loading: true,
+  user: null,
+  presets: [],
+  internal: false,
+};
+
+let internalLoginChallenge = null;
+
+function setBusy(el, busy) {
+  if (!el) return;
+  el.disabled = !!busy;
+}
+
+function internalAuthAllowed() {
+  return ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+}
+
+function readInternalUser() {
+  if (!internalAuthAllowed()) return null;
+  try { return JSON.parse(localStorage.getItem(INTERNAL_AUTH_KEY) || 'null'); }
+  catch { return null; }
+}
+
+function writeInternalUser(user) {
+  try { localStorage.setItem(INTERNAL_AUTH_KEY, JSON.stringify(user)); } catch { /* ignore */ }
+}
+
+function clearInternalUser() {
+  try { localStorage.removeItem(INTERNAL_AUTH_KEY); } catch { /* ignore */ }
+}
+
+function randomInternalCode() {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return (new DataView(bytes.buffer).getUint32(0) % 1_000_000).toString().padStart(6, '0');
+}
+
+function readInternalPresets() {
+  if (!internalAuthAllowed()) return [];
+  try {
+    const rows = JSON.parse(localStorage.getItem(INTERNAL_PRESETS_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeInternalPresets(presets) {
+  try { localStorage.setItem(INTERNAL_PRESETS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`/api${path}`, {
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) throw new Error('API unavailable');
+  const body = await res.json();
+  if (!res.ok) {
+    const message = body.error || `Request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+function presetStateSnapshot() {
+  const { hasSource, sourceKind, ...persistable } = state;
+  return JSON.parse(JSON.stringify(persistable));
+}
+
+function renderAccountUi() {
+  const loggedIn = !!authState.user;
+  if (accountStatus) {
+    accountStatus.textContent = authState.loading
+      ? 'Checking session...'
+      : loggedIn
+        ? `Logged in as ${authState.user.email}${authState.internal ? ' · internal' : ''}`
+        : 'Login to unlock export and cloud presets.';
+    accountStatus.classList.toggle('is-authed', loggedIn);
+  }
+  accountAuth?.classList.toggle('hidden', loggedIn);
+  authLogout?.classList.toggle('hidden', !loggedIn);
+  if (presetSave) presetSave.disabled = !loggedIn;
+  if (presetRefresh) presetRefresh.disabled = !loggedIn;
+  renderPresetList();
+}
+
+function renderPresetList() {
+  if (!presetList) return;
+  presetList.innerHTML = '';
+  if (!authState.user) {
+    presetList.textContent = 'Login to use cloud presets.';
+    return;
+  }
+  if (!authState.presets.length) {
+    presetList.textContent = 'No cloud presets yet.';
+    return;
+  }
+  for (const preset of authState.presets) {
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const load = document.createElement('button');
+    load.type = 'button';
+    load.className = 'action-btn mini-action preset-load';
+    load.textContent = preset.name;
+    load.title = `Load ${preset.name}`;
+    load.addEventListener('click', () => applyCloudPreset(preset));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'action-btn mini-action preset-delete';
+    del.textContent = '×';
+    del.title = `Delete ${preset.name}`;
+    del.addEventListener('click', () => deleteCloudPreset(preset.id));
+
+    row.append(load, del);
+    presetList.append(row);
+  }
+}
+
+async function initAuth() {
+  try {
+    const data = await apiFetch('/me', { method: 'GET', headers: {} });
+    authState.user = data.user || null;
+    authState.internal = false;
+  } catch (_) {
+    authState.user = readInternalUser();
+    authState.internal = !!authState.user;
+  } finally {
+    authState.loading = false;
+    renderAccountUi();
+  }
+  if (authState.user) loadCloudPresets();
+}
+
+async function sendLoginCode() {
+  const email = authEmail?.value.trim();
+  if (!email) {
+    showToast('Enter an email first', 'error');
+    authEmail?.focus();
+    return;
+  }
+  setBusy(authSendCode, true);
+  try {
+    const data = await apiFetch('/auth/start', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    authCodeRow?.classList.remove('hidden');
+    authCode?.focus();
+    showToast(data.devCode ? `Dev login code: ${data.devCode}` : 'Login code sent', 'ok');
+  } catch (err) {
+    if (!internalAuthAllowed()) {
+      showToast(err.message || 'Could not send login code', 'error');
+      return;
+    }
+    const code = randomInternalCode();
+    internalLoginChallenge = { email: email.toLowerCase(), code, expiresAt: Date.now() + 10 * 60 * 1000 };
+    authCodeRow?.classList.remove('hidden');
+    authCode?.focus();
+    showToast(`Internal login code: ${code}`, 'ok', 8000);
+  } finally {
+    setBusy(authSendCode, false);
+  }
+}
+
+async function verifyLoginCode() {
+  const email = authEmail?.value.trim();
+  const code = authCode?.value.trim();
+  setBusy(authVerifyCode, true);
+  try {
+    const data = await apiFetch('/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    authState.user = data.user;
+    authState.internal = false;
+    authState.presets = [];
+    authCodeRow?.classList.add('hidden');
+    if (authCode) authCode.value = '';
+    renderAccountUi();
+    showToast('Logged in', 'ok');
+    loadCloudPresets();
+  } catch (err) {
+    const normalizedEmail = String(email || '').toLowerCase();
+    const challengeOk = internalAuthAllowed()
+      && internalLoginChallenge
+      && internalLoginChallenge.email === normalizedEmail
+      && internalLoginChallenge.code === code
+      && internalLoginChallenge.expiresAt > Date.now();
+    if (!challengeOk) {
+      showToast(err.message || 'Login failed', 'error');
+      return;
+    }
+    const user = { id: `internal:${normalizedEmail}`, email: normalizedEmail };
+    writeInternalUser(user);
+    authState.user = user;
+    authState.internal = true;
+    authState.presets = readInternalPresets();
+    internalLoginChallenge = null;
+    authCodeRow?.classList.add('hidden');
+    if (authCode) authCode.value = '';
+    renderAccountUi();
+    showToast('Logged in internally', 'ok');
+  } finally {
+    setBusy(authVerifyCode, false);
+  }
+}
+
+async function logout() {
+  if (authState.internal) clearInternalUser();
+  else {
+    try { await apiFetch('/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
+  }
+  authState.user = null;
+  authState.internal = false;
+  authState.presets = [];
+  renderAccountUi();
+  showToast('Logged out', 'ok');
+}
+
+async function requireExportAccess(type) {
+  if (!authState.user) {
+    showToast('Login to export from LumiSynth', 'error');
+    authEmail?.focus();
+    return false;
+  }
+  if (authState.internal) return true;
+  try {
+    await apiFetch('/export-events', {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+    });
+    return true;
+  } catch (err) {
+    if (err.status === 401) {
+      authState.user = null;
+      renderAccountUi();
+      showToast('Session expired. Login again to export.', 'error');
+      return false;
+    }
+    showToast(err.message || 'Export check failed', 'error');
+    return false;
+  }
+}
+
+async function loadCloudPresets() {
+  if (!authState.user) return;
+  if (authState.internal) {
+    authState.presets = readInternalPresets();
+    renderPresetList();
+    return;
+  }
+  setBusy(presetRefresh, true);
+  try {
+    const data = await apiFetch('/presets', { method: 'GET', headers: {} });
+    authState.presets = data.presets || [];
+    renderPresetList();
+  } catch (err) {
+    showToast(err.message || 'Could not load presets', 'error');
+  } finally {
+    setBusy(presetRefresh, false);
+  }
+}
+
+async function saveCloudPreset() {
+  if (!authState.user) {
+    showToast('Login to save cloud presets', 'error');
+    return;
+  }
+  const name = presetName?.value.trim() || `LumiSynth ${new Date().toLocaleString()}`;
+  setBusy(presetSave, true);
+  try {
+    if (authState.internal) {
+      const presets = readInternalPresets();
+      presets.unshift({
+        id: crypto.randomUUID(),
+        name,
+        state: presetStateSnapshot(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      writeInternalPresets(presets);
+      authState.presets = presets;
+      if (presetName) presetName.value = '';
+      renderPresetList();
+      showToast('Internal preset saved', 'ok');
+      return;
+    }
+    await apiFetch('/presets', {
+      method: 'POST',
+      body: JSON.stringify({ name, state: presetStateSnapshot() }),
+    });
+    if (presetName) presetName.value = '';
+    showToast('Preset saved', 'ok');
+    await loadCloudPresets();
+  } catch (err) {
+    showToast(err.message || 'Could not save preset', 'error');
+  } finally {
+    setBusy(presetSave, false);
+  }
+}
+
+function applyCloudPreset(preset) {
+  if (!preset || !preset.state || typeof preset.state !== 'object') {
+    showToast('Preset is missing state', 'error');
+    return;
+  }
+  for (const k of Object.keys(DEFAULTS)) {
+    if (k in preset.state) state[k] = preset.state[k];
+  }
+  if (Array.isArray(preset.state.colorRack) && preset.state.colorRack.length === RACK_SLOTS) {
+    state.colorRack = preset.state.colorRack;
+  }
+  if (Array.isArray(preset.state.trackFxRack) && preset.state.trackFxRack.length === RACK_SLOTS) {
+    state.trackFxRack = preset.state.trackFxRack;
+  }
+  applyStateToUI();
+  schedulePersist();
+  showToast(`Loaded ${preset.name}`, 'ok');
+}
+
+async function deleteCloudPreset(id) {
+  if (!id) return;
+  try {
+    if (authState.internal) {
+      authState.presets = readInternalPresets().filter((p) => p.id !== id);
+      writeInternalPresets(authState.presets);
+      renderPresetList();
+      showToast('Internal preset deleted', 'ok');
+      return;
+    }
+    await apiFetch(`/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    authState.presets = authState.presets.filter((p) => p.id !== id);
+    renderPresetList();
+    showToast('Preset deleted', 'ok');
+  } catch (err) {
+    showToast(err.message || 'Could not delete preset', 'error');
+  }
+}
+
+authSendCode?.addEventListener('click', sendLoginCode);
+authVerifyCode?.addEventListener('click', verifyLoginCode);
+authLogout?.addEventListener('click', logout);
+presetSave?.addEventListener('click', saveCloudPreset);
+presetRefresh?.addEventListener('click', loadCloudPresets);
+authEmail?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendLoginCode();
+});
+authCode?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') verifyLoginCode();
+});
 
 // ---- Knob component ----
 const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step, default, stateKey, el }
@@ -363,7 +527,84 @@ const knobRegistry = new Map();   // id -> { setValue, getValue, min, max, step,
 // The callback approach keeps the 140-line knob implementation single
 // and avoids two parallel implementations drifting apart. Slot knobs
 // still get full keyboard / wheel / drag / dblclick-reset behavior.
+function initSliderControl(el, opts = {}) {
+  const id       = el.id;
+  const min      = parseFloat(el.dataset.min);
+  const max      = parseFloat(el.dataset.max);
+  const step     = parseFloat(el.dataset.step);
+  const def      = parseFloat(el.dataset.default);
+  const stateKey = el.dataset.state || kebabToCamel(id);
+  const isInt    = step >= 1 && Number.isInteger(min) && Number.isInteger(max);
+  const valEl    = document.getElementById(`${id}-val`) || el.querySelector('.knob-val');
+  const isSlotKnob = !!opts.writeValue;
+  const seed = (opts.initialValue !== undefined) ? opts.initialValue : def;
+  let currentValue = clamp(seed, min, max);
+
+  el.classList.add('param-slider');
+  el.removeAttribute('role');
+  el.removeAttribute('aria-valuemin');
+  el.removeAttribute('aria-valuemax');
+  el.removeAttribute('aria-valuenow');
+  el.removeAttribute('aria-valuetext');
+  el.removeAttribute('tabindex');
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'param-slider-input';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(currentValue);
+  input.dataset.knob = '';
+  input.setAttribute('aria-label', el.getAttribute('aria-label') || id);
+  input.setAttribute('aria-valuemin', String(min));
+  input.setAttribute('aria-valuemax', String(max));
+
+  const labelEl = el.querySelector('.knob-label');
+  if (labelEl) labelEl.insertAdjacentElement('afterend', input);
+  else el.prepend(input);
+
+  function paint(v) {
+    const t = (v - min) / (max - min);
+    const display = formatValue(v, step);
+    input.value = String(v);
+    input.style.setProperty('--slider-t', `${clamp(t, 0, 1) * 100}%`);
+    input.setAttribute('aria-valuenow', String(v));
+    input.setAttribute('aria-valuetext', display);
+    if (valEl) valEl.textContent = display;
+    el.classList.toggle('modified', !nearlyEqual(v, def));
+  }
+
+  function setValue(v, { persist = true } = {}) {
+    let next = snapToStep(clamp(v, min, max), min, step);
+    if (isInt) next = Math.round(next);
+    if (next === currentValue) return;
+    currentValue = next;
+    if (isSlotKnob) opts.writeValue(next);
+    else            state[stateKey] = next;
+    paint(next);
+    if (persist) schedulePersist();
+  }
+  function getValue() { return currentValue; }
+
+  input.addEventListener('input', () => setValue(parseFloat(input.value)));
+  el.addEventListener('dblclick', (e) => { setValue(def); e.preventDefault(); });
+
+  paint(currentValue);
+  if (isSlotKnob) {
+    opts.writeValue(currentValue);
+  } else {
+    state[stateKey] = currentValue;
+    knobRegistry.set(id, { setValue, getValue, min, max, step, default: def, stateKey, el });
+  }
+}
+
 function initKnob(el, opts = {}) {
+  if (el.dataset.control === 'slider') {
+    initSliderControl(el, opts);
+    return;
+  }
+
   const id      = el.id;
   const min     = parseFloat(el.dataset.min);
   const max     = parseFloat(el.dataset.max);
@@ -371,7 +612,7 @@ function initKnob(el, opts = {}) {
   const def     = parseFloat(el.dataset.default);
   const stateKey = el.dataset.state || kebabToCamel(id);
   const isInt   = step >= 1 && Number.isInteger(min) && Number.isInteger(max);
-  const valEl   = document.getElementById(`${id}-val`);
+  const valEl   = document.getElementById(`${id}-val`) || el.querySelector('.knob-val');
   const isSlotKnob = !!opts.writeValue;
 
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -530,33 +771,52 @@ _hiddenCards.forEach(c => c.classList.add('hidden'));
 
 // ---- Toggle groups ----
 // Pipeline categorization. STRUCTURE in v3 is the trimmed spec set:
-// none / ASCII / Erode (per "remove extras from UI" — voronoi, cellular,
-// shatter, wave were dropped because they're not in the spec's 9). COLOR
-// effects remain per-slot in the rack.
-const STRUCTURE_SECTIONS = ['ascii', 'erode'];
-const COLOR_SECTIONS     = ['oxide','synth','biolum','thermo','falsecolor'];
-// No GL_RESETS: ascii is stateless and erode is a single-frame
-// morphological op, so neither needs a per-source-switch reset.
-const GL_RESETS          = {};
-
 // Centralized STRUCTURE effect dispatch: pulls per-effect knob values
 // from global `state` and forwards them to the correct module with a
 // uniform call shape. COLOR effects are dispatched separately via
 // runColorEffect (each color slot owns its own params).
 function runEffect(name, opts) {
+  const outputMode = structureOutputModeValue();
   switch (name) {
     case 'ascii':
       return applyASCII(canvas.width, canvas.height, {
         cellSize: state.asciiCellSize, contrast: state.asciiContrast,
         blackThreshold: state.asciiBlackThresh, glyphStrength: state.asciiGlyphStrength,
+        outputMode,
       }, opts);
     case 'erode':
-      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], opts);
+      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], { ...opts, outputMode });
+    case 'watershed':
+      return applyGLFilter('watershed', canvas.width, canvas.height, [state.watershedBasin, state.watershedBoundary, state.watershedFlat, state.watershedDepth], { ...opts, outputMode });
+    case 'pixelsort':
+      return applyGLFilter('pixelsort', canvas.width, canvas.height, [state.pixelsortThresh, state.pixelsortLength, state.pixelsortOpacity, state.pixelsortDir], { ...opts, outputMode });
+    case 'melt':
+      return applyGLFilter('melt', canvas.width, canvas.height, [state.meltAmount, state.meltDrip, state.meltViscosity, state.meltDir], { ...opts, outputMode });
     case 'oxide':
     case 'synth':
     case 'biolum':
     case 'thermo':
     case 'falsecolor':
+    case 'depthstack':
+    case 'prismatic':
+    case 'acidwash':
+    case 'xray':
+    case 'heatbleed':
+    case 'nebula':
+    case 'solarize':
+    case 'aurorastorm':
+    case 'cyanotype':
+    case 'infrared':
+    case 'neontube':
+    case 'deepfield':
+    case 'decayflow':
+    case 'feedbackwarp':
+    case 'bloom':
+    case 'crtrolling':
+    case 'noise':
+    case 'scanlines':
+    case 'degrade':
+    case 'crt':
       console.warn(`runEffect: ${name} is a per-slot COLOR effect; use runColorEffect(name, slotParams, opts).`);
       return;
     default:
@@ -575,35 +835,20 @@ function runColorEffect(name, params, opts) {
   return applyGLFilter(name, canvas.width, canvas.height, tuple, opts);
 }
 
-// Per-effect display blend mode used by compositeToCanvas2D when blitting
-// the shared GL canvas onto the 2D display canvas (which already has the
-// raw video drawn). Voronoi/wave/cellular use 'screen' to glow over the
-// source; everything else opaque-replaces. Surfaced here (was hardcoded
-// inside each effect module pre-P2a) so the orchestrator can pick the
-// right blend per active effect, and so P2b can apply the terminal-stage
-// rule when a chain runs (use the COLOR stage's blend mode at the final
-// composite).
-const BLEND_MODES = {
-  ascii:      'source-over',
-  erode:      'source-over',
-  oxide:      'source-over',
-  synth:      'source-over',
-  biolum:     'source-over',
-  thermo:     'source-over',
-  falsecolor: 'source-over',
-};
-
 const TOGGLE_CONFIG = [
   ['speed-group',           'speed',          parseFloat, (v) => { video.playbackRate = v; }],
   ['structure-group',       'structure',      String,     onStructureChange],
+  ['structure-output-group', 'structureOutputMode', String, null],
   ['perblob-group',         'perBlob',        String,     onPerBlobChange],
   ['erode-mode-group',      'erodeMode',      parseInt,   null],
   // ============ TRACK-mode toggle groups ============
   ['mode-group',            'mode',           String,     onModeChange],
   ['track-composite-group', 'trackComposite', String,     null],
-  ['lumi-channel-group',    'trackChannel',   String,     () => { resetFrameHistory(); }],
+  ['lumi-channel-group',    'trackChannel',   String,     (v) => { resetFrameHistory(); refreshColorKeyControls(v); }],
   ['track-shape-group',     'trackShape',     String,     null],
   ['track-lines-group',     'trackLines',     String,     null],
+  ['track-label-marker-group', 'trackLabelMarker', String, null],
+  ['track-labels-group',       'trackLabels',      (v) => v === 'true', null],
 ];
 
 // Resolve which effects render this frame. STRUCTURE plus 0-3 chained
@@ -665,6 +910,11 @@ function onStructureChange(v) {
 // CPU pass in renderFrame. Persistence is handled by the toggle wiring;
 // this hook intentionally has no side effects beyond that.
 function onPerBlobChange(_v) { /* intentionally empty */ }
+
+function refreshColorKeyControls(channel) {
+  const el = document.getElementById('color-key-controls');
+  if (el) el.style.display = channel === 'color' ? '' : 'none';
+}
 
 // Mode toggle. Drives section visibility via body[data-mode] (the CSS
 // rule [data-mode-section="track"] / [data-mode-section="synth"] reacts
@@ -738,9 +988,33 @@ const RACK_SWATCH_GRADIENTS = {
   biolum:     'linear-gradient(90deg, #001a1a, #00ffcc, #88ddff, #aa88ff)',
   thermo:     'linear-gradient(90deg, #000, #220066, #cc0066, #ff6600, #ffff00, #fff)',
   falsecolor: 'linear-gradient(90deg, #4361ee, #00d4ff, #5be7a6, #ffea00, #f72585)',
+  depthstack: 'linear-gradient(90deg, #050814, #23356f, #7354b8, #e8f3ff)',
+  prismatic:  'linear-gradient(90deg, #fff2bf, #ff9aa7, #a68cff, #9ffcff)',
+  acidwash:   'linear-gradient(90deg, #9bff00, #00ffe0, #b000ff, #ff4ecb, #fffb00)',
+  xray:       'linear-gradient(90deg, #07131a, #2c6b7f, #bde7ef, #fff8dd)',
+  heatbleed:  'linear-gradient(90deg, #110006, #8a001f, #ff5500, #ffea00, #fff)',
+  nebula:     'linear-gradient(90deg, #05000d, #321a5c, #b13c74, #f4a36d)',
+  solarize:   'linear-gradient(90deg, #050505, #f6f1d3, #1d1b2f, #ff7a4d)',
+  aurorastorm:'linear-gradient(90deg, #00120b, #00d86a, #5ddcff, #d855ff)',
+  cyanotype:  'linear-gradient(90deg, #061423, #063f7a, #3fa7c7, #d7f3ee)',
+  infrared:   'linear-gradient(90deg, #05081a, #234e7c, #d02775, #ffb1a3)',
+  neontube:   'linear-gradient(90deg, #090010, #ff2fa3, #ffd2f0, #00e8ff)',
+  deepfield:  'linear-gradient(90deg, #02030a, #111a3f, #9d4a2e, #ffd08a)',
+  decayflow:  'linear-gradient(90deg, #05140e, #1d6b54, #7ad0a0, #f0d67a)',
+  feedbackwarp:'linear-gradient(90deg, #090014, #36106b, #0f8ea0, #ff6d3a)',
+  bloom:      'linear-gradient(90deg, #020310, #142b7f, #5ea9ff, #f8fbff)',
+  crtrolling: 'linear-gradient(90deg, #070707, #17423d, #d13f6b, #f1e36b)',
+  noise:      'linear-gradient(90deg, #111, #777, #222, #bbb, #333)',
+  scanlines:  'repeating-linear-gradient(180deg, #0a0908 0 3px, #7a7a7a 3px 4px)',
+  degrade:    'linear-gradient(90deg, #0b0b0b 0 20%, #4a4a4a 20% 40%, #a45d2a 40% 60%, #d8c66f 60% 80%, #f4f0d6 80%)',
+  crt:        'linear-gradient(90deg, #050505, #21433f, #b24a61, #eee8b8)',
 };
 const RACK_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
+  depthstack: 'DepthStack', prismatic: 'Prismatic', acidwash: 'AcidWash', xray: 'X-Ray', heatbleed: 'HeatBleed',
+  nebula: 'Nebula', solarize: 'Solarize', aurorastorm: 'Aurora', cyanotype: 'Cyanotype', infrared: 'Infrared',
+  neontube: 'NeonTube', deepfield: 'DeepField', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp', bloom: 'Bloom',
+  crtrolling: 'CRT Roll', noise: 'Noise', scanlines: 'Scanlines', degrade: 'Degrade', crt: 'CRT',
 };
 
 // Per-slot tooltip mirrors the picker's (so hovering the chip explains
@@ -751,6 +1025,26 @@ const RACK_CHIP_TIP = {
   biolum:     'Bioluminescent glow in this slot. Re-tints the input as deep-water bioluminescence. Click to swap.',
   thermo:     'Thermal-camera ramp in this slot. Maps luma to deep blue → cyan → yellow → red → white. Click to swap.',
   falsecolor: 'False-color palette swap in this slot. Cross-fades between four palettes. Click to swap.',
+  depthstack: 'Holographic spectral depth planes. Banded color zones shift with luminance gradients. Click to swap.',
+  prismatic:  'Warm spectral dispersion. Prismatic chromatic aberration with yellow-pink spectrum. Click to swap.',
+  acidwash:   'Psychedelic color banding. Sine-folded hue mapping creates repeating color cycles. Click to swap.',
+  xray:       'Medical radiograph aesthetic. Inverted exposure, edge enhancement, film tint. Click to swap.',
+  heatbleed:  'Thermal color that bleeds spatially based on intensity. Hot colors spread outward. Click to swap.',
+  nebula:     'Cosmic gas cloud palette. Emission, reflection, or planetary nebula aesthetics. Click to swap.',
+  solarize:   'Solarization / Sabattier effect. Tone folding at a luminance threshold. Click to swap.',
+  aurorastorm:'Violent solar storm aurora. Vertical curtain streaks with extreme color bands. Click to swap.',
+  cyanotype:  'Blueprint paper aesthetic. Deep cobalt to pale cyan with paper grain. Click to swap.',
+  infrared:   'Aerochrome infrared film. Magentas in foliage zones, deep blue shadows. Click to swap.',
+  neontube:   'Emissive neon line-art. Edges glow as bright neon cores with atmospheric halo. Click to swap.',
+  deepfield:  'Hubble Ultra Deep Field aesthetic. Dark void with warm redshifted galaxy colors. Click to swap.',
+  decayflow:  'Flow field advection trails. Pixels drift along gradient directions leaving color residue. Click to swap.',
+  feedbackwarp: 'Gradient-driven warp feedback. Image warped by its own luminance field recursively. Click to swap.',
+  bloom:      'Neon bloom glow. Bright areas spread with a blue energy halo. Click to swap.',
+  crtrolling: 'CRT rolling distortion. Vertical sine waves with luma modulation and chroma offset. Click to swap.',
+  noise:      'Adaptive film grain / sensor noise with shadow bias and optional color noise. Click to swap.',
+  scanlines:  'CRT/VHS scanline artifacts with per-row jitter and RGB fringing. Click to swap.',
+  degrade:    'Bit depth reduction and color banding. Macroblocks, dithering, pixelation. Click to swap.',
+  crt:        'Full CRT simulation. Phosphor subpixels, bloom, barrel distortion, scanlines. Click to swap.',
 };
 
 // Currently-open picker state. picker is anchored beneath a chip; clicking
@@ -839,11 +1133,11 @@ function renderColorRack() {
       chev.type = 'button';
       chev.className = 'color-rack-chevron';
       chev.dataset.action = 'expand';
-      chev.setAttribute('aria-label', expanded ? 'Collapse slot knobs' : 'Expand slot knobs');
+      chev.setAttribute('aria-label', expanded ? 'Collapse slot controls' : 'Expand slot controls');
       chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       chev.dataset.tip = expanded
-        ? 'Hide this slot\'s knobs.'
-        : 'Show this slot\'s knobs. Each slot has its own copy — tweaking these only affects THIS slot.';
+        ? 'Hide this slot\'s controls.'
+        : 'Show this slot\'s controls. Each slot has its own copy — tweaking these only affects THIS slot.';
       chev.textContent = expanded ? '▴' : '▾';
       row.appendChild(chev);
 
@@ -881,7 +1175,7 @@ function renderColorRack() {
   }
 }
 
-// Build the inline knob/toggle panel for an expanded slot. All knobs are
+// Build the inline control panel for an expanded slot. All controls are
 // slot-bound (writeValue closes over slot.params); the panel's reset
 // button restores factory defaults via resetSlotParams.
 function renderSlotPanel(slot) {
@@ -895,14 +1189,14 @@ function renderSlotPanel(slot) {
   phead.className = 'color-rack-slot-panel-head';
   const ptitle = document.createElement('span');
   ptitle.className = 'color-rack-slot-panel-title';
-  ptitle.textContent = `${RACK_LABEL[slot.type] || slot.type} knobs`;
+  ptitle.textContent = `${RACK_LABEL[slot.type] || slot.type} controls`;
   phead.appendChild(ptitle);
   const presetBtn = document.createElement('button');
   presetBtn.type = 'button';
   presetBtn.className = 'color-rack-slot-reset';
   presetBtn.dataset.action = 'reset-params';
-  presetBtn.setAttribute('aria-label', 'Reset this slot\'s knobs to factory');
-  presetBtn.dataset.tip = 'Reset only THIS slot\'s knobs to factory defaults. Other slots untouched.';
+  presetBtn.setAttribute('aria-label', 'Reset this slot\'s controls to factory');
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s controls to factory defaults. Other slots untouched.';
   presetBtn.textContent = '⟲';
   phead.appendChild(presetBtn);
   panel.appendChild(phead);
@@ -944,9 +1238,12 @@ function renderSlotPanel(slot) {
     }
   }
 
-  // Knob grid — bind each knob to slot.params[k.key].
-  const grid = document.createElement('div');
-  grid.className = 'color-rack-slot-knob-grid';
+  const controlStack = document.createElement('div');
+  controlStack.className = 'control-stack color-rack-slot-controls';
+  const sliderStack = document.createElement('div');
+  sliderStack.className = 'slider-stack';
+  const knobCluster = document.createElement('div');
+  knobCluster.className = 'knob-cluster color-rack-slot-knob-grid';
   for (const k of schema.knobs) {
     const knobId = `slot-${slot.id}-${k.key}`;
     const valId  = `${knobId}-val`;
@@ -958,6 +1255,7 @@ function renderSlotPanel(slot) {
     knobEl.dataset.max     = String(k.max);
     knobEl.dataset.step    = String(k.step);
     knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
     knobEl.dataset.tip     = k.tip;
     knobEl.tabIndex = 0;
     knobEl.setAttribute('aria-label', `${RACK_LABEL[slot.type]} ${k.label}`);
@@ -970,7 +1268,8 @@ function renderSlotPanel(slot) {
     valSpan.textContent = String(slot.params[k.key] ?? k.default);
     knobEl.appendChild(labelEl);
     knobEl.appendChild(valSpan);
-    grid.appendChild(knobEl);
+    if (k.control === 'slider') sliderStack.appendChild(knobEl);
+    else                        knobCluster.appendChild(knobEl);
 
     // Slot-bound init: writes go to slot.params[k.key], not global state.
     // Closes over `slot` (live ref into state.colorRack) so writes hit the
@@ -981,7 +1280,9 @@ function renderSlotPanel(slot) {
       initialValue: slot.params[k.key] ?? k.default,
     });
   }
-  panel.appendChild(grid);
+  if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
+  if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
+  if (controlStack.childElementCount) panel.appendChild(controlStack);
 
   return panel;
 }
@@ -1258,7 +1559,7 @@ function renderTrackFxRack() {
       chev.className = 'color-rack-chevron';
       chev.dataset.action = 'expand';
       chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      chev.dataset.tip = expanded ? 'Hide this slot\'s knobs.' : 'Show this slot\'s knobs.';
+      chev.dataset.tip = expanded ? 'Hide this slot\'s controls.' : 'Show this slot\'s controls.';
       chev.textContent = expanded ? '▴' : '▾';
       row.appendChild(chev);
 
@@ -1299,19 +1600,23 @@ function renderTrackFxSlotPanel(slot) {
   phead.className = 'color-rack-slot-panel-head';
   const ptitle = document.createElement('span');
   ptitle.className = 'color-rack-slot-panel-title';
-  ptitle.textContent = `${TRACK_FX_LABEL[slot.type] || slot.type} knobs`;
+  ptitle.textContent = `${TRACK_FX_LABEL[slot.type] || slot.type} controls`;
   phead.appendChild(ptitle);
   const presetBtn = document.createElement('button');
   presetBtn.type = 'button';
   presetBtn.className = 'color-rack-slot-reset';
   presetBtn.dataset.action = 'reset-params';
-  presetBtn.dataset.tip = 'Reset only THIS slot\'s knobs to factory.';
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s controls to factory.';
   presetBtn.textContent = '⟲';
   phead.appendChild(presetBtn);
   panel.appendChild(phead);
 
-  const grid = document.createElement('div');
-  grid.className = 'color-rack-slot-knob-grid';
+  const controlStack = document.createElement('div');
+  controlStack.className = 'control-stack color-rack-slot-controls';
+  const sliderStack = document.createElement('div');
+  sliderStack.className = 'slider-stack';
+  const knobCluster = document.createElement('div');
+  knobCluster.className = 'knob-cluster color-rack-slot-knob-grid';
   for (const k of schema.knobs) {
     const knobId = `trackfx-${slot.id}-${k.key}`;
     const valId  = `${knobId}-val`;
@@ -1323,6 +1628,7 @@ function renderTrackFxSlotPanel(slot) {
     knobEl.dataset.max     = String(k.max);
     knobEl.dataset.step    = String(k.step);
     knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
     knobEl.dataset.tip     = k.tip;
     knobEl.tabIndex = 0;
     knobEl.setAttribute('aria-label', `${TRACK_FX_LABEL[slot.type]} ${k.label}`);
@@ -1335,14 +1641,17 @@ function renderTrackFxSlotPanel(slot) {
     valSpan.textContent = String(slot.params[k.key] ?? k.default);
     knobEl.appendChild(labelEl);
     knobEl.appendChild(valSpan);
-    grid.appendChild(knobEl);
+    if (k.control === 'slider') sliderStack.appendChild(knobEl);
+    else                        knobCluster.appendChild(knobEl);
 
     initKnob(knobEl, {
       writeValue:   (v) => { slot.params[k.key] = v; },
       initialValue: slot.params[k.key] ?? k.default,
     });
   }
-  panel.appendChild(grid);
+  if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
+  if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
+  if (controlStack.childElementCount) panel.appendChild(controlStack);
 
   return panel;
 }
@@ -1524,6 +1833,8 @@ function applyStateToUI() {
   // the final state (the per-handler refreshes during the loop reflect
   // intermediate state).
   refreshEffectCardVisibility();
+  refreshColorKeyControls(state.trackChannel);
+  if (colorKeyInput) colorKeyInput.value = state.colorKeyHex;
 }
 
 // ---- Persistence ----
@@ -1718,11 +2029,12 @@ document.addEventListener('click', (e) => {
 });
 
 // ---- Snapshot ----
-function takeSnapshot() {
+async function takeSnapshot() {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
     return;
   }
+  if (!(await requireExportAccess('snapshot'))) return;
   canvas.toBlob((blob) => {
     if (!blob) { showToast('Snapshot failed', 'error'); return; }
     const url = URL.createObjectURL(blob);
@@ -1737,7 +2049,7 @@ function takeSnapshot() {
     showToast('Frame saved', 'ok', 2000);
   }, 'image/png');
 }
-btnSnapshot.addEventListener('click', takeSnapshot);
+btnSnapshot.addEventListener('click', () => { takeSnapshot(); });
 
 // ---- Clip recording (MediaRecorder against canvas.captureStream) ----
 //
@@ -1809,11 +2121,12 @@ function tickRecordLabel() {
   _recordTickRaf = requestAnimationFrame(tickRecordLabel);
 }
 
-function startRecording() {
+async function startRecording() {
   if (!state.hasSource) {
     showToast('Load a video or open the camera first', 'error');
     return;
   }
+  if (!(await requireExportAccess('recording'))) return;
   if (_recorder) return; // guard double-clicks
   _recordFormat = pickRecorderFormat();
   if (!_recordFormat) {
@@ -1927,6 +2240,29 @@ function handleSourceChangeForRecording() {
 }
 
 // ---- Help panel ----
+const INTRO_DISMISSED_KEY = 'lumisynth-intro-dismissed';
+
+function introDismissed() {
+  try { return localStorage.getItem(INTRO_DISMISSED_KEY) === 'true'; }
+  catch (_) { return false; }
+}
+
+function dismissIntro() {
+  if (!introOverlay) return;
+  introOverlay.classList.add('hidden');
+  try { localStorage.setItem(INTRO_DISMISSED_KEY, 'true'); } catch (_) {}
+}
+
+function showIntroIfNeeded() {
+  if (!introOverlay || introDismissed()) return;
+  introOverlay.classList.remove('hidden');
+  if (introStart) introStart.focus();
+}
+
+introClose?.addEventListener('click', dismissIntro);
+introStart?.addEventListener('click', dismissIntro);
+introOverlay?.addEventListener('click', (e) => { if (e.target === introOverlay) dismissIntro(); });
+
 function openHelp()  { helpOverlay.classList.remove('hidden'); helpClose.focus(); }
 function closeHelp() { helpOverlay.classList.add('hidden'); }
 btnHelp.addEventListener('click', openHelp);
@@ -1960,21 +2296,26 @@ btnFps.addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   // Ignore when typing in input/textarea or interacting with knob/toggle
   const tag = (document.activeElement?.tagName || '').toLowerCase();
-  if (tag === 'input' || tag === 'textarea') return;
+  const activeParamControl = document.activeElement?.dataset?.knob !== undefined
+    || document.activeElement?.classList?.contains('knob');
+  if ((tag === 'input' && !activeParamControl) || tag === 'textarea') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+  if (e.key === 'Escape' && introOverlay && !introOverlay.classList.contains('hidden')) {
+    dismissIntro(); e.preventDefault(); return;
+  }
   if (e.key === 'Escape' && !helpOverlay.classList.contains('hidden')) {
     closeHelp(); e.preventDefault(); return;
   }
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) { openHelp(); e.preventDefault(); return; }
-  if ((e.key === 's' || e.key === 'S') && document.activeElement?.dataset?.knob === undefined) {
+  if ((e.key === 's' || e.key === 'S') && !activeParamControl) {
     if (!document.activeElement?.classList?.contains('knob')) { takeSnapshot(); e.preventDefault(); }
     return;
   }
-  if ((e.key === 'f' || e.key === 'F') && !document.activeElement?.classList?.contains('knob')) {
+  if ((e.key === 'f' || e.key === 'F') && !activeParamControl) {
     btnFps.click(); e.preventDefault();
   }
-  if ((e.key === 'r' || e.key === 'R') && !document.activeElement?.classList?.contains('knob')) {
+  if ((e.key === 'r' || e.key === 'R') && !activeParamControl) {
     if (btnRecord && !btnRecord.disabled && btnRecord.style.display !== 'none') {
       btnRecord.click();
       e.preventDefault();
@@ -2209,6 +2550,14 @@ video.addEventListener('timeupdate', () => {
   videoTime.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
 });
 
+// Color key mode — native <input type="color"> wired to state.colorKeyHex.
+if (colorKeyInput) {
+  colorKeyInput.value = state.colorKeyHex;
+  colorKeyInput.addEventListener('input', () => {
+    state.colorKeyHex = colorKeyInput.value;
+  });
+}
+
 // ---- Canvas sizing ----
 function resizeCanvas() {
   const aw = canvasArea.clientWidth;
@@ -2406,6 +2755,27 @@ function smoothBlobs(latest, canvasW) {
     : _smoothBlobsEMALegacy(latest);
 }
 
+function needsBlobPipeline() {
+  return state.mode === 'track' || state.perBlob !== 'none';
+}
+
+function resolveDetectScale(cw, ch) {
+  const pixels = Math.max(1, cw * ch);
+  const budgetScale = Math.sqrt(DETECT_TARGET_PIXELS / pixels);
+  return clamp(budgetScale, DETECT_MIN_SCALE, DETECT_MAX_SCALE);
+}
+
+function clearBlobPipelineCaches() {
+  if (!cachedBlobs.length && frameCount === 0 && !_activeFilters.size && !_deadFilters.size && !_displayBlobs.size) return;
+  cachedBlobs = [];
+  frameCount = 0;
+  resetFrameHistory();
+  resetTracker();
+  _activeFilters.clear();
+  _deadFilters.clear();
+  _displayBlobs.clear();
+}
+
 // ---- Render loop ----
 // FPS-cap state (closure across frames). _accumMs accumulates real time
 // between RAF ticks; once it exceeds FRAME_BUDGET_MS, we render a frame
@@ -2441,39 +2811,55 @@ function renderFrame(nowDOMHi) {
   const ch = canvas.height;
   ctx.drawImage(srcEl, 0, 0, cw, ch);
 
-  const ow = Math.max(1, Math.round(cw * DETECT_SCALE));
-  const oh = Math.max(1, Math.round(ch * DETECT_SCALE));
-  if (offscreen.width !== ow || offscreen.height !== oh) {
-    offscreen.width = ow; offscreen.height = oh;
-  }
-  // Detection/tracking only runs while the source is actually playing. When
-  // paused (video) or static (image), motion-mode would see zero frame-diff
-  // and starve every tracker until they cull, making blobs vanish. Luma-mode
-  // would re-detect the same bright pixels every tick, churning IDs. Either
-  // way: a frozen frame should freeze detection. cachedBlobs is preserved
-  // from the last playing frame so overlays + per-blob filter still render
-  // against the frozen frame (and the user can keep tweaking shape / size /
-  // color knobs to see the effect on a still). For image sources detection
-  // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
-  // so an image renders without overlays. (One-shot detection on stills is
-  // a deliberate v2 follow-up — out of scope for this image-input pass.)
-  if (!activeSourcePaused()) {
-    offCtx.drawImage(srcEl, 0, 0, ow, oh);
-    const offImageData = offCtx.getImageData(0, 0, ow, oh);
-
-    frameCount++;
-    if (frameCount % Math.max(1, state.updateInterval) === 0) {
-      const minSizeDetect = state.trackMinSize * DETECT_SCALE;
-      const cap = Math.min(30, state.trackMaxBlobs);
-      const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
-      const sx = cw / ow, sy = ch / oh;
-      const scaledRaw = rawBlobs.map(b => ({
-        ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
-      }));
-      cachedBlobs = trackBlobs(scaledRaw, cw, cap);
+  const blobPipelineActive = needsBlobPipeline();
+  let blobs = [];
+  if (blobPipelineActive) {
+    const detectScale = resolveDetectScale(cw, ch);
+    const ow = Math.max(1, Math.round(cw * detectScale));
+    const oh = Math.max(1, Math.round(ch * detectScale));
+    if (offscreen.width !== ow || offscreen.height !== oh) {
+      offscreen.width = ow; offscreen.height = oh;
     }
+    // Detection/tracking only runs while the source is actually playing. When
+    // paused (video) or static (image), motion-mode would see zero frame-diff
+    // and starve every tracker until they cull, making blobs vanish. Luma-mode
+    // would re-detect the same bright pixels every tick, churning IDs. Either
+    // way: a frozen frame should freeze detection. cachedBlobs is preserved
+    // from the last playing frame so overlays + per-blob filter still render
+    // against the frozen frame (and the user can keep tweaking shape / size /
+    // color knobs to see the effect on a still). For image sources detection
+    // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
+    // so an image renders without overlays. (One-shot detection on stills is
+    // a deliberate v2 follow-up — out of scope for this image-input pass.)
+    if (!activeSourcePaused()) {
+      offCtx.drawImage(srcEl, 0, 0, ow, oh);
+      const offImageData = offCtx.getImageData(0, 0, ow, oh);
+
+      frameCount++;
+      if (frameCount % Math.max(1, state.updateInterval) === 0) {
+        const minSizeDetect = state.trackMinSize * detectScale;
+        const cap = Math.min(30, state.trackMaxBlobs);
+        if (state.trackChannel === 'color') {
+          const hex = state.colorKeyHex.replace('#', '');
+          const cr = parseInt(hex.slice(0, 2), 16);
+          const cg = parseInt(hex.slice(2, 4), 16);
+          const cb = parseInt(hex.slice(4, 6), 16);
+          setColorKeyTarget(cr, cg, cb, state.colorKeyHueTol, state.colorKeySatMin, 0.10);
+        } else {
+          clearColorKeyTarget();
+        }
+        const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
+        const sx = cw / ow, sy = ch / oh;
+        const scaledRaw = rawBlobs.map(b => ({
+          ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
+        }));
+        cachedBlobs = trackBlobs(scaledRaw, cw, cap);
+      }
+    }
+    blobs = smoothBlobs(cachedBlobs, cw);
+  } else {
+    clearBlobPipelineCaches();
   }
-  const blobs = smoothBlobs(cachedBlobs, cw);
 
   // GL dispatch — multi-stage chain pipeline.
   //
@@ -2603,7 +2989,7 @@ function renderFrame(nowDOMHi) {
   if (state.mode === 'track') {
     if (state.trackComposite === 'isolated') {
       ctx.save();
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = '#0a0908'; // Match display-screen instead of pure black.
       ctx.fillRect(0, 0, cw, ch);
       ctx.restore();
     }
@@ -2628,6 +3014,12 @@ function renderFrame(nowDOMHi) {
         taper:     state.trackLinesTaper,
       },
       effects,
+      labels: {
+        show:        state.trackLabels,
+        markerStyle: state.trackLabelMarker,
+        fontSize:    state.trackLabelFontSize,
+        hueColor:    state.trackLabelColor,
+      },
     });
   }
 
@@ -2708,6 +3100,72 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseleave', hideHelpTip);
 document.addEventListener('mousedown', hideHelpTip);
 window.addEventListener('blur', hideHelpTip);
+
+// ---- Lag cursor ----
+// Pearl Fisher-inspired custom cursor: one solid delayed pointer, no trail.
+// Desktop/fine-pointer only, disabled when reduced motion is requested.
+const lagCursorMedia = window.matchMedia('(pointer: fine) and (prefers-reduced-motion: no-preference)');
+const lagCursor = document.createElement('div');
+lagCursor.className = 'lag-cursor';
+lagCursor.setAttribute('aria-hidden', 'true');
+document.body.appendChild(lagCursor);
+
+const lagCursorState = {
+  enabled: false,
+  initialized: false,
+  raf: 0,
+  x: 0,
+  y: 0,
+  tx: 0,
+  ty: 0,
+};
+
+function isTextCursorTarget(el) {
+  return !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]'));
+}
+
+function renderLagCursor() {
+  if (!lagCursorState.enabled) return;
+  lagCursorState.x += (lagCursorState.tx - lagCursorState.x) * 0.12;
+  lagCursorState.y += (lagCursorState.ty - lagCursorState.y) * 0.12;
+  lagCursor.style.transform = `translate3d(${lagCursorState.x}px, ${lagCursorState.y}px, 0) translate(-50%, -50%)`;
+  lagCursorState.raf = requestAnimationFrame(renderLagCursor);
+}
+
+function setLagCursorEnabled(enabled) {
+  lagCursorState.enabled = enabled;
+  document.body.classList.toggle('lag-cursor-enabled', enabled);
+  if (!enabled) {
+    document.body.classList.remove('lag-cursor-text-mode');
+    lagCursor.classList.remove('visible', 'is-text');
+    if (lagCursorState.raf) cancelAnimationFrame(lagCursorState.raf);
+    lagCursorState.raf = 0;
+    return;
+  }
+  if (!lagCursorState.raf) lagCursorState.raf = requestAnimationFrame(renderLagCursor);
+}
+
+function updateLagCursor(e) {
+  if (!lagCursorState.enabled) return;
+  lagCursorState.tx = e.clientX;
+  lagCursorState.ty = e.clientY;
+  if (!lagCursorState.initialized) {
+    lagCursorState.x = e.clientX;
+    lagCursorState.y = e.clientY;
+    lagCursorState.initialized = true;
+  }
+
+  const textMode = isTextCursorTarget(e.target);
+  document.body.classList.toggle('lag-cursor-text-mode', textMode);
+  lagCursor.classList.toggle('is-text', textMode);
+  lagCursor.classList.add('visible');
+}
+
+document.addEventListener('pointermove', updateLagCursor, { passive: true });
+document.addEventListener('pointerleave', () => lagCursor.classList.remove('visible'));
+window.addEventListener('blur', () => lagCursor.classList.remove('visible'));
+setLagCursorEnabled(lagCursorMedia.matches);
+lagCursorMedia.addEventListener('change', (e) => setLagCursorEnabled(e.matches));
 
 // Convention guard: future filter buttons (in any of the structure / color /
 // per-blob groups) and future effect-card controls (knobs + toggles inside
@@ -2841,6 +3299,9 @@ if (projectNameEl) {
 loadProjectName();
 loadPersistedState();
 applyStateToUI();
+showIntroIfNeeded();
+renderAccountUi();
+initAuth();
 canvas.width  = canvasArea.clientWidth;
 canvas.height = canvasArea.clientHeight;
 btnSnapshot.disabled = !state.hasSource;

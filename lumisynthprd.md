@@ -1,8 +1,8 @@
 # Implementation Status
 
-*Last updated: May 8, 2026. Captures the gap between this PRD (`v0.1 draft`, kept verbatim below) and the project as it actually exists today (`FluxKit`, `main` at commit `c923fc7`).*
+*Last updated: May 8, 2026. Captures the gap between this PRD (`v0.1 draft`, kept verbatim below) and the project as it actually exists today (`LumiSynth`, `main` at commit `c923fc7`).*
 
-The honest summary: **the project diverged hard from this PRD, but the pipeline split started landing in P1.** The PRD describes a luminance synthesizer whose centerpiece is a ramp editor (luma → RGB lookup) with a 3-pane mixing console and a stack-style FX rack. What got built is a real-time video instrument whose centerpiece is **blob detection + Kalman tracking + per-blob overlays**. As of `c923fc7`, the sidebar now exposes the multi-stage pipeline the synth metaphor demands — **STRUCTURE → COLOR → FX RACK → PER-BLOB** — but render is still single-effect dispatch under the hood (see §5.3 below). Both products are still valid; they are not the same product, but FluxKit is now structurally closer to becoming the PRD's product than it was at `4c9fa70`.
+The honest summary: **the project diverged hard from this PRD, but the pipeline split started landing in P1.** The PRD describes a luminance synthesizer whose centerpiece is a ramp editor (luma → RGB lookup) with a 3-pane mixing console and a stack-style FX rack. What got built is a real-time video instrument whose centerpiece is **blob detection + Kalman tracking + per-blob overlays**. As of `c923fc7`, the sidebar now exposes the multi-stage pipeline the synth metaphor demands — **STRUCTURE → COLOR → FX RACK → PER-BLOB** — but render is still single-effect dispatch under the hood (see §5.3 below). Both products are still valid; they are not the same product, but LumiSynth is now structurally closer to becoming the PRD's product than it was at `4c9fa70`.
 
 The taxonomy of changes:
 
@@ -28,11 +28,11 @@ The taxonomy of changes:
 | §4.2 | Deep purple-black background, Inter typography, pink-purple-indigo accents on knobs | ✅ (palette landed at OKLCH hue 310; see DESIGN.md) |
 | §4.3 | Knob component: vertical drag, Shift fine, double-click reset, hover tooltip with value, faint arc behind knob, label below in lavender uppercase | ✅ (one shared component, reused everywhere) |
 | §4.5 | Big preview window matching source aspect ratio, scrub bar (when video), FPS counter (toggleable) | ✅ |
-| §4.6 | Logo / project name on top bar (text only) | ✅ ("FluxKit") |
+| §4.6 | Logo / project name on top bar (text only) | ✅ ("LumiSynth") |
 | §4.7 | PNG export + clip recording | ✅ Snap (PNG) + Rec (MediaRecorder → mp4 / webm); GIF still missing |
 | §5.1 | 100% in-browser, WebGL2, no server | ✅ |
 | §5.4 storage | localStorage autosave for last project | ✅ |
-| §9 | Name locked by Week 3 | ✅ ("FluxKit") |
+| §9 | Name locked by Week 3 | ✅ ("LumiSynth") |
 
 ---
 
@@ -102,7 +102,7 @@ The PRD calls for an Ableton-style FX rack. None of it is built:
 - PRD plans 34 shader files (12 Structure + 12 Filter presets + 10 FX). Reality is around 14 effect modules covering mostly different effects than the spec list.
 
 ### §7 Pricing, §8 Launch, §12 Success metrics
-- No pricing, no Stripe, no watermark, no landing page, no launch sequence, no metrics. FluxKit is currently positioned as a personal/portfolio tool per `PRODUCT.md`, not a business.
+- No pricing, no Stripe, no watermark, no landing page, no launch sequence, no metrics. LumiSynth is currently positioned as a personal/portfolio tool per `PRODUCT.md`, not a business.
 
 ---
 
@@ -127,7 +127,7 @@ The PRD specifies a single linear pipeline with **single-channel luminance** flo
 INPUT → STRUCTURE shader → 1-channel luma → FILTER (ramp lookup) → RGB → FX chain → OUTPUT
 ```
 
-Reality, pre-`c923fc7`: each effect was a **monolithic shader operating directly on the full RGB video frame**. There was no luma-only intermediate, no ramp lookup stage, no FX chain post-filter. The "FILTER" stage in FluxKit's UI was just a one-of-N effect picker spanning all 14 effects; nothing about it was a color-mapping ramp.
+Reality, pre-`c923fc7`: each effect was a **monolithic shader operating directly on the full RGB video frame**. There was no luma-only intermediate, no ramp lookup stage, no FX chain post-filter. The "FILTER" stage in LumiSynth's UI was just a one-of-N effect picker spanning all 14 effects; nothing about it was a color-mapping ramp.
 
 Reality, post-`c923fc7` (commit "feat(pipeline): split FILTER into STRUCTURE / COLOR / FX RACK / PER-BLOB"): the sidebar now models the multi-stage pipeline the synth metaphor demands —
 
@@ -146,8 +146,8 @@ Phasing from the commit message:
 Consequence: the project still will not become the PRD's product without finishing P2 + P3 and adding the ramp editor. The infrastructure half (a single shared WebGL2 context + canvas + video texture across all effect modules) is done — see `src/glContext.js` under "Performance work" below. The semantic half (single-channel luma intermediate + ramp lookup) is still not started; that's tracked as the **ramp editor** (§3.2) in the closing priority list.
 
 ### Effect taxonomy (§3.1, §6.2)
-- PRD CUT Crystal, Cellular, Wave, Voronoi Diff as "feedback shaders, bad UX in a drag-and-see-instantly app" (§6.2). FluxKit **built Cellular, Wave, Voronoi anyway**. They look great. The PRD was wrong about the UX cost.
-- PRD said BlobTracking is "a separate product, don't ship in v1" (§6.2). FluxKit **made blob detection + Kalman tracking the core of the product**. The signal-flow now reads "video → blob field → per-blob colorize" rather than the PRD's "luminance → ramp → FX." This is the identity shift.
+- PRD CUT Crystal, Cellular, Wave, Voronoi Diff as "feedback shaders, bad UX in a drag-and-see-instantly app" (§6.2). LumiSynth **built Cellular, Wave, Voronoi anyway**. They look great. The PRD was wrong about the UX cost.
+- PRD said BlobTracking is "a separate product, don't ship in v1" (§6.2). LumiSynth **made blob detection + Kalman tracking the core of the product**. The signal-flow now reads "video → blob field → per-blob colorize" rather than the PRD's "luminance → ramp → FX." This is the identity shift.
 
 ### Visual chrome (§4.2)
 - PRD: glassmorphism, translucent purple panels (`bg-purple-500/8`, `border-purple-300/25`).
@@ -161,13 +161,13 @@ Consequence: the project still will not become the PRD's product without finishi
 
 ### Pricing & launch (§7, §8)
 - PRD: 6-week build-in-public sprint with weekly reels, Stripe checkout, free-vs-paid tiers, watermark on free exports.
-- Reality: zero of this. FluxKit per `PRODUCT.md` is positioned as a tool for VJs / generative-art tinkerers / curious creators, not a paid product. No revenue model attached.
+- Reality: zero of this. LumiSynth per `PRODUCT.md` is positioned as a tool for VJs / generative-art tinkerers / curious creators, not a paid product. No revenue model attached.
 
 ---
 
 ## ➕ Built but Not in PRD
 
-Things that exist in FluxKit that the PRD didn't call for:
+Things that exist in LumiSynth that the PRD didn't call for:
 
 ### Detection + tracking (the actual core)
 - **Grid-based blob detector** with **6 detection modes** (`blobDetector.js`):
@@ -208,7 +208,7 @@ Things that exist in FluxKit that the PRD didn't call for:
 
 ### Output & recording
 - **Snap** — single PNG export of the canvas (existing).
-- **Rec** — clip recording via `MediaRecorder` against `canvas.captureStream(60)`. MIME negotiation tries mp4 → webm/vp9 → vp8 → generic webm. Live elapsed-time label with pulsing red dot in the topbar; `R` toggles. 1-second `dataavailable` chunks. Auto-finalizes on source change. Video-only (no audio — privacy + the artistic content is the visuals). Files download as `fluxkit-<timestamp>.<ext>`.
+- **Rec** — clip recording via `MediaRecorder` against `canvas.captureStream(60)`. MIME negotiation tries mp4 → webm/vp9 → vp8 → generic webm. Live elapsed-time label with pulsing red dot in the topbar; `R` toggles. 1-second `dataavailable` chunks. Auto-finalizes on source change. Video-only (no audio — privacy + the artistic content is the visuals). Files download as `lumisynth-<timestamp>.<ext>`.
 
 ### Design system (the meta-product)
 - **PRODUCT.md** — strategic register, users, brand personality, anti-references, design principles
@@ -243,19 +243,19 @@ Things that exist in FluxKit that the PRD didn't call for:
 
 ## What this means for the PRD below
 
-The original PRD (v0.1, kept verbatim) is now best read as **the product FluxKit might pivot back toward in a future major version**, not the project as built. The path to closing the gap, in priority order:
+The original PRD (v0.1, kept verbatim) is now best read as **the product LumiSynth might pivot back toward in a future major version**, not the project as built. The path to closing the gap, in priority order:
 
 1. ~~**Pipeline rewrite — P2 (FBO chain)** (§5.3):~~ **DONE.** Shipped in `47007a2` (P2b chain wire-up). STRUCTURE writes to an intermediate FBO; an orchestrator-level compose pass screen-blends it back over the source video for screen-blend STRUCTUREs (voronoi / wave / cellular); COLOR samples the result. Multi-color stacking via the rack uses the same chain ping-pong (`9b775d7`).
 2. **Pipeline rewrite — semantic half** (§5.3): single-channel luma intermediate flowing between STRUCTURE and COLOR. The infrastructure half (one shared GL context, P2's FBO chain) is the prerequisite — done; the meaning-of-the-signal half (luma-only mid-stage) is the actual ramp-editor enabler. **Still not started.**
 3. **Ramp editor** (§3.2). The single biggest missing feature; the PRD calls it "the make-or-break." Blocked on item 2.
-4. ~~**MediaRecorder clip export** (§4.7)~~ **DONE.** Shipped — `Rec` button in the canvas top bar (keyboard `R`). `canvas.captureStream(60)` → MediaRecorder with MIME negotiation (mp4 → webm vp9 → vp8); chunked 1-second `dataavailable`; live elapsed-time label with pulsing red dot; auto-finalize on source change; downloads as `fluxkit-<timestamp>.<ext>`. Audio is intentionally not included (privacy + the artistic content is the visuals).
+4. ~~**MediaRecorder clip export** (§4.7)~~ **DONE.** Shipped — `Rec` button in the canvas top bar (keyboard `R`). `canvas.captureStream(60)` → MediaRecorder with MIME negotiation (mp4 → webm vp9 → vp8); chunked 1-second `dataavailable`; live elapsed-time label with pulsing red dot; auto-finalize on source change; downloads as `lumisynth-<timestamp>.<ext>`. Audio is intentionally not included (privacy + the artistic content is the visuals).
 5. **FX rack — P3 (mechanics + real effects)** (§3.3): rack slots are placeholders today. Need drag-to-reorder, per-slot toggle, real FX shaders, and Inv / Thermal folded in so PER-BLOB can be retired. Should adopt the *slot-as-module* pattern from the COLOR rack (per-slot params, inline knob panel under each slot when expanded). Blocked on item 1 (now done).
 6. **Live shader thumbnails** (§4.4) — once the pipeline can run a shader on a test pattern off-screen. Now possible since the orchestrator can render any effect to an arbitrary FBO (P2a refactor).
 7. **Project JSON save/load** (§5.2) — small lift, makes the tool shareable.
 8. **Missing structure effects** (§3.1) — Halftone, Edge, Threshold, Pixelate are easy wins.
 9. **Color-blind safe overlay defaults** — audit the 8-swatch overlay palette against deuteranopia / protanopia simulations (commitment in `PRODUCT.md`, not yet verified).
 
-The team should also decide whether the PRD itself gets rewritten to match what FluxKit actually became (a video instrument with blob tracking as the core), or whether the spec stays as a future-state vision and FluxKit is acknowledged as a different product that grew alongside it.
+The team should also decide whether the PRD itself gets rewritten to match what LumiSynth actually became (a video instrument with blob tracking as the core), or whether the spec stays as a future-state vision and LumiSynth is acknowledged as a different product that grew alongside it.
 
 ---
 

@@ -1,0 +1,7 @@
+name = "lumisynth"
+compatibility_date = "2026-05-23"
+pages_build_output_dir = "dist"
+
+# D1 must be bound as DB for functions/api/[[path]].js.
+# The database_id is intentionally not filled in because it is only known
+# after creating the real Cloudflare D1 database for this project.

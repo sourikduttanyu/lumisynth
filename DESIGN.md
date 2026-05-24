@@ -1,5 +1,5 @@
 ---
-name: FluxKit
+name: LumiSynth
 description: Browser-only real-time video instrument. Dark warm-grey graphite chassis, deep embedded display surfaces, orange signals.
 colors:
   orange-signal:    "#ff5722"
@@ -123,19 +123,19 @@ components:
     padding: "0"
 ---
 
-# Design System: FluxKit
+# Design System: LumiSynth
 
-> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to FluxKit aimed at PMs, designers, and other non-engineering contributors.
+> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to LumiSynth aimed at PMs, designers, and other non-engineering contributors.
 
 ## 1. Overview
 
 **Creative North Star: "The Studio Workbench"**
 
-FluxKit is built for a workbench in a dim studio. The chassis is dark, restrained, warm-grey graphite. The work — the canvas — sits inside an even darker display embedded in that chassis, the way a screen sits in an Elektron Octatrack body or an Ableton Push 3. The chassis recedes by being a quiet warm grey; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing, active, or being touched. Everywhere else, the surface is a neutral warm graphite that the eye relaxes into without strain — a screen that can be looked at for hours without fatigue.
+LumiSynth is built for a workbench in a dim studio. The chassis is dark, restrained, warm-grey graphite. The work — the canvas — sits inside an even darker display embedded in that chassis, the way a screen sits in an Elektron Octatrack body or an Ableton Push 3. The chassis recedes by being a quiet warm grey; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing, active, or being touched. Everywhere else, the surface is a neutral warm graphite that the eye relaxes into without strain — a screen that can be looked at for hours without fatigue.
 
-The aesthetic family is **browser shader playground crossed with industrial sampler hardware**, with named references in PRODUCT.md to Teenage Engineering K.O. II / K.O. Sidekick (TE chrome language: knobs, type, button shapes), Lumen, Cables.gl, and Ableton Push. Where K.O. II is cream and built for daylight, FluxKit picks the *dark* sibling aesthetic — Octatrack, Push 3 black, Eurorack — for chassis lightness, because a screen-based instrument lives in a different lighting environment than physical hardware. The TE *language* is preserved (single saturated accent, white plastic knob caps, terse uppercase labels, flat surfaces) while the *lightness* matches a dim-studio screen.
+The aesthetic family is **browser shader playground crossed with industrial sampler hardware**, with named references in PRODUCT.md to Teenage Engineering K.O. II / K.O. Sidekick (TE chrome language: knobs, type, button shapes), Lumen, Cables.gl, and Ableton Push. Where K.O. II is cream and built for daylight, LumiSynth picks the *dark* sibling aesthetic — Octatrack, Push 3 black, Eurorack — for chassis lightness, because a screen-based instrument lives in a different lighting environment than physical hardware. The TE *language* is preserved (single saturated accent, white plastic knob caps, terse uppercase labels, flat surfaces) while the *lightness* matches a dim-studio screen.
 
-FluxKit explicitly rejects three other families it could be mistaken for: generic SaaS dashboard (no soft greys with identical 12-column card grids, no blue-primary CTA, no "modern" in the boring sense), AI tool cliché (no gradient orb hero, no beige-and-violet "soft AI" palette, no chat affordances), and hobbyist demo (no untreated form controls, no raw `<input type="range">`).
+LumiSynth explicitly rejects three other families it could be mistaken for: generic SaaS dashboard (no soft greys with identical 12-column card grids, no blue-primary CTA, no "modern" in the boring sense), AI tool cliché (no gradient orb hero, no beige-and-violet "soft AI" palette, no chat affordances), and hobbyist demo (no untreated form controls, no raw `<input type="range">`).
 
 Density is high on purpose. Power users need every knob visible at once, newcomers learn the controls by touching them, and there is no tutorial layer to fall back on. The chrome must be tight enough to fit, terse enough to read at a glance, and consistent enough that muscle memory pays off — exactly the discipline a TE or Elektron device runs on.
 
@@ -160,7 +160,7 @@ The single accent is `orange-signal` (TE-style #ff5722). The single rare emphasi
 
 ### Rare emphasis
 
-- **Red Accent** (`#e63946`, `oklch(60% 0.22 25)`): Reserved for two roles: (1) `state-danger` confirmations (the two-stage Reset button when armed, error toast border), and (2) an optional Japanese-style typographic emphasis on stage labels or the FluxKit wordmark when the design wants a TE-faithful nod. Never used as a fill on an interactive control — that would collide with `orange-signal`'s active-state read.
+- **Red Accent** (`#e63946`, `oklch(60% 0.22 25)`): Reserved for two roles: (1) `state-danger` confirmations (the two-stage Reset button when armed, error toast border), and (2) an optional Japanese-style typographic emphasis on stage labels or the LumiSynth wordmark when the design wants a TE-faithful nod. Never used as a fill on an interactive control — that would collide with `orange-signal`'s active-state read.
 
 ### Neutral chassis (the workbench ladder, dark to light, OKLCH-canonical at hue 70)
 
@@ -222,17 +222,17 @@ These are exposed as design tokens because they appear inside the SVG knob and n
 
 **The Display-Is-The-Canvas Rule.** The canvas viewport sits inside `Display Screen` (the deepest surface in the system). Around it, `Display Bezel` (one step lighter dark) frames it like a real screen bezel. The chrome (chassis surfaces) is mid-dark warm grey. The dark-canvas-in-darker-screen-in-mid-grey-chassis cascade is a three-tier depth cue and must not be diluted. Anything lit-and-glowing belongs on display surfaces; anything tactile belongs on chassis surfaces.
 
-**The Two-Color Rule.** Orange and red are the only saturated chromas in the chrome. No greens, blues, purples, teals, pinks, or yellows appear as primary surface or accent colors anywhere. Stage labels and state colors are LOW-chroma — they read as tinted greyscale, not as color in the design sense. If you find yourself reaching for a fourth or fifth saturated hue, you are decorating, and FluxKit is not decorated.
+**The Two-Color Rule.** Orange and red are the only saturated chromas in the chrome. No greens, blues, purples, teals, pinks, or yellows appear as primary surface or accent colors anywhere. Stage labels and state colors are LOW-chroma — they read as tinted greyscale, not as color in the design sense. If you find yourself reaching for a fourth or fifth saturated hue, you are decorating, and LumiSynth is not decorated.
 
 **The Signal-Flow Rule.** The sidebar uses three stage hues color-coded to signal-flow direction: amber (OSC, source) → plum-rose (transformation: STRUCTURE / COLOR / FX RACK / PER-BLOB, all sharing one hue) → slate-teal (FX, output). The eye should be able to scan the sidebar top-to-bottom and feel the input-to-output journey without reading any words. The transformation chain reads as one continuous unit by holding one hue across its four dividers; the divider *labels* communicate the pipeline split, the *colors* communicate the signal-flow position. Stage colors appear ONLY on stage-divider labels; using them on any other surface dilutes their meaning. The chroma here is intentionally low so stage colors never compete with `orange-signal` for attention.
 
 ## 3. Typography
 
-**Display Font:** none. FluxKit has no hero, no marketing surface, no headline larger than 13px. Just like a TE or Elektron device has no display font — text is small and labels are everywhere.
+**Display Font:** none. LumiSynth has no hero, no marketing surface, no headline larger than 13px. Just like a TE or Elektron device has no display font — text is small and labels are everywhere.
 **Body Font:** Inter (with `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` fallback).
 **Label/Mono Font:** Inter with `font-variant-numeric: tabular-nums` for any numeric value (knob value, FPS, timecode).
 
-**Character:** Single-family discipline. Inter only. Weight contrast (500 / 600 / 700) does the hierarchy work. No decorative typeface anywhere. The work feels engineered and labeled, not designed; the typography stays out of the way of the canvas. Letter-spacing is widened on uppercase to feel industrial-stencil — TE labels are spaced loose and uppercase, and that posture suits FluxKit too.
+**Character:** Single-family discipline. Inter only. Weight contrast (500 / 600 / 700) does the hierarchy work. No decorative typeface anywhere. The work feels engineered and labeled, not designed; the typography stays out of the way of the canvas. Letter-spacing is widened on uppercase to feel industrial-stencil — TE labels are spaced loose and uppercase, and that posture suits LumiSynth too.
 
 ### Hierarchy
 
@@ -251,9 +251,9 @@ These are exposed as design tokens because they appear inside the SVG knob and n
 
 ## 4. Elevation
 
-**FluxKit is flat by default.** No `backdrop-filter: blur`, no `box-shadow` on chrome at rest. Depth is conveyed by tonal layering on the chassis ladder (`Bg Stage` → `Bg Room` → `Surface Card` → `Surface Raised` → `Surface Hover`, each one OKLCH lightness step lighter — dark-mode convention) and by the hard chassis-vs-display contrast where the canvas sits.
+**LumiSynth is flat by default.** No `backdrop-filter: blur`, no `box-shadow` on chrome at rest. Depth is conveyed by tonal layering on the chassis ladder (`Bg Stage` → `Bg Room` → `Surface Card` → `Surface Raised` → `Surface Hover`, each one OKLCH lightness step lighter — dark-mode convention) and by the hard chassis-vs-display contrast where the canvas sits.
 
-A TE / Octatrack / Push device is also flat. The buttons are raised from the chassis by a one-tonal-step lighter inlay; the screen is recessed by a much larger lightness drop. FluxKit honors the same trick: small tonal steps on the chassis ladder, then a hard break DOWN to the display surfaces.
+A TE / Octatrack / Push device is also flat. The buttons are raised from the chassis by a one-tonal-step lighter inlay; the screen is recessed by a much larger lightness drop. LumiSynth honors the same trick: small tonal steps on the chassis ladder, then a hard break DOWN to the display surfaces.
 
 Shadows appear only as state transitions on truly floating surfaces, never as chrome decoration. The single justified ambient shadow is on the help-panel modal and the drop-zone overlay (both transient surfaces that need to clearly float above their context). Toast, video controls, and the help-tooltip carry low cast shadows because they hover over surfaces that aren't theirs (toast over the chassis, video controls over the canvas, tooltip over either) and need a cue of separation; this is a small, justified deviation from "flat at rest" and is sized accordingly.
 
@@ -520,10 +520,10 @@ Overlay-color palette. 8 swatches in a row, plus native `<input type="color">` a
 
 - **Don't** use `#000` or `#fff` in the chrome. Even the deepest display surface is `oklch(5% 0.005 70)`, not pure black. Pure black at scale reads as a hole, not a surface; pure white reads as printer paper. (Swatch palette swatches are user-selectable canvas colors and are exempt; `Knob Cap White` and `Knob Cap Black` are also slightly off-true.)
 - **Don't** use `border-left` (or any side-stripe `border-*` greater than 1px) as a colored accent on toasts, cards, list items, or callouts. Side-stripe borders are an absolute ban.
-- **Don't** use `background-clip: text` to apply a gradient to type. Use a single solid color and let weight or size carry the emphasis. Gradient text is decorative; FluxKit is not decorated.
+- **Don't** use `background-clip: text` to apply a gradient to type. Use a single solid color and let weight or size carry the emphasis. Gradient text is decorative; LumiSynth is not decorated.
 - **Don't** use `backdrop-filter: blur` on chrome at rest. Replace with solid surfaces from the chassis or display ladders.
 - **Don't** apply `filter: drop-shadow` or `box-shadow` ambient glow on chrome at rest. Floating popovers (toast, video controls, help-tooltip, help-panel) carry small structural cast shadows; non-floating chrome stays flat.
-- **Don't** add a SaaS dashboard look. No soft greys with identical 12-column card grids, no blue-primary CTA, no "modern" in the boring sense. FluxKit is not a productivity tool.
+- **Don't** add a SaaS dashboard look. No soft greys with identical 12-column card grids, no blue-primary CTA, no "modern" in the boring sense. LumiSynth is not a productivity tool.
 - **Don't** add an AI tool look. No gradient orb hero, no beige-and-violet "soft AI" palette, no large sans-serif marketing voice, no emoji status indicators, no chat-shaped affordances.
 - **Don't** ship raw form controls. No untreated browser `<input type="range">`, no default `<select>` styling, no Bootstrap-grade defaults.
 - **Don't** introduce a second typeface family. Inter only.

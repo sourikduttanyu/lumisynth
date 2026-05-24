@@ -238,7 +238,7 @@ html, body {
 #btn-record {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   font-variant-numeric: tabular-nums;
 }
 #btn-record .rec-dot {
@@ -481,7 +481,7 @@ label.section-label { cursor: pointer; }
   cursor: grab;
   font-size: 14px;
   line-height: 1;
-  padding: 4px 6px;
+  padding: var(--space-xs) var(--space-sm);
   border-radius: 3px;
   transition: color var(--duration-base) var(--ease-out);
 }
@@ -500,7 +500,7 @@ label.section-label { cursor: pointer; }
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   color: var(--text-body);
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   font-family: inherit;
   font-size: 11px;
   font-weight: 500;
@@ -556,9 +556,9 @@ label.section-label { cursor: pointer; }
     color        var(--duration-base) var(--ease-out);
 }
 .color-rack-toggle[aria-pressed="true"] {
-  background: var(--orange-signal);
+  background: oklch(70% 0.21 45 / 0.20);
   border-color: var(--orange-signal);
-  color: var(--knob-cap-black);
+  color: var(--orange-signal);
 }
 .color-rack-toggle:hover { border-color: var(--orange-signal); }
 
@@ -569,7 +569,7 @@ label.section-label { cursor: pointer; }
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
-  padding: 4px 6px;
+  padding: var(--space-xs) var(--space-sm);
   border-radius: 3px;
   transition: color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out);
 }
@@ -588,7 +588,7 @@ label.section-label { cursor: pointer; }
   cursor: pointer;
   font-size: 11px;
   line-height: 1;
-  padding: 4px 6px;
+  padding: var(--space-xs) var(--space-sm);
   border-radius: 3px;
   transition: color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out);
 }
@@ -614,7 +614,7 @@ label.section-label { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4px;
+  padding: 0 var(--space-xs);
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -628,7 +628,7 @@ label.section-label { cursor: pointer; }
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
-  padding: 2px 6px;
+  padding: var(--space-2xs) var(--space-sm);
   border-radius: 3px;
   transition: color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out);
 }
@@ -637,21 +637,26 @@ label.section-label { cursor: pointer; }
   background: var(--surface-hover);
 }
 
-/* Knob grid inside a slot panel — 2 columns to stay legible at 240px
-   sidebar width. Tighter than the global .knob-grid which is sized for
+.color-rack-slot-controls {
+  gap: var(--space-sm);
+}
+
+/* Knob cluster inside a slot panel — 2 columns to stay legible at 240px
+   sidebar width. Tighter than the global knob cluster which is sized for
    the right-panel cards. */
 .color-rack-slot-knob-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-xs);
-  padding: 2px;
+  gap: var(--space-md) var(--space-xs);
+  padding: var(--space-sm) var(--space-xs) var(--space-md);
+  border-radius: 5px;
 }
 .color-rack-slot-knob-grid .knob {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 4px 0;
+  gap: var(--space-2xs);
+  padding: var(--space-xs) 0;
 }
 .color-rack-slot-knob-grid .knob-label {
   font-size: 9px;
@@ -664,6 +669,23 @@ label.section-label { cursor: pointer; }
   font-variant-numeric: tabular-nums;
   color: var(--text-body);
 }
+.color-rack-slot-panel .slider-stack {
+  gap: var(--space-2xs);
+}
+.color-rack-slot-panel .param-slider {
+  grid-template-columns: minmax(54px, 0.65fr) minmax(72px, 1fr) 32px;
+  min-height: 30px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 4px;
+}
+.color-rack-slot-panel .param-slider .knob-label {
+  font-size: 8px;
+  letter-spacing: 0.09em;
+}
+.color-rack-slot-panel .param-slider .knob-val {
+  min-width: 26px;
+  padding: var(--space-2xs) var(--space-xs);
+}
 
 /* Inline toggle row (e.g. falsecolor's Banding On/Off). Compact label-
    plus-button-pair laid out horizontally. */
@@ -672,15 +694,22 @@ label.section-label { cursor: pointer; }
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: 2px 4px;
+  min-height: 30px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, oklch(12% 0.006 70 / 0.72), oklch(8% 0.005 70 / 0.58));
+  margin-bottom: var(--space-sm);
 }
 .color-rack-slot-toggle-label {
   font-size: 9px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.09em;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.color-rack-slot-toggle-group { display: flex; gap: 2px; }
+.color-rack-slot-toggle-group { display: flex; gap: var(--space-2xs); }
 .color-rack-slot-toggle-btn {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
@@ -702,9 +731,9 @@ label.section-label { cursor: pointer; }
   border-color: var(--orange-signal);
 }
 .color-rack-slot-toggle-btn.active {
-  background: var(--orange-signal);
+  background: oklch(70% 0.21 45 / 0.22);
   border-color: var(--orange-signal);
-  color: var(--knob-cap-black);
+  color: var(--text-key);
 }
 
 /* Disabled slot: chip dims, swatch dims. Slot border stays solid (the
@@ -811,23 +840,136 @@ label.section-label { cursor: pointer; }
 .action-btn:hover { background: var(--surface-hover); }
 .action-btn:active { transform: translateY(1px); }
 .action-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.mini-action {
+  min-height: 28px;
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
+}
+
+.account-card,
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border-hairline);
+  border-radius: 7px;
+  background: linear-gradient(180deg, oklch(19% 0.010 70 / 0.76), oklch(14% 0.008 70 / 0.58));
+}
+.account-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.account-status.is-authed {
+  color: var(--orange-signal);
+}
+.account-auth,
+.auth-code-row,
+.preset-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.text-field {
+  width: 100%;
+  min-height: 30px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  background: var(--bg-stage);
+  color: var(--text-key);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: var(--space-sm) var(--space-md);
+  outline: none;
+}
+.text-field:focus {
+  border-color: oklch(70% 0.21 45 / 0.55);
+}
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.preset-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: var(--space-xs);
+  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border-radius: 5px;
+  background: oklch(15% 0.008 70 / 0.62);
+}
+.preset-load {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.preset-delete {
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
 
 .toggle-group {
   display: flex;
   gap: var(--space-xs);
   flex-wrap: wrap;
 }
-/* Detect-mode picker: 6 modes (motion, luma, dark, sat, edge, sharp).
-   3-column grid keeps two clean rows of three at the 240px sidebar width;
-   mirrors the class-scoped pattern .filter-swatch-group uses across the
-   STRUCTURE / COLOR / PER-BLOB filter sections. */
-#detect-mode-group {
+/* Lumi-channel picker: 7 modes (motion, luma, dark, sat, edge, sharp, color).
+   3-column grid → rows of 3 / 3 / 1 at the 240px sidebar width. */
+#lumi-channel-group {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-xs);
-  flex-wrap: initial;
 }
-#detect-mode-group .toggle-btn { flex: initial; }
+#lumi-channel-group .toggle-btn { flex: initial; }
+
+.color-key-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0 var(--space-sm);
+}
+.color-key-input {
+  width: 36px;
+  height: 28px;
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-raised);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: var(--space-2xs);
+}
+.color-key-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+/* Track-lines picker: 8 types (off, dist, velocity, pulse, const, mst, star, curve).
+   4-column grid → rows of 4 / 4. Short abbreviations fit the narrow cells. */
+#track-lines-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-xs);
+}
+#track-lines-group .toggle-btn {
+  flex: initial;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: var(--space-sm) var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .toggle-btn {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
@@ -856,18 +998,19 @@ label.section-label { cursor: pointer; }
 .toggle-btn.active,
 .toggle-btn[aria-pressed="true"],
 .toggle-btn[aria-checked="true"] {
-  background: var(--orange-signal);
-  color: oklch(15% 0.05 30);
-  border-color: transparent;
+  background: oklch(70% 0.21 45 / 0.22);
+  color: var(--text-key);
+  border-color: var(--orange-signal);
   font-weight: 700;
 }
 
 /* ============================================================
    FILTER SWATCH GROUPS — full-bleed gradient swatch (signature).
-   Shared by the three filter pickers: STRUCTURE, COLOR, PER-BLOB.
+   Shared by single-pick filter stages: STRUCTURE and PER-BLOB.
+   COLOR uses rack chips instead of this swatch grid.
    The gradient IS the identity, label overlays with text-shadow.
    3-column CSS Grid (uneven groups gracefully orphan the trailing
-   row — STRUCTURE is 3+3+1, PER-BLOB is 3, COLOR is 3+3).
+   row — STRUCTURE is 3+3, PER-BLOB is 3).
 
    Filter swatches are exempt from The Two-Color Rule — they preview
    creative output (the canvas), and creative output is itself exempt.
@@ -907,17 +1050,11 @@ label.section-label { cursor: pointer; }
 .filter-swatch-group .toggle-btn[data-value="none"]       { background: linear-gradient(135deg, #1a0a2e, #2a1545); }
 .filter-swatch-group .toggle-btn[data-value="inv"]        { background: linear-gradient(90deg, #fff, #000); }
 .filter-swatch-group .toggle-btn[data-value="thermal"]    { background: linear-gradient(90deg, #000, #6a0dad, #ff4500, #ffea00, #fff); }
-.filter-swatch-group .toggle-btn[data-value="voronoi"]    { background: linear-gradient(90deg, #1a0033, #4a00b3, #00d4ff, #ffffff); }
-.filter-swatch-group .toggle-btn[data-value="cellular"]   { background: linear-gradient(90deg, #001a00, #008833, #66ff66); }
 .filter-swatch-group .toggle-btn[data-value="ascii"]      { background: repeating-linear-gradient(90deg, #000 0 4px, #fff 4px 6px); }
-.filter-swatch-group .toggle-btn[data-value="shatter"]    { background: linear-gradient(135deg, #444 25%, #111 25% 50%, #666 50% 75%, #222 75%); background-size: 12px 12px; }
 .filter-swatch-group .toggle-btn[data-value="erode"]      { background: linear-gradient(90deg, #000, #444, #aaa, #fff); }
-.filter-swatch-group .toggle-btn[data-value="wave"]       { background: linear-gradient(90deg, #001a33, #0066cc, #00ccff, #aaffff); }
-.filter-swatch-group .toggle-btn[data-value="oxide"]      { background: linear-gradient(90deg, #1a0a00, #8b4513, #cd853f, #d4af37); }
-.filter-swatch-group .toggle-btn[data-value="synth"]      { background: linear-gradient(90deg, #f72585, #b5179e, #7209b7, #4361ee, #4cc9f0); }
-.filter-swatch-group .toggle-btn[data-value="biolum"]     { background: linear-gradient(90deg, #001a1a, #00ffcc, #88ddff, #aa88ff); }
-.filter-swatch-group .toggle-btn[data-value="thermo"]     { background: linear-gradient(90deg, #000, #220066, #cc0066, #ff6600, #ffff00, #fff); }
-.filter-swatch-group .toggle-btn[data-value="falsecolor"] { background: linear-gradient(90deg, #4361ee, #00d4ff, #5be7a6, #ffea00, #f72585); }
+.filter-swatch-group .toggle-btn[data-value="watershed"]  { background: linear-gradient(90deg, #0d1110, #40534a, #8aa08d, #d4d7c5); }
+.filter-swatch-group .toggle-btn[data-value="pixelsort"]  { background: linear-gradient(90deg, #0a0908 0 20%, #d9d2c4 20% 30%, #3b3630 30% 55%, #ff5722 55% 62%, #100f0d 62%); }
+.filter-swatch-group .toggle-btn[data-value="melt"]       { background: linear-gradient(180deg, #f0ede8, #b89669 35%, #ff5722 70%, #100f0d); }
 
 /* Active = 2px orange border. No glow. */
 .filter-swatch-group .toggle-btn.active,
@@ -942,6 +1079,33 @@ label.section-label { cursor: pointer; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2xl) var(--space-md);   /* row gap holds the value tooltip drop; col gap breathes for 2-line labels */
+}
+.control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+.slider-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.knob-cluster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl) var(--space-md);
+  padding: var(--space-sm) var(--space-xs) var(--space-xl);
+  border: 1px solid oklch(34% 0.010 70 / 0.48);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, oklch(18% 0.010 70 / 0.72), oklch(14% 0.008 70 / 0.52));
+}
+.knob-cluster-center {
+  grid-template-columns: minmax(88px, 1fr);
+  justify-items: center;
+}
+.knob-cluster-center .knob {
+  width: min(112px, 100%);
 }
 
 .knob {
@@ -1044,6 +1208,104 @@ label.section-label { cursor: pointer; }
 .knob.dragging .knob-val { opacity: 1; }
 
 /* ============================================================
+   PARAM SLIDER — same value plumbing as knobs, for threshold / size /
+   count controls where a horizontal range reads faster than a dial.
+   ============================================================ */
+.param-slider {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.72fr) minmax(88px, 1fr) 36px;
+  align-items: center;
+  gap: var(--space-md);
+  grid-column: 1 / -1;
+  cursor: default;
+  min-height: 34px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, oklch(12% 0.006 70 / 0.72), oklch(8% 0.005 70 / 0.58));
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+.param-slider:hover,
+.param-slider:focus-within {
+  background:
+    linear-gradient(180deg, oklch(15% 0.008 70 / 0.82), oklch(10% 0.006 70 / 0.72));
+  border-color: oklch(70% 0.21 45 / 0.62);
+}
+.param-slider .knob-label {
+  text-align: left;
+  hyphens: none;
+  color: oklch(82% 0.008 70 / 0.72);
+  letter-spacing: 0.11em;
+  font-weight: 700;
+}
+.param-slider .knob-val {
+  position: static;
+  opacity: 1;
+  justify-self: end;
+  min-width: 28px;
+  text-align: center;
+  background: var(--display-bezel);
+  border: 1px solid var(--display-hairline);
+  color: var(--text-on-display);
+  bottom: auto;
+  z-index: auto;
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: 9px;
+  border-radius: 2px;
+}
+.param-slider-input {
+  --slider-t: 0%;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: ew-resize;
+  outline: none;
+}
+.param-slider-input::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  border: 1px solid oklch(34% 0.010 70 / 0.54);
+  background:
+    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(22% 0.012 70) var(--slider-t) 100%);
+}
+.param-slider-input::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  border: 1px solid oklch(34% 0.010 70 / 0.54);
+  background:
+    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(22% 0.012 70) var(--slider-t) 100%);
+}
+.param-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--knob-cap-white);
+  border: 1px solid var(--knob-cap-black);
+}
+.param-slider-input::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--knob-cap-white);
+  border: 1px solid var(--knob-cap-black);
+}
+.param-slider-input:focus-visible::-webkit-slider-runnable-track {
+  border-color: var(--orange-signal);
+}
+.param-slider-input:focus-visible::-moz-range-track {
+  border-color: var(--orange-signal);
+}
+
+/* ============================================================
    COLOR PICKER (overlay color)
    ============================================================ */
 .color-row {
@@ -1088,7 +1350,7 @@ input[type="color"] {
   cursor: pointer;
   padding: 0;
 }
-input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+input[type="color"]::-webkit-color-swatch-wrapper { padding: var(--space-2xs); }
 input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 .color-label {
   color: var(--text-muted);
@@ -1144,7 +1406,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   font-size: 11px;
   letter-spacing: 0.02em;
   color: oklch(92% 0.005 70 / 0.85);
-  padding: 2px 8px;
+  padding: var(--space-2xs) var(--space-md);
   border-radius: 3px;
   border: 1px solid transparent;
   cursor: text;
@@ -1346,6 +1608,95 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 #fps-overlay.hidden { display: none; }
 
 /* ============================================================
+   INTRO PANEL — first-run orientation, display surface.
+   Short text only; dismissible so it never blocks power users twice.
+   ============================================================ */
+#intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(0% 0 0 / 0.68);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+}
+#intro-overlay.hidden { display: none; }
+#intro-panel {
+  background: var(--display-screen);
+  border: 1px solid var(--display-hairline);
+  border-radius: 10px;
+  padding: var(--space-2xl);
+  max-width: 440px;
+  width: 100%;
+  box-shadow: var(--modal-lift);
+  position: relative;
+  contain: layout style paint;
+}
+.intro-kicker {
+  color: oklch(92% 0.005 70 / 0.58);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-sm);
+}
+#intro-panel h2 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-on-display);
+  margin-bottom: var(--space-lg);
+}
+#intro-panel p {
+  color: oklch(92% 0.005 70 / 0.84);
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-lg);
+}
+.intro-action {
+  margin-top: var(--space-xs);
+  background: var(--display-bezel);
+  color: var(--text-on-display);
+  border: 1px solid var(--display-hairline);
+  border-radius: 4px;
+  padding: var(--space-md) var(--space-lg);
+  min-height: 30px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+.intro-action:hover {
+  background: oklch(12% 0.006 70);
+  border-color: var(--orange-signal);
+  color: var(--text-key);
+}
+#intro-close {
+  position: absolute;
+  top: var(--space-md); right: var(--space-lg);
+  background: transparent;
+  border: none;
+  color: oklch(92% 0.005 70 / 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  width: 28px; height: 28px;
+  border-radius: 3px;
+  transition:
+    color      var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
+}
+#intro-close:hover { color: var(--text-on-display); background: oklch(92% 0.005 70 / 0.10); }
+
+/* ============================================================
    HELP PANEL — display surface, the only chrome surface allowed
    --modal-lift. Backdrop is solid dark, no blur (per Flat-By-Default Rule).
    ============================================================ */
@@ -1473,6 +1824,49 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 }
 
 /* ============================================================
+   LAG CURSOR — single delayed cursor, no trail.
+   Desktop-only; native cursor returns for text/edit fields and reduced
+   motion users keep the system cursor.
+   ============================================================ */
+.lag-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--text-key);
+  border: none;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2000;
+  transform: translate3d(-50%, -50%, 0) scale(1);
+  transition: opacity var(--duration-fast) var(--ease-out);
+  will-change: transform;
+  mix-blend-mode: difference;
+}
+.lag-cursor.visible { opacity: 1; }
+.lag-cursor.is-text {
+  opacity: 0;
+}
+
+@media (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  body.lag-cursor-enabled,
+  body.lag-cursor-enabled * {
+    cursor: none !important;
+  }
+  body.lag-cursor-enabled.lag-cursor-text-mode,
+  body.lag-cursor-enabled.lag-cursor-text-mode * {
+    cursor: auto !important;
+  }
+  body.lag-cursor-enabled.lag-cursor-text-mode input,
+  body.lag-cursor-enabled.lag-cursor-text-mode textarea,
+  body.lag-cursor-enabled.lag-cursor-text-mode [contenteditable] {
+    cursor: text !important;
+  }
+}
+
+/* ============================================================
    TOAST — bottom-center, full border (NO side-stripe).
    Lives on a display surface (display-bezel) per The Display-Vs-Chassis
    Rule — toasts read as a status display floating above the chassis.
@@ -1552,10 +1946,91 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
 .topbar-mode .toggle-btn:hover { background: oklch(12% 0.005 70); }
 .topbar-mode .toggle-btn.active,
 .topbar-mode .toggle-btn[aria-checked="true"] {
-  background: var(--orange-signal);
-  color: oklch(15% 0.05 30);
-  border-color: transparent;
+  background: oklch(70% 0.21 45 / 0.22);
+  color: var(--text-on-display);
+  border-color: var(--orange-signal);
   font-weight: 700;
+}
+
+/* ============================================================
+   DESKTOP TYPE SCALE — client use on 1080p / 1440p / 4K monitors.
+   Keep canvas dominant, but scale chrome enough to read from a normal
+   workstation distance. Breakpoints match common desktop widths.
+   ============================================================ */
+@media (min-width: 1600px) {
+  :root { --sidebar-width: 280px; }
+
+  html, body { font-size: 13px; }
+  .logo { font-size: 14px; }
+  .logo-sub,
+  .stage-divider,
+  .section-label { font-size: 10px; }
+  .stage-divider .stage-sub { font-size: 9px; }
+
+  .icon-btn { font-size: 10px; min-height: 30px; }
+  .action-btn { font-size: 12px; min-height: 34px; }
+  .toggle-btn {
+    font-size: 11px;
+    min-height: 32px;
+  }
+  #track-lines-group .toggle-btn { font-size: 10px; }
+  .filter-swatch-group .toggle-btn { min-height: 48px; }
+
+  .effect-card-title { font-size: 11px; }
+  .knob-svg { width: 44px; height: 44px; }
+  .knob-label { font-size: 10px; }
+  .knob-val { font-size: 11px; }
+  .color-rack-chip,
+  .color-pick { font-size: 11px; }
+  #canvas-topbar { font-size: 11px; }
+  .topbar-mode .toggle-btn { font-size: 10px; min-height: 26px; }
+}
+
+@media (min-width: 2400px) {
+  :root { --sidebar-width: 330px; }
+
+  html, body { font-size: 14px; }
+  .logo { font-size: 15px; }
+  .logo-sub,
+  .stage-divider,
+  .section-label { font-size: 11px; }
+  .stage-divider .stage-sub { font-size: 10px; }
+
+  .icon-btn { font-size: 11px; min-height: 32px; }
+  .action-btn { font-size: 13px; min-height: 36px; }
+  .toggle-btn {
+    font-size: 12px;
+    min-height: 34px;
+  }
+  #track-lines-group .toggle-btn { font-size: 11px; }
+  .filter-swatch-group .toggle-btn { min-height: 54px; }
+
+  .effect-card-title { font-size: 12px; }
+  .knob-svg { width: 48px; height: 48px; }
+  .knob-label { font-size: 11px; }
+  .knob-val { font-size: 12px; }
+  .color-rack-chip,
+  .color-pick { font-size: 12px; }
+  #canvas-topbar { font-size: 12px; }
+  .topbar-mode .toggle-btn { font-size: 11px; min-height: 28px; }
+}
+
+@media (min-width: 3200px) {
+  :root { --sidebar-width: 380px; }
+
+  html, body { font-size: 15px; }
+  .logo { font-size: 16px; }
+  .icon-btn { font-size: 12px; min-height: 34px; }
+  .action-btn { font-size: 14px; min-height: 38px; }
+  .toggle-btn {
+    font-size: 13px;
+    min-height: 36px;
+  }
+  .filter-swatch-group .toggle-btn { min-height: 60px; }
+
+  .knob-svg { width: 52px; height: 52px; }
+  .knob-label { font-size: 12px; }
+  .knob-val { font-size: 13px; }
 }
 
 /* ============================================================

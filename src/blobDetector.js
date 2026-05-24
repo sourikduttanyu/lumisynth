@@ -29,11 +29,43 @@ export function resetFrameHistory() {
   prevLum = null;
 }
 
+// Color-key target for 'color' mode. Set via setColorKeyTarget(r,g,b).
+// Stored as HSV so the match test is a simple range check on hue + saturation.
+let _colorKey = null;  // null = no key set
+
+/**
+ * Set the HSV color key target from an RGB triple (0–255 each).
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @param {number} hueTol   hue tolerance in degrees (0–180), default 18
+ * @param {number} satMin   minimum saturation (0–1) to accept, default 0.25
+ * @param {number} valMin   minimum value (0–1) to accept, default 0.10
+ */
+export function setColorKeyTarget(r, g, b, hueTol = 18, satMin = 0.25, valMin = 0.10) {
+  const rN = r / 255, gN = g / 255, bN = b / 255;
+  const max = Math.max(rN, gN, bN);
+  const min = Math.min(rN, gN, bN);
+  const delta = max - min;
+  let hue = 0;
+  if (delta > 1e-6) {
+    if (max === rN)      hue = 60 * (((gN - bN) / delta) % 6);
+    else if (max === gN) hue = 60 * ((bN - rN) / delta + 2);
+    else                 hue = 60 * ((rN - gN) / delta + 4);
+    if (hue < 0) hue += 360;
+  }
+  _colorKey = { hue, sat: max > 1e-6 ? delta / max : 0, val: max, hueTol, satMin, valMin };
+}
+
+export function clearColorKeyTarget() {
+  _colorKey = null;
+}
+
 /**
  * @param {ImageData}                                             imageData
  * @param {number}                                                threshold  per-mode cutoff
  * @param {number}                                                maxBlobs   max blobs to return
- * @param {'motion'|'luma'|'dark'|'sat'|'edge'|'sharp'}           mode
+ * @param {'motion'|'luma'|'dark'|'sat'|'edge'|'sharp'|'color'}    mode
  * @param {number}                                                minSize    minimum blob bbox side in source pixels. 0 disables.
  * @returns {Array<{x,y,w,h,cx,cy,area,score,index}>}
  */
@@ -104,6 +136,32 @@ export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion', min
         const lap = 4 * curLum[i] - curLum[i - width] - curLum[i + width] - curLum[i - 1] - curLum[i + 1];
         const mag = lap < 0 ? -lap : lap;
         strength[i] = mag > threshold ? mag : 0;
+      }
+    }
+  } else if (mode === 'color' && _colorKey) {
+    // HSV color-keying: match pixels within hue+sat+val tolerance of the
+    // target color. strength = saturation*value of matched pixels (so
+    // brighter, more vivid matches score higher in the grid).
+    const { hue: tH, hueTol, satMin, valMin } = _colorKey;
+    for (let i = 0; i < total; i++) {
+      const p = i * 4;
+      const rN = data[p] / 255, gN = data[p + 1] / 255, bN = data[p + 2] / 255;
+      const max = rN > gN ? (rN > bN ? rN : bN) : (gN > bN ? gN : bN);
+      const min = rN < gN ? (rN < bN ? rN : bN) : (gN < bN ? gN : bN);
+      const delta = max - min;
+      const sat = max > 1e-6 ? delta / max : 0;
+      if (sat < satMin || max < valMin) continue;
+      let hue = 0;
+      if (delta > 1e-6) {
+        if (max === rN)      hue = 60 * (((gN - bN) / delta) % 6);
+        else if (max === gN) hue = 60 * ((bN - rN) / delta + 2);
+        else                 hue = 60 * ((rN - gN) / delta + 4);
+        if (hue < 0) hue += 360;
+      }
+      let hueDiff = Math.abs(hue - tH);
+      if (hueDiff > 180) hueDiff = 360 - hueDiff;
+      if (hueDiff <= hueTol) {
+        strength[i] = sat * max * 255;
       }
     }
   } else {

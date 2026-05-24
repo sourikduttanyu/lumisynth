@@ -1,6 +1,6 @@
 # PRD §4 Implementation Decisions
 
-> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to FluxKit aimed at PMs, designers, and other non-engineering contributors.
+> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to LumiSynth aimed at PMs, designers, and other non-engineering contributors.
 
 Companion doc to `lumisynthprd.md`. Tracks what we ship, defer, and refuse.
 
@@ -13,7 +13,7 @@ Color legend:
 
 ## 🔴 <span style="color:#ff4d4d">REJECTED</span>
 
-Hard no. Not in scope, not negotiable for current FluxKit codebase.
+Hard no. Not in scope, not negotiable for current LumiSynth codebase.
 
 | Item | PRD ref | Reason |
 |---|---|---|
@@ -34,7 +34,7 @@ Hard no. Not in scope, not negotiable for current FluxKit codebase.
 
 ## 🟡 <span style="color:#ffcc33">MODIFYING NOW</span>
 
-Current sprint. Ship within FluxKit's vanilla JS + Vite stack.
+Current sprint. Ship within LumiSynth's vanilla JS + Vite stack.
 
 | Item | PRD ref | What we do |
 |---|---|---|
@@ -54,7 +54,7 @@ Real ideas. Real value. Out of this sprint's scope. Track them so they don't get
 |---|---|---|
 | **Ramp editor** (interactive gradient w/ stops) | §3.2 + §4 | "The make-or-break feature" per PRD. Standalone component, days of work. Separate sprint. |
 | **Live shader thumbnails on pickers** | §4.4 | Requires running each shader on a test pattern per render. Real engineering, not CSS. |
-| **3-pane mixing console layout** | §4.1 | Current single-sidebar fits FluxKit's blob-tracking purpose. Forcing left/right rails = empty space. Revisit when FILTER + FX RACK become real stages with real knob counts. |
+| **3-pane mixing console layout** | §4.1 | Current single-sidebar fits LumiSynth's blob-tracking purpose. Forcing left/right rails = empty space. Revisit when FILTER + FX RACK become real stages with real knob counts. |
 | **FX rack** (drag-reorder cards, toggle per card) | §3.3 + §4.1 right rail | Needs real chained FX shaders (RGB Split, Feedback Warp, Echo, etc.). Current "filter" is single-select, not stack. Architectural change. |
 | **Project save/load as JSON** | §5.2 / §4.6 | Persistence already lives in `localStorage` per current sprint. JSON file export + import = next iteration. |
 | **Export modal** (mp4 / png / GIF, resolution presets) | §4.7 + §5.1 | PNG snapshot already wired. mp4 via MediaRecorder = real work. |
@@ -63,7 +63,7 @@ Real ideas. Real value. Out of this sprint's scope. Track them so they don't get
 | **Source switcher beyond video/webcam** | §3.1 | Image input not added yet. |
 | **Top bar with project file controls** | §4.6 | Current sidebar header has Reset / Save (snapshot). Full top bar = layout change. |
 | **Preset ramp library** (Nebula, Aurora, etc.) | §3.2 | Coupled to ramp editor. Same sprint. |
-| **All 12 Structure shaders / 10 FX shaders from §6.1** | §6.1 | Current FluxKit has its own 13 effects. PRD's effect list is a v1 redesign target, not a port. Audit later. |
+| **All 12 Structure shaders / 10 FX shaders from §6.1** | §6.1 | Current LumiSynth has its own 13 effects. PRD's effect list is a v1 redesign target, not a port. Audit later. |
 | **Naming the product** | §9 | Outside engineering scope. |
 
 ---

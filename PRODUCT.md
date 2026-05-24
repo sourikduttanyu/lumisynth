@@ -1,6 +1,6 @@
 # Product
 
-> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to FluxKit aimed at PMs, designers, and other non-engineering contributors.
+> New here? See [`OVERVIEW.md`](./OVERVIEW.md) — a friendly, non-technical introduction to LumiSynth aimed at PMs, designers, and other non-engineering contributors.
 
 ## Register
 
@@ -8,10 +8,10 @@ product
 
 ## Users
 
-FluxKit serves three overlapping audiences who share one device, one window, and one canvas:
+LumiSynth serves three overlapping audiences who share one device, one window, and one canvas:
 
 - **VJs and live visualists** running it in performance. They drop a video or open the camera, dial in a look, and either record the output or stream it live during a set. Performance-grade requirements: stays responsive at 60fps, readable in low ambient light, knob changes felt instantly on the canvas, no modal interruptions, no commit-shaped UI.
-- **Generative-art tinkerers and shader-curious creators**. They open FluxKit to play. They get lost in dialing knobs for 20 minutes, screenshot the frame they like, share it. The joy is in the exploration. They want depth, multiple effects, knob density, and the freedom to break things.
+- **Generative-art tinkerers and shader-curious creators**. They open LumiSynth to play. They get lost in dialing knobs for 20 minutes, screenshot the frame they like, share it. The joy is in the exploration. They want depth, multiple effects, knob density, and the freedom to break things.
 - **Curious non-technical creators**. They have never heard of a Voronoi diagram. They just want their webcam to look weird. They learn the controls by touching them. The control surface itself is the teaching surface, no tutorial allowed.
 
 The interface must serve all three without collapsing to a lowest-common-denominator simplification. Power-user depth must be present but never in the way.
@@ -42,7 +42,7 @@ The interface must serve all three without collapsing to a lowest-common-denomin
 
 ## Product Purpose
 
-FluxKit is a browser-only real-time video instrument. Webcam or video file in, blob detection (six modes — Motion, Luma, Dark, Sat, Edge, Sharp) with Kalman tracking, then a staged WebGL2 pipeline — **STRUCTURE** (geometry / pattern, pick one of 6) → **COLOR** (palette / tone, a 0–3 slot rack picked from 5 colors, chained in series) → **FX RACK** (chain · 0–3 slots, placeholder) — with a separate **PER-BLOB** overlay (Inv / Thermal) layered on top. The result renders live with no server round-trip. Nothing leaves the machine. Success is a person who came in to play, found a look they did not know they wanted, and either saved it or kept dialing.
+LumiSynth is a browser-only real-time video instrument. Webcam or video file in, blob detection (six modes — Motion, Luma, Dark, Sat, Edge, Sharp) with Kalman tracking, then a staged WebGL2 pipeline — **STRUCTURE** (geometry / pattern, pick one of 6) → **COLOR** (palette / tone, a 0–3 slot rack picked from 5 colors, chained in series) → **FX RACK** (chain · 0–3 slots, placeholder) — with a separate **PER-BLOB** overlay (Inv / Thermal) layered on top. The result renders live with no server round-trip. Nothing leaves the machine. Success is a person who came in to play, found a look they did not know they wanted, and either saved it or kept dialing.
 
 > Pipeline status: STRUCTURE → COLOR is a real FBO chain (shipped in P2), with an orchestrator-level compose pass that screen-blends STRUCTURE's output back over the source video so glow-over-video effects (voronoi / wave / cellular) keep their identity when COLOR is downstream. COLOR is a 3-slot drag-reorderable rack (each slot empty / disabled / one of 5 colors). **Each color slot owns its own copy of its effect's knobs** — two synth slots can have independent Warmth / Resonance / Sep / Dyn-Range, etc. — and the knobs render *inline* inside the slot when expanded (no remote panel, no "selected slot" mode; knobs physically belong to the module they control, the way every rack-based music tool works). The **FX RACK** stage is still inert placeholder slots — drag-reorder mechanics, real FX shaders, and folding Inv / Thermal in from PER-BLOB land in P3. **Output:** users can save the live canvas as either a single PNG frame (`Snap` / `S`) or a video clip (`Rec` / `R`) — clip recording uses MediaRecorder against `canvas.captureStream(60)` and downloads as `.mp4` (or `.webm` on browsers without mp4 encode). See `lumisynthprd.md` for the implementation-status breakdown.
 
@@ -50,7 +50,7 @@ FluxKit is a browser-only real-time video instrument. Webcam or video file in, b
 
 **Playful, weird, curious.** Anchored as an **instrument**.
 
-The product behaves like a synth, not a SaaS app. Knobs are felt instantly, not committed via Save buttons. The interface invites a hand on every control without being precious. "Weird" is the permission slip: FluxKit is allowed to surprise you, to look strange in a still screenshot, to do things you did not ask for. "Instrument" is the discipline: it must respond, it must be predictable in its physics, it must reward muscle memory.
+The product behaves like a synth, not a SaaS app. Knobs are felt instantly, not committed via Save buttons. The interface invites a hand on every control without being precious. "Weird" is the permission slip: LumiSynth is allowed to surprise you, to look strange in a still screenshot, to do things you did not ask for. "Instrument" is the discipline: it must respond, it must be predictable in its physics, it must reward muscle memory.
 
 Tone in microcopy: terse, observational, never marketing-voiced. ("Reset to defaults", not "Start fresh"). No exclamation points. No emoji. No headings that restate themselves.
 
@@ -69,7 +69,7 @@ Tone in microcopy: terse, observational, never marketing-voiced. ("Reset to defa
 
 ## References
 
-The aesthetic family FluxKit lives in: **browser shader playground crossed with industrial-instrument hardware UI**. Touchable knob density, signal-flow visible, the canvas dominates by tonal contrast (a dark display surface embedded in a lighter chassis, the way a Teenage Engineering K.O. II has dark screens set into a grey body), color used to encode state and never as decoration.
+The aesthetic family LumiSynth lives in: **browser shader playground crossed with industrial-instrument hardware UI**. Touchable knob density, signal-flow visible, the canvas dominates by tonal contrast (a dark display surface embedded in a lighter chassis, the way a Teenage Engineering K.O. II has dark screens set into a grey body), color used to encode state and never as decoration.
 
 ### Positive references
 
@@ -81,7 +81,7 @@ The aesthetic family FluxKit lives in: **browser shader playground crossed with 
 ### Interview log
 
 > **Q5a. Positive references.**
-> Apps or sites whose feel FluxKit could land near. Options offered:
+> Apps or sites whose feel LumiSynth could land near. Options offered:
 > Vital / Serum, Ableton Push UI, VCV Rack, TouchDesigner, Lumen, Cables.gl, Hydra video synth, Resolume.
 >
 > **Picked**: Lumen, Cables.gl, "maybe some Ableton Push UI".
@@ -91,16 +91,16 @@ The aesthetic family FluxKit lives in: **browser shader playground crossed with 
 
 ## Anti-references
 
-FluxKit must not look like:
+LumiSynth must not look like:
 
-- **Generic SaaS dashboard.** No Linear/Notion clone aesthetic, no soft greys with identical cards in a 12-column grid, no blue-primary CTA, no "modern" in the boring sense. FluxKit is not a productivity tool.
-- **AI tool cliché.** No gradient orb hero, no beige-and-violet "soft AI" palette, no large sans-serif marketing voice, no emoji status indicators, no chat-shaped affordances. FluxKit is not a chatbot or an LLM wrapper.
+- **Generic SaaS dashboard.** No Linear/Notion clone aesthetic, no soft greys with identical cards in a 12-column grid, no blue-primary CTA, no "modern" in the boring sense. LumiSynth is not a productivity tool.
+- **AI tool cliché.** No gradient orb hero, no beige-and-violet "soft AI" palette, no large sans-serif marketing voice, no emoji status indicators, no chat-shaped affordances. LumiSynth is not a chatbot or an LLM wrapper.
 - **Hobbyist demo.** No untreated Bootstrap form controls, no default browser color picker as the visible control, no raw `<input type="range">`. The instrument has to feel built, not assembled.
 
 ### Interview log
 
 > **Q5b. Anti-references.**
-> Things FluxKit must NOT look like. Options offered:
+> Things LumiSynth must NOT look like. Options offered:
 > Generic SaaS dashboard, Adobe-ish creative app, crypto neon, AI tool cliché, hobbyist demo.
 >
 > **Picked**: generic SaaS dashboard, AI tool cliché, hobbyist demo.

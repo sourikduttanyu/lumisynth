@@ -21,7 +21,18 @@ precision highp int;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
+uniform float uOutputMode;
 out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
+  vec3 inkCream = vec3(0.92, 0.88, 0.78);
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(inkBlack, inkCream, poster);
+}
 
 bool pix(int c, int cx, int cy) {
   if (cx < 0 || cx > 4 || cy < 0 || cy > 6) return false;
@@ -67,9 +78,13 @@ void main() {
   vec2 inCell     = pixCoord - cellOrigin;
 
   float val = texture(u_video, cellCenter).r;
+  vec3 src = texture(u_video, vUV).rgb;
 
   float blackCutoff = uParams.z * 0.4;
-  if (val < blackCutoff) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  if (val < blackCutoff) {
+    fragColor = vec4(applyStructureOutput(0.0, src, uOutputMode), 1.0);
+    return;
+  }
 
   float adj = clamp((val - blackCutoff) / max(1.0 - blackCutoff, 0.01), 0.0, 1.0);
   if (uParams.y > 0.01) {
@@ -92,7 +107,7 @@ void main() {
   float glyphBrite = glyph * mix(0.6, 1.0, val);
   float result     = mix(val, glyphBrite, uParams.w);
 
-  fragColor = vec4(result, result, result, 1.0);
+  fragColor = vec4(applyStructureOutput(result, src, uOutputMode), 1.0);
 }`;
 
 // ---- WebGL helpers ----
@@ -145,6 +160,7 @@ function initProgram() {
     u: {
       video:  gl.getUniformLocation(prog, 'u_video'),
       params: gl.getUniformLocation(prog, 'uParams'),
+      outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
     },
   };
 }
@@ -166,6 +182,7 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   const contrast      = params.contrast      ?? 0.3;
   const blackThresh   = params.blackThreshold ?? 0.2;
   const glyphStrength = params.glyphStrength  ?? 0.9;
+  const outputMode    = params.outputMode     ?? 0;
 
   const S = ensureContext(cw, ch);
   if (!S) return;
@@ -186,5 +203,6 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   gl.useProgram(prog);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, inTex); gl.uniform1i(u.video, 0);
   gl.uniform4f(u.params, cellSize, contrast, blackThresh, glyphStrength);
+  gl.uniform1f(u.outputMode, outputMode);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

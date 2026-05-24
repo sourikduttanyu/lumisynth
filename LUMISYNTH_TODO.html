@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LumiSynth — Work Tracker</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 980px; margin: 32px auto; padding: 0 24px; background: #0a0418; color: #e8e3f5; line-height: 1.55; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 0.5px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px; color: #c9a9ff; margin: 32px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #2a1f44; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; color: #a08bd0; margin: 14px 0 6px; }
+  .sub { color: #8a7eb0; font-size: 13px; margin-bottom: 24px; }
+  .item { background: #14092a; border: 1px solid #2a1f44; border-radius: 6px; padding: 16px 20px; margin: 14px 0; }
+  .item header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .item h2 { margin: 0; border: none; padding: 0; color: #fff; font-size: 16px; text-transform: none; letter-spacing: 0; }
+  .scope-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #fbbf24; background: #2a1f44; padding: 2px 8px; border-radius: 3px; }
+  .scope-tag.small { color: #4ade80; }
+  .scope-tag.medium { color: #fbbf24; }
+  .scope-tag.large { color: #f87171; }
+  ul.todo { list-style: none; padding: 0; margin: 8px 0 0; }
+  ul.todo li { padding: 4px 0; font-size: 14px; }
+  ul.todo input[type=checkbox] { margin-right: 8px; transform: translateY(1px); }
+  .now, .current { font-size: 13px; color: #a08bd0; margin: 4px 0; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: #1f1238; padding: 1px 6px; border-radius: 3px; color: #ec4899; }
+  .specref { font-size: 11px; color: #6b5e8c; font-style: italic; }
+  .note { background: #1a0a30; border-left: 3px solid #ec4899; padding: 10px 14px; margin: 16px 0; font-size: 13px; color: #c9a9ff; }
+</style>
+</head>
+<body>
+
+<h1>LumiSynth — Work Tracker</h1>
+<p class="sub">Six in-scope items from <code>PRODUCT_SPEC_LumiSynth.md</code>. Everything else from the gap analysis is deliberately out of scope.</p>
+
+<div class="note">
+  Order shown is suggested (smallest → largest, dependencies considered). Branding rename should land first since it touches files referenced by the other items.
+</div>
+
+<!-- 1 -->
+<div class="item">
+  <header>
+    <h2>1. Branding — rename FluxKit → LumiSynth</h2>
+    <span class="scope-tag small">SMALL</span>
+  </header>
+  <p class="current"><strong>Now:</strong> Logo says <code>FluxKit</code> + <code>v2</code> in the sidebar header. <code>&lt;title&gt;FluxKit&lt;/title&gt;</code>. <code>package.json</code> name is <code>fluxkit</code>. Recordings download as <code>fluxkit-&lt;timestamp&gt;</code>. README and other docs use FluxKit throughout.</p>
+  <p class="specref">Spec: project is named "LumiSynth" in the file header; pitch line "Real-time visual synthesis in your browser. No AI."</p>
+  <ul class="todo">
+    <li><input type="checkbox"> Update <code>&lt;title&gt;</code> in <code>index.html</code> to <code>LumiSynth</code></li>
+    <li><input type="checkbox"> Update sidebar header logo text from <code>FluxKit</code> / <code>v2</code> to <code>LumiSynth</code> (drop the <code>v2</code> sub-tag, or keep — confirm with user)</li>
+    <li><input type="checkbox"> Update canvas-topbar <code>topbar-title</code> if it currently says FluxKit</li>
+    <li><input type="checkbox"> Rename recording filename prefix in <code>main.js</code>: <code>fluxkit-&lt;ts&gt;</code> → <code>lumisynth-&lt;ts&gt;</code></li>
+    <li><input type="checkbox"> Update <code>package.json</code> <code>name</code> field</li>
+    <li><input type="checkbox"> Decide whether to rename <code>README.md</code> body text (out of scope per user — leave for now unless told otherwise)</li>
+  </ul>
+</div>
+
+<!-- 2 -->
+<div class="item">
+  <header>
+    <h2>2. Project rename (inline editable name in top bar)</h2>
+    <span class="scope-tag small">SMALL</span>
+  </header>
+  <p class="current"><strong>Now:</strong> <code>#canvas-topbar .topbar-title</code> exists but is not user-editable. No persisted project name.</p>
+  <p class="specref">Spec — "The workspace": "Project name middle, click to rename inline."</p>
+  <ul class="todo">
+    <li><input type="checkbox"> Add an editable element in the top bar showing the project name (default e.g. <code>untitled.lumi</code>)</li>
+    <li><input type="checkbox"> Click → switches to <code>&lt;input&gt;</code>, Enter or blur commits, Esc cancels</li>
+    <li><input type="checkbox"> Persist name in <code>localStorage</code> so reload survives</li>
+    <li><input type="checkbox"> Display in monospace per spec typography ("Monospace: for project names, file paths, effect IDs")</li>
+    <li><input type="checkbox"> Decide where this lives: existing <code>#canvas-topbar</code>, or a new top-of-app strip. Confirm with user before adding new DOM zones.</li>
+  </ul>
+</div>
+
+<!-- 3 -->
+<div class="item">
+  <header>
+    <h2>3. SYNTH · TRACK toggle in top bar</h2>
+    <span class="scope-tag small">SMALL</span>
+  </header>
+  <p class="current"><strong>Now:</strong> No mode toggle. App is always in detection-overlay mode (BlobTracking is layered on top by default via PER-BLOB).</p>
+  <p class="specref">Spec — "Top bar": "Mode toggle small switch on far right: SYNTH · TRACK — flips between LumiSynth and BlobTracking composited modes."</p>
+  <ul class="todo">
+    <li><input type="checkbox"> Add a two-position switch on the far right of the top bar with labels <code>SYNTH</code> / <code>TRACK</code></li>
+    <li><input type="checkbox"> Wire it to a single state flag (e.g. <code>state.mode = 'synth' | 'track'</code>)</li>
+    <li><input type="checkbox"> SYNTH: render full chain, hide blob overlays</li>
+    <li><input type="checkbox"> TRACK: render chain + blob overlays composited on top (current default behavior)</li>
+    <li><input type="checkbox"> Stop here for v1 of this item — do NOT build the spec's secondary <code>OVERLAY · ISOLATED</code> sub-toggle, the dedicated TRACK rails, or new BlobTracking shapes/lines/effects (those are out of scope per user)</li>
+    <li><input type="checkbox"> Persist mode in <code>localStorage</code></li>
+  </ul>
+</div>
+
+<!-- 4 -->
+<div class="item">
+  <header>
+    <h2>4. Still image input (png / jpg / webp)</h2>
+    <span class="scope-tag small">SMALL</span>
+  </header>
+  <p class="current"><strong>Now:</strong> File input is <code>accept="video/*"</code>. The pipeline reads from a single <code>&lt;video&gt;</code> element. Drag/drop overlay says "Drop video to play". No image code path.</p>
+  <p class="specref">Spec — "Source": "drag/drop png, jpg, webp. The chain processes a single frame, but the Subject still animates so the workspace feels alive."</p>
+  <ul class="todo">
+    <li><input type="checkbox"> Widen <code>#file-input</code> accept attribute to <code>video/*,image/*</code></li>
+    <li><input type="checkbox"> Update drop overlay copy to mention images too</li>
+    <li><input type="checkbox"> Detect file type on upload and on drag/drop</li>
+    <li><input type="checkbox"> For images: load into an offscreen <code>&lt;img&gt;</code> or render-once into a canvas and upload that as the source texture every frame (the chain is per-frame; image is just a constant frame)</li>
+    <li><input type="checkbox"> Disable transport controls (Play/Pause/Loop/Reverse/Speed/Trim) when the source is an image — only Frame Hold applies, but for images the frame is already held</li>
+    <li><input type="checkbox"> Confirm Motion-mode detection sensibly degrades on still input (no temporal diff signal — likely zero blobs; this is fine, but verify it doesn't crash)</li>
+    <li><input type="checkbox"> File-status text shows filename + type (e.g. <code>photo.jpg · image</code>)</li>
+  </ul>
+</div>
+
+<!-- 5 -->
+<div class="item">
+  <header>
+    <h2>5. The Subject (corner silhouette, live-processed)</h2>
+    <span class="scope-tag large">LARGE</span>
+  </header>
+  <p class="current"><strong>Now:</strong> Not implemented. No DOM element, no asset, no code path. Empty state is just <code>#drop-overlay</code> text.</p>
+  <p class="specref">Spec — "The Subject": "small monochrome silhouette of a dancing figure, looping forever in a 3-second loop … Game-Boy-screen-style framed window (~120×120 px) pinned to the top-right corner of the workspace at all times … being processed by the user's current chain in real time."</p>
+
+  <h3>Asset prep</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Source three default loops: <strong>Dancer</strong>, <strong>Smoke</strong>, <strong>Bloom</strong>. Format: silhouette (dark figure on light, or inverse — pick one). 3-second loop.</li>
+    <li><input type="checkbox"> Decide format: looped <code>.webm</code> / <code>.mp4</code> (small, clean, hardware-decoded) vs animated WebGL / Canvas2D procedural. <strong>Confirm with user before sourcing assets — this is the biggest open decision.</strong></li>
+    <li><input type="checkbox"> If video files: ensure seamless loop, no audio track, &lt;500 KB target each</li>
+  </ul>
+
+  <h3>DOM + visual frame</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Add a fixed-position <code>#subject</code> element pinned top-right of the canvas area, ~120×120 px</li>
+    <li><input type="checkbox"> Game-Boy-style frame: simple inset border, slightly tinted background, no skeuomorphism per spec</li>
+    <li><input type="checkbox"> Caps monospace label below: <code>THE SUBJECT</code></li>
+    <li><input type="checkbox"> Inside the frame: a small <code>&lt;canvas&gt;</code> that displays the chain output for the Subject</li>
+  </ul>
+
+  <h3>Pipeline integration (the hard part)</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Decide architecture: (a) run a second instance of the entire chain into the Subject's small canvas every frame, OR (b) render the main chain to a texture and downsample. Spec implies the Subject is processed independently of the user's source — so (a) is correct: the Subject's loop is the input texture, not the user's video.</li>
+    <li><input type="checkbox"> Refactor existing per-effect modules (<code>voronoi.js</code>, <code>cellular.js</code>, <code>ascii.js</code>, etc.) so they can run against any input texture + any output FBO size. Audit current modules: many use <code>glContext</code> singletons that may assume one canvas. <strong>This may force a small rendering refactor — flag for user before starting.</strong></li>
+    <li><input type="checkbox"> Subject must update on every knob turn / effect swap, even with no user source loaded</li>
+    <li><input type="checkbox"> Performance budget: target the Subject pass &lt;1 ms/frame on integrated GPU. 120×120 is small, but every effect runs twice now.</li>
+  </ul>
+
+  <h3>Interactions</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Click → maximize the Subject into the main canvas as the active source (useful when no user file is loaded). Decide: does this replace the user's loaded source, or override it temporarily?</li>
+    <li><input type="checkbox"> Right-click → context menu / popover with three picks: Dancer, Smoke, Bloom. Persists per session in <code>localStorage</code>.</li>
+    <li><input type="checkbox"> Default loop on first open: spec doesn't specify — pick Dancer.</li>
+  </ul>
+
+  <h3>Empty-state behavior</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> When no user source: Subject still runs in the corner. Main canvas shows drop hint (already exists).</li>
+    <li><input type="checkbox"> All knobs / effect picks operate on the Subject, providing live feedback before commit.</li>
+  </ul>
+</div>
+
+<!-- 6 -->
+<div class="item">
+  <header>
+    <h2>6. Bottom Source bar</h2>
+    <span class="scope-tag medium">MEDIUM</span>
+  </header>
+  <p class="current"><strong>Now:</strong> Source controls live in the left sidebar OSC section: <code>Upload Video</code> + <code>Open Camera</code> buttons, <code>file-status</code> text, Speed as a 4-button discrete toggle group (1× / 2× / 3× / 4×). Loop is hardcoded on the <code>&lt;video&gt;</code> element. No play/pause, reverse, trim, frame-hold.</p>
+  <p class="specref">Spec — "Source controls": filename · play/pause · loop toggle · reverse toggle · speed knob (0.25×–4×) · trim handles on timeline · frame hold button. Always exposed at bottom.</p>
+
+  <h3>Layout</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Add a new bottom bar element <code>#source-bar</code>, full-width, fixed to bottom of <code>#app</code></li>
+    <li><input type="checkbox"> Restructure <code>#app</code> grid so canvas area shrinks vertically to accommodate the bar (decide height, e.g. ~60 px)</li>
+    <li><input type="checkbox"> Move filename / file-status display from sidebar to the new bar (left-aligned)</li>
+    <li><input type="checkbox"> Decide: keep the Upload / Open Camera buttons in the sidebar OR move to the bar. Spec says "Replace source by drag/drop anywhere on the workspace" — implies upload buttons are de-emphasized. Confirm with user.</li>
+  </ul>
+
+  <h3>Transport controls (new)</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> <strong>Play / Pause</strong> button — toggles <code>video.paused</code></li>
+    <li><input type="checkbox"> <strong>Loop toggle</strong> — currently hardcoded; expose as toggleable, default ON for video</li>
+    <li><input type="checkbox"> <strong>Reverse toggle</strong> — flips playback direction. Implementation note: HTML5 <code>video.playbackRate</code> doesn't reliably support negative values across browsers. Likely needs a frame-by-frame reverse driver (read currentTime backwards on each rAF). Flag complexity to user.</li>
+    <li><input type="checkbox"> <strong>Speed knob</strong> — replace 4-button discrete group with a continuous knob, 0.25× to 4×, default 1×. Reuse existing knob component (<code>data-knob</code> pattern in DOM).</li>
+    <li><input type="checkbox"> <strong>Frame Hold button</strong> — pauses video and locks the current frame as a still. Distinct from regular Pause? Spec says "freezes on the current frame; useful for treating a single frame as a still" — likely just Pause + a visual lock indicator. Confirm interpretation.</li>
+  </ul>
+
+  <h3>Trim handles + timeline (decision needed)</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Spec puts trim handles on a timeline ABOVE the source bar (in the center column). User's in-scope list says "Bottom Source bar" — clarify whether trim handles are part of this work item or a separate later one. <strong>Default assumption: defer trim/timeline to a later item; only the bar itself is in scope here.</strong></li>
+  </ul>
+
+  <h3>Empty / image / camera states</h3>
+  <ul class="todo">
+    <li><input type="checkbox"> Empty: bar shows <code>no source</code>, transport controls disabled</li>
+    <li><input type="checkbox"> Image source: filename + <code>image</code> tag, transport controls disabled (Frame Hold has no meaning since the frame is already held)</li>
+    <li><input type="checkbox"> Webcam: filename = <code>webcam</code>, Pause/Loop/Reverse/Speed/Trim/Frame-Hold all disabled (live feed only per spec)</li>
+  </ul>
+</div>
+
+<h2>Out of scope (explicit)</h2>
+<ul style="font-size:13px; color:#8a7eb0;">
+  <li>Save / Load / Export buttons in top bar</li>
+  <li>Workspace layout overhaul (left rail STRUCTURE-only, center COLOR strip, right rail FX RACK)</li>
+  <li>STRUCTURE effect roster swap (current keeps Voronoi/Cellular/Wave/etc.; spec wants Contour Lines, Cross-Hatch, Stippling, Pixel Sort Melt, Motion Edge, etc.)</li>
+  <li>COLOR stage redesign (3-mode tabs: Ramp / Cosine / Film with 12 palettes)</li>
+  <li>FX RACK effect implementations (Mutate 6 + Decay 5)</li>
+  <li>BlobTracking dedicated rails (Detection / Shape / Lines / Effects), OVERLAY · ISOLATED sub-toggle</li>
+  <li>Export modal with format / resolution / duration / wet-dry mix</li>
+  <li>Watermark / pricing / gating</li>
+  <li>Recipe gallery</li>
+</ul>
+
+<h2>Open decisions to confirm with user before starting</h2>
+<ol style="font-size:13px;">
+  <li><strong>Subject asset format</strong> — looped video files vs. procedural Canvas/WebGL animation</li>
+  <li><strong>Subject pipeline architecture</strong> — running every effect twice may force a refactor of <code>glContext.js</code> and per-effect modules</li>
+  <li><strong>Reverse playback</strong> — true reverse requires custom rAF-driven seeking; confirm appetite for the complexity</li>
+  <li><strong>Frame Hold semantics</strong> — distinct from Pause, or just Pause with a lock indicator?</li>
+  <li><strong>Source bar trim handles</strong> — included here or deferred?</li>
+  <li><strong>Move Upload / Open Camera</strong> from sidebar to the new bar?</li>
+  <li><strong>Sidebar header sub-tag</strong> — keep <code>v2</code> after rename, or drop it?</li>
+</ol>
+
+</body>
+</html>
