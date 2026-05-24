@@ -96,6 +96,23 @@ Not yet implemented:
 
 ## Run Locally
 
+### For a non-technical Windows user
+
+Double-click `LumiSynth.cmd`.
+
+It will:
+
+1. Check that Node.js is installed.
+2. Install dependencies on first launch.
+3. Open the browser to LumiSynth.
+4. Start the local dev server.
+
+Keep the command window open while using LumiSynth. Close it when finished.
+
+If it says Node.js is missing, install the LTS version from [nodejs.org](https://nodejs.org/), then double-click `LumiSynth.cmd` again.
+
+### Developer commands
+
 ```bash
 npm install
 npm run dev
