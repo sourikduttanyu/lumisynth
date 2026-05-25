@@ -10,14 +10,6 @@ This repository is useful to review as a frontend systems project, a creative-co
 
 Modern frontend work is no longer just forms and dashboards. LumiSynth demonstrates the kind of browser engineering that sits between product UI, graphics, performance, local media APIs, and edge-hosted backend services.
 
-For recruiters and engineering managers, the project shows:
-
-- Real-time browser rendering with WebGL2 and Canvas 2D.
-- CPU-side image analysis and blob tracking with stable identities.
-- A custom interaction-heavy UI without React, Tailwind, or component libraries.
-- Production-shaped concerns: persistence, export gating, smoke tests, linting, and Cloudflare hosting.
-- Product judgment: a complex tool kept usable through staged controls, rack slots, tooltips, and onboarding.
-
 ## Product Snapshot
 
 Users can:
