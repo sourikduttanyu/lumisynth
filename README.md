@@ -66,6 +66,18 @@ The GL modules share one offscreen WebGL2 canvas, one context, one uploaded vide
 
 Intentional constraints: no TypeScript, no React/Svelte/Solid, no Tailwind, no shadcn, no three.js. The point is to expose the browser platform directly.
 
+## Adding Shaders With BigBrain Mode
+
+This repo includes a project Cursor skill for adding TouchDesigner-derived shaders. In a Cursor chat, say:
+
+```text
+use BigBrain mode
+```
+
+Then provide the real TouchDesigner GLSL/code, the intended effect slug, whether it should be a `COLOR` rack effect or a `STRUCTURE` effect, and the parameter mapping for `uParams.xyzw`.
+
+BigBrain mode reads `.cursor/skills/bigbrain-mode/WEBGL_REFERENCE.md`, works from a non-`main` branch for shader changes, and wires the effect through the WebGL dispatcher, schemas, UI picker/controls, and verification steps. Do not provide placeholder shader code; incomplete TouchDesigner inputs should be clarified before implementation.
+
 ## Current Feature Status
 
 Implemented:
