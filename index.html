@@ -104,6 +104,16 @@
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="source" data-tip="Source output. The structure mask modulates the original source RGB before the COLOR rack.">Source</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ink"    data-tip="Ink output. High-contrast black/cream hardware-poster rendering before the COLOR rack.">Ink</button>
           </div>
+          <div class="color-picker-row ink-color-row" aria-label="Ink output colors">
+            <label class="color-picker-control">
+              <input type="color" id="ink-low-input" class="color-picker-input" value="#0a0908" data-tip="Ink low color. Used for dark structure values when Output is Ink.">
+              <span class="color-picker-label">INK LOW</span>
+            </label>
+            <label class="color-picker-control">
+              <input type="color" id="ink-high-input" class="color-picker-input" value="#ebe0c7" data-tip="Ink high color. Used for bright structure values when Output is Ink.">
+              <span class="color-picker-label">INK HIGH</span>
+            </label>
+          </div>
         </section>
 
         <section class="effect-card hidden" id="ascii-controls" data-card-effect="ascii" data-mode-section="synth" aria-label="ASCII parameters">

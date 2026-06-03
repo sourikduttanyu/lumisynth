@@ -933,12 +933,19 @@ label.section-label { cursor: pointer; }
 }
 #lumi-channel-group .toggle-btn { flex: initial; }
 
+.color-picker-row,
 .color-key-row {
   display: flex;
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xs) 0 var(--space-sm);
 }
+.color-picker-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.color-picker-input,
 .color-key-input {
   width: 36px;
   height: 28px;
@@ -948,6 +955,7 @@ label.section-label { cursor: pointer; }
   border-radius: 3px;
   padding: var(--space-2xs);
 }
+.color-picker-label,
 .color-key-label {
   font-size: 10px;
   color: var(--text-muted);

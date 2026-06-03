@@ -35,6 +35,7 @@ export const DEFAULTS = Object.freeze({
   //   startup, not in DEFAULTS, because each slot has a fresh per-instance id.
   // - perBlob: 'none' | 'inv' | 'thermal' (legacy holding pen)
   structure: 'none', structureOutputMode: 'mono', perBlob: 'none',
+  inkBlackHex: '#0a0908', inkCreamHex: '#ebe0c7',
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
   erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
   watershedBasin: 0.4, watershedBoundary: 0.5, watershedFlat: 0.5, watershedDepth: 0.0,

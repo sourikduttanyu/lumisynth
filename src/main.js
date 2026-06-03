@@ -78,6 +78,8 @@ const videoScrub   = document.getElementById('video-scrub');
 const videoTime    = document.getElementById('video-time');
 const fpsOverlay   = document.getElementById('fps-overlay');
 const colorKeyInput   = document.getElementById('color-key-input');
+const inkLowInput     = document.getElementById('ink-low-input');
+const inkHighInput    = document.getElementById('ink-high-input');
 // (overlay-color swatch grid retired — replaced by per-shape/per-lines hue knob)
 
 const offscreen = document.createElement('canvas');
@@ -145,6 +147,23 @@ function formatTime(seconds) {
 function nearlyEqual(a, b) { return Math.abs(a - b) < 1e-6; }
 function structureOutputModeValue() {
   return STRUCTURE_OUTPUT_MODE_VALUE[state.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
+}
+function normalizeHexColor(hex, fallback) {
+  return (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)) ? hex.toLowerCase() : fallback;
+}
+function hexToRgb01(hex, fallback) {
+  const safe = normalizeHexColor(hex, fallback);
+  return [
+    parseInt(safe.slice(1, 3), 16) / 255,
+    parseInt(safe.slice(3, 5), 16) / 255,
+    parseInt(safe.slice(5, 7), 16) / 255,
+  ];
+}
+function inkColorUniforms() {
+  return {
+    inkLow: hexToRgb01(state.inkBlackHex, DEFAULTS.inkBlackHex),
+    inkHigh: hexToRgb01(state.inkCreamHex, DEFAULTS.inkCreamHex),
+  };
 }
 
 // ---- Account / Cloud Presets ----
@@ -777,21 +796,22 @@ _hiddenCards.forEach(c => c.classList.add('hidden'));
 // runColorEffect (each color slot owns its own params).
 function runEffect(name, opts) {
   const outputMode = structureOutputModeValue();
+  const inkColors = inkColorUniforms();
   switch (name) {
     case 'ascii':
       return applyASCII(canvas.width, canvas.height, {
         cellSize: state.asciiCellSize, contrast: state.asciiContrast,
         blackThreshold: state.asciiBlackThresh, glyphStrength: state.asciiGlyphStrength,
-        outputMode,
+        outputMode, ...inkColors,
       }, opts);
     case 'erode':
-      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], { ...opts, outputMode });
+      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], { ...opts, outputMode, ...inkColors });
     case 'watershed':
-      return applyGLFilter('watershed', canvas.width, canvas.height, [state.watershedBasin, state.watershedBoundary, state.watershedFlat, state.watershedDepth], { ...opts, outputMode });
+      return applyGLFilter('watershed', canvas.width, canvas.height, [state.watershedBasin, state.watershedBoundary, state.watershedFlat, state.watershedDepth], { ...opts, outputMode, ...inkColors });
     case 'pixelsort':
-      return applyGLFilter('pixelsort', canvas.width, canvas.height, [state.pixelsortThresh, state.pixelsortLength, state.pixelsortOpacity, state.pixelsortDir], { ...opts, outputMode });
+      return applyGLFilter('pixelsort', canvas.width, canvas.height, [state.pixelsortThresh, state.pixelsortLength, state.pixelsortOpacity, state.pixelsortDir], { ...opts, outputMode, ...inkColors });
     case 'melt':
-      return applyGLFilter('melt', canvas.width, canvas.height, [state.meltAmount, state.meltDrip, state.meltViscosity, state.meltDir], { ...opts, outputMode });
+      return applyGLFilter('melt', canvas.width, canvas.height, [state.meltAmount, state.meltDrip, state.meltViscosity, state.meltDir], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -1835,6 +1855,8 @@ function applyStateToUI() {
   refreshEffectCardVisibility();
   refreshColorKeyControls(state.trackChannel);
   if (colorKeyInput) colorKeyInput.value = state.colorKeyHex;
+  if (inkLowInput) inkLowInput.value = normalizeHexColor(state.inkBlackHex, DEFAULTS.inkBlackHex);
+  if (inkHighInput) inkHighInput.value = normalizeHexColor(state.inkCreamHex, DEFAULTS.inkCreamHex);
 }
 
 // ---- Persistence ----
@@ -2555,6 +2577,20 @@ if (colorKeyInput) {
   colorKeyInput.value = state.colorKeyHex;
   colorKeyInput.addEventListener('input', () => {
     state.colorKeyHex = colorKeyInput.value;
+  });
+}
+if (inkLowInput) {
+  inkLowInput.value = normalizeHexColor(state.inkBlackHex, DEFAULTS.inkBlackHex);
+  inkLowInput.addEventListener('input', () => {
+    state.inkBlackHex = normalizeHexColor(inkLowInput.value, DEFAULTS.inkBlackHex);
+    schedulePersist();
+  });
+}
+if (inkHighInput) {
+  inkHighInput.value = normalizeHexColor(state.inkCreamHex, DEFAULTS.inkCreamHex);
+  inkHighInput.addEventListener('input', () => {
+    state.inkCreamHex = normalizeHexColor(inkHighInput.value, DEFAULTS.inkCreamHex);
+    schedulePersist();
   });
 }
 

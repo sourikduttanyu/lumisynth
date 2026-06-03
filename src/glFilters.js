@@ -26,16 +26,16 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
 out vec4 fragColor;
 
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
-  vec3 inkCream = vec3(0.92, 0.88, 0.78);
   float poster = smoothstep(0.42, 0.58, structure);
-  return mix(inkBlack, inkCream, poster);
+  return mix(uInkLow, uInkHigh, poster);
 }
 
 void main() {
@@ -233,16 +233,16 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
 out vec4 fragColor;
 
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
-  vec3 inkCream = vec3(0.92, 0.88, 0.78);
   float poster = smoothstep(0.42, 0.58, structure);
-  return mix(inkBlack, inkCream, poster);
+  return mix(uInkLow, uInkHigh, poster);
 }
 
 void main() {
@@ -286,16 +286,16 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
 out vec4 fragColor;
 
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
-  vec3 inkCream = vec3(0.92, 0.88, 0.78);
   float poster = smoothstep(0.42, 0.58, structure);
-  return mix(inkBlack, inkCream, poster);
+  return mix(uInkLow, uInkHigh, poster);
 }
 
 void main() {
@@ -335,16 +335,16 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
 out vec4 fragColor;
 
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  vec3 inkBlack = vec3(0.04, 0.035, 0.03);
-  vec3 inkCream = vec3(0.92, 0.88, 0.78);
   float poster = smoothstep(0.42, 0.58, structure);
-  return mix(inkBlack, inkCream, poster);
+  return mix(uInkLow, uInkHigh, poster);
 }
 
 void main() {
@@ -1188,6 +1188,8 @@ function getProgram(name) {
     video:  gl.getUniformLocation(prog, 'u_video'),
     params: gl.getUniformLocation(prog, 'uParams'),
     outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
+    inkLow: gl.getUniformLocation(prog, 'uInkLow'),
+    inkHigh: gl.getUniformLocation(prog, 'uInkHigh'),
   };
   _programs[name] = entry;
   return entry;
@@ -1222,5 +1224,11 @@ export function applyGLFilter(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
   gl.uniform1i(entry.video, 0);
   gl.uniform4f(entry.params, params[0], params[1], params[2], params[3]);
   if (entry.outputMode) gl.uniform1f(entry.outputMode, opts.outputMode ?? 0);
+  if (entry.inkLow && entry.inkHigh) {
+    const inkLow = opts.inkLow ?? [0.04, 0.035, 0.03];
+    const inkHigh = opts.inkHigh ?? [0.92, 0.88, 0.78];
+    gl.uniform3f(entry.inkLow, inkLow[0], inkLow[1], inkLow[2]);
+    gl.uniform3f(entry.inkHigh, inkHigh[0], inkHigh[1], inkHigh[2]);
+  }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
