@@ -20,7 +20,7 @@ No linter. The app is vanilla JS + Vite with Playwright smoke tests — verify v
 
 **Hard no** (see `PRD_DECISIONS.md`): TypeScript, React/Svelte/Solid, Tailwind, shadcn, three.js, any framework. This is intentionally vanilla JS + raw WebGL2 + Vite. Don't introduce build-time transpilation or component libraries.
 
-State lives in plain objects. Persistence is `localStorage` (`STORAGE_KEY = 'lumisynth-state-v5'`). Bump the storage key and explain why if the saved-state schema changes.
+State lives in plain objects. Persistence is `localStorage` (`STORAGE_KEY = 'lumisynth-state-v7'`). Bump the storage key and explain why if the saved-state schema changes (v6 added timeline segments; v7 added `fxRack`).
 
 ## Architecture
 
@@ -32,7 +32,7 @@ Video / webcam
   ↓ kalman.js          Kalman + nearest-neighbour tracker, keeps blob identities stable
   ↓ STRUCTURE pass     one full-frame WebGL effect (or none)
   ↓ COLOR rack         0–3 slots chained in series, each an independent WebGL pass
-  ↓ FX RACK            placeholder (P3 — not real GL shaders yet)
+  ↓ FX RACK            0–3 slots chained after COLOR — stateful GL feedback passes (glFx.js)
   ↓ PER-BLOB pass      CPU-side filter (inv / thermal) inside blob bounding boxes
   ↓ overlays.js        Canvas 2D shapes, labels, connection lines drawn on top
 ```
@@ -63,23 +63,27 @@ Every effect vertex shader **must** call `gl.bindAttribLocation(prog, 0, 'a_pos'
    - Only runs when source is playing (not paused/still)
    - Runs every `updateInterval` frames
 4. smoothBlobs(cachedBlobs) — One Euro Filter sub-pixel smoothing
-5. GL dispatch — resolveActivePipeline() determines active stages:
+5. GL dispatch — resolveActivePipeline() determines active stages. COLOR + FX
+   slots are normalized into one ordered `chained` list (colors first, then fx):
    a. totalStages === 0: no GL runs, raw video on display
    b. totalStages === 1: single fast path — effect → compositeToCanvas2D(blend)
    c. totalStages > 1:  multi-stage ping-pong via chain.a ↔ chain.b FBOs
       - STRUCTURE (if any): reads raw video → writes chain.a
         - If STRUCTURE blend = 'screen': applyCompose(structTex, chain.b) to bake screen blend
-      - COLORS: each reads previous tex → writes to next FBO; last writes to null (GL canvas)
-      - compositeToCanvas2D with last color's blend mode
+      - CHAINED (colors then fx): each reads previous tex → writes to next FBO;
+        last writes to null (GL canvas)
+      - compositeToCanvas2D with the terminal stage's blend mode
 6. PER-BLOB CPU pass (inv/thermal): getImageData → applyFilterToSubregion → putImageData
 7. TRACK mode overlay: drawTrackOverlay(ctx, blobs, ...) — Canvas 2D on top
 ```
 
-**`resolveActivePipeline()`** returns `{ structure: string|null, colors: [{type, params}] }` — only enabled, non-empty slots make it in. This is called once per frame and drives the entire GL dispatch.
+**`resolveActivePipeline()`** returns `{ structure: string|null, colors: [{type, params}], fx: [{type, params, key}] }` — only enabled, non-empty slots make it in. `key` is the fx slot id; glFx.js keys per-slot feedback buffers on it. This is called once per frame and drives the entire GL dispatch.
 
 **`runEffect(name, opts)`** dispatches STRUCTURE effects: `'ascii'` → `applyASCII`, `'erode'` → `applyGLFilter('erode', ...)`.
 
 **`runColorEffect(type, params, opts)`** dispatches COLOR effects: all go through `applyGLFilter(type, cw, ch, orderedParams, opts)` where `orderedParams` is built from `COLOR_PARAM_SCHEMAS[type].order`.
+
+**`runFxEffect(type, params, opts, key)`** dispatches FX RACK effects through `applyFxEffect(type, cw, ch, orderedParams, { ...opts, fxKey: key })` in `glFx.js`, with `orderedParams` built from `FX_PARAM_SCHEMAS[type].order`.
 
 ### Shader anatomy
 
@@ -111,6 +115,7 @@ All fragment shaders have the same interface:
 | `thermo` | `glFilters.js` | x=contrast, y=hot(bias), z=cold(floor), w=whitePt | 5-stop thermal ramp black→blue→cyan→yellow→red→white |
 | `falsecolor` | `glFilters.js` | x=palette(0–1 cross-fades thermal/neon/acid/ice), y=band(0/1), z=bandcnt, w=bright | 4 built-in palettes cross-faded by x |
 | `ascii` | `ascii.js` | x=cellSize, y=contrast, z=blackThreshold, w=glyphStrength | 5×7 bitmap font; 26 glyphs encoded as hex bitmasks in GLSL |
+| `flowfield` | `glFx.js` | x=flowSpeed, y=trailPersistence, z=trailBrightness, w=sourceBlend | FX RACK. Stateful: 2 samplers (u_video + u_feedback), per-slot ping-pong feedback FBOs |
 | compose pass | `glCompose.js` | no uParams — 2 samplers: u_video + u_struct | Screen blend formula: `1-(1-a)*(1-b)` |
 
 **Shader compile pattern** (identical in all modules):
@@ -144,6 +149,7 @@ Exported API:
 | `src/glContext.js` | Shared GL context + chain FBO allocator. Read the contract comment at the top before touching any GL module |
 | `src/glCompose.js` | STRUCTURE → COLOR compose pass (screen-blend STRUCTURE output over raw video) |
 | `src/glFilters.js` | Stateless full-frame GL effects: shatter, erode, oxide, synth, biolum, thermo, falsecolor |
+| `src/glFx.js` | FX RACK effects — stateful GL feedback passes (flowfield). Per-slot ping-pong feedback FBOs keyed by slot id; `resetFxFeedback()` wired into resetAllState + slot mutations |
 | `src/blobDetector.js` | CPU blob detection, all 6 modes |
 | `src/kalman.js` | 1D Kalman filter + nearest-neighbour tracker |
 | `src/overlays.js` | Canvas 2D track overlay: shapes, labels, connection lines, Track FX |
@@ -160,6 +166,33 @@ Voronoi / cellular / wave were removed; they are not in the current `src/`.
 ### Color rack (COLOR_PARAM_SCHEMAS)
 
 3 fixed slots. Each slot holds one color effect (oxide / synth / biolum / thermo / falsecolor) or is empty. Each slot has its own independent copy of that effect's knob params. Slots run in series — slot 0 output feeds slot 1, etc. Disabled slots are skipped entirely. Schemas live in `COLOR_PARAM_SCHEMAS` in `src/schemas.js`; `order` array must match shader uniform order exactly.
+
+### FX rack (FX_PARAM_SCHEMAS)
+
+3 fixed slots mirroring the COLOR rack, running AFTER it in the chain (signal
+flow: STRUCTURE → COLOR → FX RACK). Effects live in `src/glFx.js` and are
+**stateful**: each enabled slot owns a persistent ping-pong feedback FBO pair
+(keyed by slot id) so the shader can sample its own previous-frame output
+(`u_feedback`) — that's what makes trails accumulate. Two slots running the
+same effect trail independently.
+
+Rules for FX effects:
+
+- Shader interface adds `uniform sampler2D u_feedback` on top of the standard
+  `u_video` + `uParams` shape. Param order lives in `FX_PARAM_SCHEMAS[type].order`.
+- Each frame: shader reads `pair.read.tex`, writes `pair.write.fb`, a
+  passthrough copy pass blits the new state to the chain output, then the pair
+  swaps. Never read and write the same texture in one draw.
+- The copy to the chain output is a draw (passthrough program), NOT
+  `gl.blitFramebuffer` — the default framebuffer may be antialiased and
+  single→multisample blits are INVALID_OPERATION in WebGL2.
+- Feedback must reset to black (dispose buffers) on: source change / timeline
+  segment change (`resetAllState` → `resetFxFeedback()`), slot swap / clear /
+  disable (`resetFxFeedback(slotId)`), and resize (size-mismatch check in
+  `glFx.js`). Knob tweaks must NOT reset trails.
+
+Current FX effects: `flowfield` (luma-gradient advection trails — the real
+feedback version of what the COLOR effect `decayflow` fakes statelessly).
 
 ### Design system
 
@@ -207,4 +240,4 @@ Exports are gated in `main.js`: Snap/Rec require an authenticated user. Real Clo
 
 ## Active work context
 
-See `lumisynthprd.md` for implementation status vs the original PRD. P2 (STRUCTURE → COLOR FBO chain) shipped. Track FX rack (echo/radar/heatmap) is implemented in TRACK mode. Curved hub lines are implemented as a general TRACK Lines style (`hubcurve`). Cloudflare Pages Functions + D1 auth/presets/export-gating scaffolding exists, with localhost-only internal login for testing before real D1 setup. P3 (real FX RACK GL shaders, drag-reorder, Inv/Thermal moving from PER-BLOB into FX RACK) is not started. `PRD_DECISIONS.md` logs what is deliberately out of scope.
+See `lumisynthprd.md` for implementation status vs the original PRD. P2 (STRUCTURE → COLOR FBO chain) shipped. Track FX rack (echo/radar/heatmap) is implemented in TRACK mode. Curved hub lines are implemented as a general TRACK Lines style (`hubcurve`). Cloudflare Pages Functions + D1 auth/presets/export-gating scaffolding exists, with localhost-only internal login for testing before real D1 setup. P3 has STARTED: the FX RACK is a real GL rack (3 slots, drag-reorder, per-slot params, timeline-look + preset + persistence integration) with `flowfield` as its first effect — see `src/glFx.js`. Remaining P3: more FX effects, and Inv/Thermal moving from PER-BLOB into the FX RACK. `PRD_DECISIONS.md` logs what is deliberately out of scope.

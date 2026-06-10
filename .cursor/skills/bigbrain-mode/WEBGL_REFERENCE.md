@@ -7,10 +7,10 @@ Use this reference when a developer says `use BigBrain mode` and provides TouchD
 Minimum input required before editing:
 
 - Effect slug and display label.
-- Whether the effect is `COLOR` or `STRUCTURE`.
+- Whether the effect is `COLOR`, `STRUCTURE`, or `FX` (feedback effects route to FX automatically).
 - Real TouchDesigner GLSL/code.
 - Mapping for each exposed parameter into `uParams.xyzw`.
-- Any required nonstandard dependency, such as time, feedback, multiple inputs, or external textures.
+- Any required nonstandard dependency, such as time, multiple non-feedback inputs, or external textures. A single feedback input is supported — it becomes `u_feedback` in an FX RACK effect.
 
 Do not add partial integrations. A shader is not complete until it is registered in the GL dispatcher, exposed in the UI, backed by schema/default state, and verified with the build.
 
@@ -20,9 +20,9 @@ Do not add partial integrations. A shader is not complete until it is registered
 
 1. Draws the active video/image source into the 2D display canvas.
 2. Runs blob detection/tracking only when needed.
-3. Resolves active stages with `resolveActivePipeline()`.
+3. Resolves active stages with `resolveActivePipeline()` — `{ structure, colors, fx }`.
 4. If GL stages exist, calls `ensureContext(cw, ch)` and `uploadVideoFrame(srcEl)` once.
-5. Runs STRUCTURE and COLOR stages.
+5. Runs STRUCTURE, then COLOR, then FX stages (colors and fx are merged into one ordered `chained` list for the ping-pong loop).
 6. Composites the shared GL canvas back to the 2D canvas once.
 7. Applies legacy PER-BLOB CPU filters and TRACK overlays on top.
 
@@ -100,6 +100,56 @@ To add COLOR:
 
 Common miss: adding the shader and schema but forgetting the picker button or `RACK_LABEL`/`RACK_CHIP_TIP`. That compiles but makes the effect hard or impossible to select cleanly.
 
+## FX RACK
+
+FX is a fixed three-slot rack stored in `state.fxRack`, same slot shape as the
+COLOR rack (`{ id, type, enabled, params }`), running AFTER the COLOR rack in
+the chain. Effects are STATEFUL feedback passes — the one place in the app
+where a shader may sample its own previous-frame output.
+
+Important files:
+
+- `src/glFx.js`: FX fragment shaders, the `FX_FRAGS` registry, `applyFxEffect()`, per-slot feedback FBO management, `resetFxFeedback(key?)`.
+- `src/schemas.js`: `FX_PARAM_SCHEMAS`, `FX_SECTIONS`, `BLEND_MODES`, `makeFxFactoryParams()`, `makeFxRack()`.
+- `src/main.js`: `runFxEffect()`, `renderFxRack()`, `FX_LABEL` / `FX_SWATCH_GRADIENTS` / `FX_CHIP_TIP`, slot mutations (which reset feedback), pipeline merge in `renderFrame`.
+- `index.html`: `#fx-rack` (reuses `.color-rack-*` classes) and `#fx-picker-popover` buttons using `data-pick-fx`.
+
+How feedback works (`applyFxEffect` handles all of this — a new effect normally
+only adds a fragment shader and an `FX_FRAGS` entry):
+
+1. Each slot id gets a ping-pong FBO pair, lazily allocated at canvas size, zero-filled (trails start black).
+2. Pass 1: the effect shader reads `u_video` (chain input) + `u_feedback` (`pair.read.tex`) and writes `pair.write.fb`. Reading one side and writing the other satisfies the no-read-write-hazard rule.
+3. Pass 2: a passthrough copy program draws `pair.write.tex` into the chain's requested `outputFBO` (or the GL canvas when terminal). This is a draw, NOT `gl.blitFramebuffer` — the default framebuffer may be antialiased and single→multisample blits throw INVALID_OPERATION.
+4. The pair swaps: this frame's output is next frame's `u_feedback`.
+
+FX shader interface (the only addition to the shared shape):
+
+```glsl
+uniform sampler2D u_video;     // chain input (raw video or upstream stage)
+uniform sampler2D u_feedback;  // this slot's own output from last frame
+uniform vec4 uParams;
+```
+
+Reset discipline — trails restart from black on: source change and timeline
+segment change (`resetAllState` → `resetFxFeedback()`), slot swap / clear /
+disable (`resetFxFeedback(slotId)` in the slot mutation helpers), and canvas
+resize (size check inside `glFx.js`). Knob tweaks must NOT reset trails.
+
+To add FX:
+
+1. Choose a lowercase slug already absent from `FX_SECTIONS`.
+2. Convert the TouchDesigner shader: feedback TOP input → `u_feedback`, primary input → `u_video`, keep the math verbatim.
+3. Add `const FRAG_<SLUG> = ...` in `src/glFx.js` and register it in `FX_FRAGS`.
+4. Add `FX_PARAM_SCHEMAS[slug]` with an `order` array matching `uParams.xyzw`.
+5. Add the slug to `FX_SECTIONS` and `BLEND_MODES` (normally `source-over`).
+6. Add `FX_SWATCH_GRADIENTS[slug]`, `FX_LABEL[slug]`, `FX_CHIP_TIP[slug]` in `src/main.js`.
+7. Add an `index.html` picker button: `<button type="button" class="color-pick" data-pick-fx="slug" data-tip="...">Label</button>`.
+
+Reference implementation: `flowfield` (luma-gradient advection trails). Note
+the contrast with the COLOR effect `decayflow`, which is a stateless
+approximation of the same TouchDesigner network — feedback effects flattened
+into COLOR never accumulate; that is what the FX RACK exists for.
+
 ## STRUCTURE
 
 STRUCTURE is a single selected stage stored in `state.structure`.
@@ -153,9 +203,10 @@ Multiple stages:
 
 - STRUCTURE writes to `chain.a`.
 - If the STRUCTURE blend mode is `screen`, `applyCompose()` screen-blends it over raw video into `chain.b`.
-- COLOR stages ping-pong between `chain.a` and `chain.b`.
-- Last COLOR writes to the default framebuffer.
+- COLOR then FX stages ping-pong between `chain.a` and `chain.b` (one merged `chained` list, colors first).
+- The last chained stage writes to the default framebuffer.
 - `compositeToCanvas2D` uses the terminal stage blend mode.
+- FX stages additionally write their own persistent feedback FBOs internally (glFx.js) — invisible to the chain, which just sees inputTex → outputFBO.
 
 Do not cache FBO or texture handles across frames; `ensureContext()` disposes and reallocates chain FBOs on resize.
 
@@ -163,13 +214,15 @@ Do not cache FBO or texture handles across frames; `ensureContext()` disposes an
 
 Translate only what is present in the supplied code.
 
-- Map the primary input texture to `u_video`.
-- Map UVs to `vUV`.
-- Map output color to `fragColor`.
+- Map the primary input texture (`sTD2DInputs[0]`) to `u_video`.
+- Map a feedback input (`sTD2DInputs[1]` fed by a Feedback TOP) to `u_feedback` — this makes the effect an FX RACK effect in `src/glFx.js`.
+- Map UVs (`vUV.st`) to `vUV`.
+- Map output color to `fragColor`; `TDOutputSwizzle(...)` is identity — drop the wrapper.
+- `textureSize(sTD2DInputs[0], 0)` → `textureSize(u_video, 0)`; `uTDOutputInfo.res` equivalents derive from `textureSize` too.
 - Pack up to four user parameters into `uParams.xyzw`.
 - If more than four parameters are required, ask before extending the shader interface.
-- If TouchDesigner code depends on time, feedback buffers, multiple inputs, TOP resolution uniforms, or external textures, identify the missing requirement before editing.
-- Avoid stateful effects unless the user explicitly asks for feedback or temporal behavior; this app's current STRUCTURE and COLOR effects are single-frame passes.
+- If TouchDesigner code depends on time, multiple non-feedback inputs, or external textures, identify the missing requirement before editing.
+- STRUCTURE and COLOR effects are stateless single-frame passes. Feedback/temporal behavior belongs in the FX RACK (`src/glFx.js`) — do not silently flatten a feedback network into a stateless approximation.
 
 ## Verification Targets
 
@@ -188,4 +241,14 @@ For STRUCTURE:
 - Knobs/toggles update rendering.
 - COLOR rack can process the STRUCTURE output.
 - `mono`, `source`, and `ink` output modes work if supported.
+- Build passes.
+
+For FX:
+
+- Effect appears in the FX picker and fills a slot with factory params.
+- Trails/feedback visibly accumulate over time on a moving source.
+- Knob tweaks do NOT reset accumulated trails.
+- Slot swap / clear / disable and source change DO reset trails to black.
+- Works mid-chain (COLOR stage before it) and as the terminal stage.
+- Two slots running the same effect accumulate independently.
 - Build passes.
