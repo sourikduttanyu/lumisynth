@@ -416,6 +416,16 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['thresh', 'intens', 'blue', 'radius'],
   },
+  godrays: {
+    knobs: [
+      { key: 'cx',      label: 'Ctr X',    min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Light source X position. 0 = left edge. 1 = right edge. 0.5 = center.' },
+      { key: 'cy',      label: 'Ctr Y',    min: 0, max: 1, step: 0.01, default: 0.2,  tip: 'Light source Y position. 0 = bottom. 1 = top. Set high for a sun-from-above look.' },
+      { key: 'intens',  label: 'Intensity',min: 0, max: 1, step: 0.01, default: 0.45, tip: 'Ray brightness. 0 = subtle. 1 = heavy volumetric light bloom.' },
+      { key: 'density', label: 'Density',  min: 0, max: 1, step: 0.01, default: 0.6,  tip: 'Ray reach. 0 = short tight shafts near source. 1 = long sweeping rays across the full frame.' },
+    ],
+    toggles: [],
+    order: ['cx', 'cy', 'intens', 'density'],
+  },
   decayflow: {
     knobs: [
       { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow advection speed. How fast pixels drift along the gradient field.' },
@@ -489,7 +499,7 @@ export const FX_PARAM_SCHEMAS = {
 };
 
 export const FX_SECTIONS = [
-  'flowfield', 'bloom', 'decayflow', 'feedbackwarp',
+  'flowfield', 'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
 ];
 
@@ -594,6 +604,7 @@ export const BLEND_MODES = {
   decayflow:    'source-over',
   feedbackwarp: 'source-over',
   bloom:        'source-over',
+  godrays:      'source-over',
   crtrolling:   'source-over',
   noise:        'source-over',
   scanlines:    'source-over',

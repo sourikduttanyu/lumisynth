@@ -1741,12 +1741,13 @@ const fxRackEl   = document.getElementById('fx-rack');
 const fxPickerEl = document.getElementById('fx-picker-popover');
 
 const FX_LABEL = {
-  flowfield: 'FlowField', bloom: 'Bloom', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
+  flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
 };
 const FX_SWATCH_GRADIENTS = {
   flowfield:  'linear-gradient(90deg, #020c14, #0f4a6b, #2fa3c7, #c7f0ff)',
   bloom:      'linear-gradient(90deg, #020310, #142b7f, #5ea9ff, #f8fbff)',
+  godrays:    'linear-gradient(90deg, #120800, #6b3200, #d47a00, #ffe066, #fff8cc)',
   decayflow:  'linear-gradient(90deg, #05140e, #1d6b54, #7ad0a0, #f0d67a)',
   feedbackwarp:'linear-gradient(90deg, #090014, #36106b, #0f8ea0, #ff6d3a)',
   crt:        'linear-gradient(90deg, #050505, #21433f, #b24a61, #eee8b8)',
@@ -1758,6 +1759,7 @@ const FX_SWATCH_GRADIENTS = {
 const FX_CHIP_TIP = {
   flowfield:  'Flow Field in this slot. Pixels advect along the luma-gradient flow, accumulating feedback trails frame over frame. Click to swap.',
   bloom:      'Neon bloom glow. Bright areas spread with a blue energy halo. Click to swap.',
+  godrays:    'Volumetric light shafts. 48-sample radial march from bright regions toward a configurable light center. Click to swap.',
   decayflow:  'Flow field advection trails (single-frame). Pixels drift along gradient directions leaving color residue. Click to swap.',
   feedbackwarp: 'Gradient-driven warp. Image displaced by its own luminance field. Click to swap.',
   crt:        'Full CRT simulation. Phosphor subpixels, bloom, barrel distortion, scanlines. Click to swap.',

@@ -1093,6 +1093,40 @@ void main() {
   fragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
 }`;
 
+const FRAG_GODRAYS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 hsv2rgb(vec3 c) { vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0); vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www); return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y); }
+const int SAMPLES = 48;
+void main() {
+  vec2 uv = vUV;
+  vec3 src = texture(u_video, uv).rgb;
+  vec2 center = vec2(uParams.x, uParams.y);
+  float density = mix(0.2, 1.0, uParams.w);
+  // Decay and threshold baked: 0.96 falloff, 0.3 luma gate
+  vec2 delta = (uv - center) * (density / float(SAMPLES));
+  vec2 coord = uv;
+  float illum = 1.0;
+  vec3 accum = vec3(0.0);
+  for (int i = 0; i < SAMPLES; i++) {
+    coord -= delta;
+    vec3 s = texture(u_video, clamp(coord, 0.0, 1.0)).rgb;
+    float l = dot(s, vec3(0.299, 0.587, 0.114));
+    s *= smoothstep(0.3, 0.5, l);
+    accum += s * illum;
+    illum *= 0.96;
+  }
+  accum /= float(SAMPLES);
+  // Warm golden tint baked in
+  vec3 rayCol = hsv2rgb(vec3(0.08, 0.4, 1.0));
+  accum = mix(accum, accum * rayCol * 1.6, 0.2);
+  vec3 outc = src + accum * mix(0.0, 6.0, uParams.z);
+  fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
+}`;
+
 const FRAG_CRTROLLING = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -1362,6 +1396,7 @@ const FRAGS = {
   decayflow:    FRAG_DECAYFLOW,
   feedbackwarp: FRAG_FEEDBACKWARP,
   bloom:        FRAG_BLOOM,
+  godrays:      FRAG_GODRAYS,
   crtrolling:   FRAG_CRTROLLING,
   noise:        FRAG_NOISE,
   scanlines:    FRAG_SCANLINES,
