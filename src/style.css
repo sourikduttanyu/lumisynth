@@ -1723,6 +1723,41 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   top: 2px;
   bottom: 2px;
 }
+.timeline-segment-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+.timeline-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+}
+.timeline-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  right: 2px;
+  width: 2px;
+  height: 60%;
+  background: oklch(72% 0.08 65 / 0.4);
+  border-radius: 1px;
+}
+.timeline-segment:hover .timeline-resize-handle::after,
+.timeline-resize-handle:hover::after {
+  background: var(--orange-signal);
+  opacity: 0.65;
+}
+.timeline-segment.is-selected .timeline-resize-handle::after {
+  background: var(--orange-signal);
+  opacity: 0.5;
+}
 .timeline-playhead {
   position: absolute;
   top: 0;

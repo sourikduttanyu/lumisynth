@@ -2911,6 +2911,11 @@ document.addEventListener('keydown', (e) => {
   if ((tag === 'input' && !activeParamControl) || tag === 'textarea') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+  if (e.key === ' ' && tag !== 'button') {
+    e.preventDefault();
+    if (video.paused) { video.play().catch(() => {}); } else { video.pause(); }
+    return;
+  }
   if (e.key === 'Escape' && introOverlay && !introOverlay.classList.contains('hidden')) {
     dismissIntro(); e.preventDefault(); return;
   }
@@ -3236,9 +3241,47 @@ function renderTimelinePanel() {
     btn.classList.toggle('is-expanded', seg.id === state.selectedTimelineSegmentId);
     btn.style.left = `${(seg.start / duration) * 100}%`;
     btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
-    btn.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
     btn.dataset.tip = `${seg.name}: ${formatTimePrecise(seg.start)}s to ${formatTimePrecise(seg.end)}s`;
     btn.addEventListener('click', () => selectTimelineSegment(seg.id));
+
+    const segLabel = document.createElement('span');
+    segLabel.className = 'timeline-segment-label';
+    segLabel.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
+    btn.appendChild(segLabel);
+
+    const resizeHandle = document.createElement('span');
+    resizeHandle.className = 'timeline-resize-handle';
+    resizeHandle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      resizeHandle.setPointerCapture(e.pointerId);
+      const sorted = sortedTimelineSegments();
+      const idx = sorted.findIndex((s) => s.id === seg.id);
+      const nextSeg = sorted[idx + 1] ?? null;
+      const trackRect = timelineTrack.getBoundingClientRect();
+      const onMove = (me) => {
+        const t = ((me.clientX - trackRect.left) / trackRect.width) * duration;
+        const maxEnd = nextSeg ? nextSeg.start : duration;
+        seg.end = Math.max(seg.start + 0.05, Math.min(maxEnd, t));
+        btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
+        segLabel.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
+        if (timelineEnd && seg.id === state.selectedTimelineSegmentId) {
+          timelineEnd.value = formatTimePrecise(seg.end);
+        }
+        if (timelineWorking && seg.id === state.selectedTimelineSegmentId) {
+          timelineWorking.textContent = `Working on ${seg.name} · ${formatTimePrecise(seg.start)}-${formatTimePrecise(seg.end)}s`;
+        }
+      };
+      const onUp = () => {
+        resizeHandle.removeEventListener('pointermove', onMove);
+        resizeHandle.removeEventListener('pointerup', onUp);
+        renderTimelinePanel();
+        saveState();
+      };
+      resizeHandle.addEventListener('pointermove', onMove);
+      resizeHandle.addEventListener('pointerup', onUp);
+    });
+    btn.appendChild(resizeHandle);
     timelineTrack.appendChild(btn);
   }
   timelineTrack.appendChild(timelinePlayhead);
