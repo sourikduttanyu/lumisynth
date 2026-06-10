@@ -1728,7 +1728,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 6px;
+  padding: 0 6px;
 }
 .timeline-resize-handle {
   position: absolute;
@@ -1739,6 +1739,10 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   cursor: col-resize;
   z-index: 1;
 }
+.timeline-resize-handle--left {
+  left: 0;
+  right: auto;
+}
 .timeline-resize-handle::after {
   content: '';
   position: absolute;
@@ -1748,6 +1752,10 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   height: 60%;
   background: oklch(72% 0.08 65 / 0.4);
   border-radius: 1px;
+}
+.timeline-resize-handle--left::after {
+  left: 2px;
+  right: auto;
 }
 .timeline-segment:hover .timeline-resize-handle::after,
 .timeline-resize-handle:hover::after {

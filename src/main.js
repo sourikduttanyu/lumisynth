@@ -87,8 +87,6 @@ const timelinePanel = document.getElementById('timeline-panel');
 const timelineTrack = document.getElementById('timeline-track');
 const timelinePlayhead = document.getElementById('timeline-playhead');
 const timelineWorking = document.getElementById('timeline-working');
-const timelineMarkStart = document.getElementById('timeline-mark-start');
-const timelineMarkEnd = document.getElementById('timeline-mark-end');
 const timelineAdd = document.getElementById('timeline-add');
 const timelineDuplicate = document.getElementById('timeline-duplicate');
 const timelineDelete = document.getElementById('timeline-delete');
@@ -3157,7 +3155,7 @@ function findTimelineGap(preferredStart = 0, desiredLength = 2) {
 }
 
 function setTimelineDisabled(disabled) {
-  for (const el of [timelineMarkStart, timelineMarkEnd, timelineAdd, timelineDuplicate, timelineDelete, timelineCapture, timelineStart, timelineEnd]) {
+  for (const el of [timelineAdd, timelineDuplicate, timelineDelete, timelineCapture, timelineStart, timelineEnd]) {
     if (el) el.disabled = !!disabled;
   }
 }
@@ -3185,13 +3183,12 @@ function updateTimelineCursor(time, { pinned = _timelineCursorPinnedTime !== nul
   if (!timelineAvailable()) return;
   const cursor = ensureTimelineCursor();
   const pct = clamp(time / video.duration, 0, 1) * 100;
-  const mode = _pendingTimelineStart === null ? 'start' : 'end';
   cursor.classList.remove('hidden', 'mode-start', 'mode-end', 'is-pinned');
-  cursor.classList.add(`mode-${mode}`);
+  cursor.classList.add('mode-start');
   cursor.classList.toggle('is-pinned', pinned);
   cursor.style.left = `${pct}%`;
   const label = cursor.querySelector('.timeline-cursor-label');
-  if (label) label.textContent = `${mode.toUpperCase()} ${formatTimePrecise(time)}s`;
+  if (label) label.textContent = `${formatTimePrecise(time)}s`;
 }
 
 function updateTimelinePlayhead(time = video.currentTime, activeId = _lastResolvedTimelineSegmentId) {
@@ -3249,39 +3246,54 @@ function renderTimelinePanel() {
     segLabel.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
     btn.appendChild(segLabel);
 
-    const resizeHandle = document.createElement('span');
-    resizeHandle.className = 'timeline-resize-handle';
-    resizeHandle.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      resizeHandle.setPointerCapture(e.pointerId);
-      const sorted = sortedTimelineSegments();
-      const idx = sorted.findIndex((s) => s.id === seg.id);
-      const nextSeg = sorted[idx + 1] ?? null;
-      const trackRect = timelineTrack.getBoundingClientRect();
-      const onMove = (me) => {
-        const t = ((me.clientX - trackRect.left) / trackRect.width) * duration;
-        const maxEnd = nextSeg ? nextSeg.start : duration;
-        seg.end = Math.max(seg.start + 0.05, Math.min(maxEnd, t));
-        btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
-        segLabel.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
-        if (timelineEnd && seg.id === state.selectedTimelineSegmentId) {
-          timelineEnd.value = formatTimePrecise(seg.end);
-        }
-        if (timelineWorking && seg.id === state.selectedTimelineSegmentId) {
-          timelineWorking.textContent = `Working on ${seg.name} · ${formatTimePrecise(seg.start)}-${formatTimePrecise(seg.end)}s`;
-        }
-      };
-      const onUp = () => {
-        resizeHandle.removeEventListener('pointermove', onMove);
-        resizeHandle.removeEventListener('pointerup', onUp);
-        renderTimelinePanel();
-        saveState();
-      };
-      resizeHandle.addEventListener('pointermove', onMove);
-      resizeHandle.addEventListener('pointerup', onUp);
-    });
-    btn.appendChild(resizeHandle);
+    const makeResizeHandle = (side) => {
+      const handle = document.createElement('span');
+      handle.className = `timeline-resize-handle${side === 'left' ? ' timeline-resize-handle--left' : ''}`;
+      handle.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
+        const sorted = sortedTimelineSegments();
+        const idx = sorted.findIndex((s) => s.id === seg.id);
+        const prevSeg = sorted[idx - 1] ?? null;
+        const nextSeg = sorted[idx + 1] ?? null;
+        const trackRect = timelineTrack.getBoundingClientRect();
+        const onMove = (me) => {
+          const t = ((me.clientX - trackRect.left) / trackRect.width) * duration;
+          if (side === 'left') {
+            const minStart = prevSeg ? prevSeg.end : 0;
+            seg.start = Math.max(minStart, Math.min(seg.end - 0.05, t));
+            btn.style.left = `${(seg.start / duration) * 100}%`;
+            btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
+            if (timelineStart && seg.id === state.selectedTimelineSegmentId) {
+              timelineStart.value = formatTimePrecise(seg.start);
+            }
+          } else {
+            const maxEnd = nextSeg ? nextSeg.start : duration;
+            seg.end = Math.max(seg.start + 0.05, Math.min(maxEnd, t));
+            btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
+            if (timelineEnd && seg.id === state.selectedTimelineSegmentId) {
+              timelineEnd.value = formatTimePrecise(seg.end);
+            }
+          }
+          segLabel.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
+          if (timelineWorking && seg.id === state.selectedTimelineSegmentId) {
+            timelineWorking.textContent = `Working on ${seg.name} · ${formatTimePrecise(seg.start)}-${formatTimePrecise(seg.end)}s`;
+          }
+        };
+        const onUp = () => {
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', onUp);
+          renderTimelinePanel();
+          saveState();
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+      });
+      return handle;
+    };
+    btn.appendChild(makeResizeHandle('left'));
+    btn.appendChild(makeResizeHandle('right'));
     timelineTrack.appendChild(btn);
   }
   timelineTrack.appendChild(timelinePlayhead);
@@ -3297,9 +3309,7 @@ function renderTimelinePanel() {
   if (timelineWorking) {
     timelineWorking.textContent = selected
       ? `Working on ${selected.name} · ${formatTimePrecise(selected.start)}-${formatTimePrecise(selected.end)}s`
-      : _pendingTimelineStart !== null
-        ? `Start marked at ${formatTimePrecise(_pendingTimelineStart)}s`
-        : 'No segment selected';
+      : 'No segment selected';
   }
   if (timelineDetails) {
     if (selected) {
@@ -3324,15 +3334,12 @@ function renderTimelinePanel() {
   if (timelineDuplicate) timelineDuplicate.disabled = recording || !selected;
   if (timelineDelete) timelineDelete.disabled = recording || !selected;
   if (timelineCapture) timelineCapture.disabled = recording || !selected;
-  if (timelineMarkEnd) timelineMarkEnd.disabled = recording || _pendingTimelineStart === null;
   if (timelineStatus) {
     timelineStatus.textContent = recording
       ? 'Timeline locked while recording.'
       : selected
         ? `${selected.name} selected. Edits in the sidebar update this segment.`
-        : _pendingTimelineStart !== null
-          ? 'Scrub to the segment end, then click End.'
-        : `${state.timelineSegments.length} segment${state.timelineSegments.length === 1 ? '' : 's'}. Select one to edit.`;
+        : `${state.timelineSegments.length} segment${state.timelineSegments.length === 1 ? '' : 's'}. Select one to edit, or click Add Segment.`;
   }
   updateTimelinePlayhead();
 }
@@ -3366,59 +3373,19 @@ function addTimelineSegment() {
     showToast('Stop recording before editing the timeline', 'error');
     return;
   }
-  const gap = findTimelineGap(video.currentTime, Math.min(2, video.duration));
-  if (!gap) {
-    showToast('No empty timeline range available', 'error');
-    return;
-  }
-  const seg = makeTimelineSegment(gap.start, gap.end);
-  state.timelineSegments.push(seg);
-  sortTimelineInPlace();
-  selectTimelineSegment(seg.id, { applyLook: false });
-}
-
-function markTimelineStart() {
-  if (!timelineAvailable()) {
-    showToast('Load an uploaded video before marking a timeline segment', 'error');
-    return;
-  }
-  if (_recorder) {
-    showToast('Stop recording before editing the timeline', 'error');
-    return;
-  }
-  _pendingTimelineStart = clamp(_timelineCursorPinnedTime ?? video.currentTime ?? 0, 0, video.duration);
-  _timelineCursorPinnedTime = _pendingTimelineStart;
-  state.selectedTimelineSegmentId = null;
-  video.currentTime = _pendingTimelineStart;
-  updateTimelineCursor(_timelineCursorPinnedTime, { pinned: true });
-  renderTimelinePanel();
-  showToast(`Segment start marked at ${formatTimePrecise(_pendingTimelineStart)}s`, 'ok', 1500);
-}
-
-function markTimelineEnd() {
-  if (!timelineAvailable() || _pendingTimelineStart === null) return;
-  if (_recorder) {
-    showToast('Stop recording before editing the timeline', 'error');
-    return;
-  }
-  const rawEnd = clamp(_timelineCursorPinnedTime ?? video.currentTime ?? 0, 0, video.duration);
-  const start = Math.min(_pendingTimelineStart, rawEnd);
-  const end = Math.max(_pendingTimelineStart, rawEnd);
+  const t = clamp(video.currentTime ?? 0, 0, video.duration);
+  const start = t;
+  const end = Math.min(t + 1, video.duration);
   if (end - start < TIMELINE_MIN_SEGMENT_SECONDS) {
-    showToast('Timeline segment is too short', 'error');
-    renderTimelinePanel();
+    showToast('Not enough room — scrub earlier in the video', 'error');
     return;
   }
   if (segmentOverlaps(start, end)) {
-    showToast('Timeline segments cannot overlap', 'error');
-    renderTimelinePanel();
+    showToast('Overlaps an existing segment — scrub to an empty area', 'error');
     return;
   }
   const seg = makeTimelineSegment(start, end);
   state.timelineSegments.push(seg);
-  _pendingTimelineStart = null;
-  _timelineCursorPinnedTime = rawEnd;
-  video.currentTime = rawEnd;
   sortTimelineInPlace();
   selectTimelineSegment(seg.id, { applyLook: false });
 }
@@ -3500,8 +3467,6 @@ function updateSelectedTimelineRange() {
 }
 
 timelineAdd?.addEventListener('click', addTimelineSegment);
-timelineMarkStart?.addEventListener('click', markTimelineStart);
-timelineMarkEnd?.addEventListener('click', markTimelineEnd);
 timelineDuplicate?.addEventListener('click', duplicateTimelineSegment);
 timelineDelete?.addEventListener('click', deleteTimelineSegment);
 timelineCapture?.addEventListener('click', captureSelectedTimelineLook);
