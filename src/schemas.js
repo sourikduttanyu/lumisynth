@@ -405,6 +405,17 @@ export const COLOR_PARAM_SCHEMAS = {
 // COLOR_PARAM_SCHEMAS.
 // ============================================================
 export const FX_PARAM_SCHEMAS = {
+  drag: {
+    feedback: true,
+    knobs: [
+      { key: 'dir',    label: 'Dir',     min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Drag direction. 0 = right, 0.25 = up, 0.5 = left, 0.75 = down. Full 360° sweep.' },
+      { key: 'dist',   label: 'Dist',    min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Drag distance — how far the smear extends each frame. 0 = no movement. 1 = 24-pixel offset per frame.' },
+      { key: 'decay',  label: 'Decay',   min: 0, max: 1, step: 0.01, default: 0.88, tip: 'Trail persistence. Near 1 = long comet tails. Low = trails die in a few frames.' },
+      { key: 'chroma', label: 'Chroma',  min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'RGB separation in the trail. 0 = single-color smear. 1 = rainbow dispersion — R, G, B channels drag at slightly different distances.' },
+    ],
+    toggles: [],
+    order: ['dir', 'dist', 'decay', 'chroma'],
+  },
   flowfield: {
     feedback: true,
     knobs: [
@@ -509,7 +520,7 @@ export const FX_PARAM_SCHEMAS = {
 };
 
 export const FX_SECTIONS = [
-  'flowfield', 'bloom', 'godrays', 'decayflow', 'feedbackwarp',
+  'drag', 'flowfield', 'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
 ];
 
@@ -614,6 +625,7 @@ export const BLEND_MODES = {
   neontube:     'source-over',
   deepfield:    'source-over',
   decayflow:    'source-over',
+  drag:         'source-over',
   feedbackwarp: 'source-over',
   bloom:        'source-over',
   godrays:      'source-over',

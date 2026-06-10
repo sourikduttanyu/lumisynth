@@ -68,6 +68,53 @@ void main() {
   fragColor = vec4(clamp(result_c, 0.0, 1.0), 1.0);
 }`;
 
+// DRAG — directional feedback smear. Bright areas streak forward along a
+// chosen direction, decaying into comet-like light trails.
+// uParams: x=Direction(0→1 = 0→360°), y=Distance(drag spread),
+//          z=Decay(trail persistence), w=Chroma(0=mono trail, 1=rainbow smear)
+// Baked: spread≈0.3 (trail softening), threshold≈0.2, sourceMix≈0.55
+const FRAG_DRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 cur = texture(u_video, uv).rgb;
+  float curL = dot(cur, vec3(0.299, 0.587, 0.114));
+
+  float ang = uParams.x * 6.2831853;
+  vec2 dir = vec2(cos(ang), sin(ang));
+  float dragPx = mix(0.0, 24.0, uParams.y);
+  vec2 off = dir * dragPx * texel;
+
+  // Chroma: R/G/B sample at different distances for rainbow smear
+  float c = uParams.w;
+  vec3 prev;
+  prev.r = texture(u_feedback, clamp(uv - off * (1.0 + 0.4 * c), 0.0, 1.0)).r;
+  prev.g = texture(u_feedback, clamp(uv - off,                    0.0, 1.0)).g;
+  prev.b = texture(u_feedback, clamp(uv - off * (1.0 - 0.4 * c), 0.0, 1.0)).b;
+
+  // Soften trail (baked spread ~0.3, perpendicular taps)
+  vec3 s1 = texture(u_feedback, clamp(uv - off + vec2( off.y, -off.x) * 0.15, 0.0, 1.0)).rgb;
+  vec3 s2 = texture(u_feedback, clamp(uv - off - vec2( off.y, -off.x) * 0.15, 0.0, 1.0)).rgb;
+  prev = (prev + s1 + s2) / 3.0;
+
+  // Decay
+  prev *= clamp(uParams.z, 0.0, 0.999);
+
+  // Inject bright areas of current frame into trail (baked threshold ~0.2)
+  float inject = smoothstep(0.2, 0.3, curL);
+  vec3 trail = max(prev, cur * inject);
+
+  // Composite source back on (baked source mix ~0.55)
+  vec3 outc = mix(trail, max(trail, cur), 0.55);
+  fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
+}`;
+
 // Passthrough copy: feedback write-buffer → chain output. Needed because the
 // new feedback state must land in a persistent texture AND in the chain, and
 // one draw can only target one framebuffer.
@@ -82,6 +129,7 @@ void main() {
 
 const FX_FRAGS = {
   flowfield: FRAG_FLOWFIELD,
+  drag:      FRAG_DRAG,
 };
 
 // ---- WebGL helpers (same pattern as glFilters.js) ----

@@ -1744,10 +1744,12 @@ const fxRackEl   = document.getElementById('fx-rack');
 const fxPickerEl = document.getElementById('fx-picker-popover');
 
 const FX_LABEL = {
+  drag: 'Drag',
   flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
 };
 const FX_SWATCH_GRADIENTS = {
+  drag:       'linear-gradient(90deg, #080006, #2a0060, #8000ff, #ff44cc, #ffaaff)',
   flowfield:  'linear-gradient(90deg, #020c14, #0f4a6b, #2fa3c7, #c7f0ff)',
   bloom:      'linear-gradient(90deg, #020310, #142b7f, #5ea9ff, #f8fbff)',
   godrays:    'linear-gradient(90deg, #120800, #6b3200, #d47a00, #ffe066, #fff8cc)',
@@ -1760,6 +1762,7 @@ const FX_SWATCH_GRADIENTS = {
   noise:      'linear-gradient(90deg, #111, #777, #222, #bbb, #333)',
 };
 const FX_CHIP_TIP = {
+  drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Chroma knob adds RGB dispersion to the smear. Click to swap.',
   flowfield:  'Flow Field in this slot. Pixels advect along the luma-gradient flow, accumulating feedback trails frame over frame. Click to swap.',
   bloom:      'Neon bloom glow. Bright areas spread with a blue energy halo. Click to swap.',
   godrays:    'Volumetric light shafts. 48-sample radial march from bright regions toward a configurable light center. Click to swap.',
