@@ -333,6 +333,16 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['palette', 'gamma', 'sat', 'dust'],
   },
+  risograph: {
+    knobs: [
+      { key: 'hueA',    label: 'Ink A',    min: 0, max: 1, step: 0.01, default: 0.62, tip: 'Hue of the shadow/density ink. 0 = red, 0.33 = green, 0.62 = blue-teal (classic riso cyan).' },
+      { key: 'hueB',    label: 'Ink B',    min: 0, max: 1, step: 0.01, default: 0.05, tip: 'Hue of the midtone fill ink. 0 = red, 0.1 = orange-yellow. Pairs with Ink A to define the two-color risograph palette.' },
+      { key: 'reg',     label: 'Reg',      min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Ink registration offset. 0 = perfect alignment. 1 = heavy misregistration — the two layers drift apart for that hand-printed look.' },
+      { key: 'halftone',label: 'Halftone', min: 0, max: 1, step: 0.01, default: 0.5,  tip: '0 = solid continuous ink. 1 = crisp halftone dot screen — the signature riso print texture.' },
+    ],
+    toggles: [],
+    order: ['hueA', 'hueB', 'reg', 'halftone'],
+  },
   neontube: {
     knobs: [
       { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.85, tip: 'Neon color hue. 0.85 = hot pink, 0.55 = cyan, 0.15 = amber.' },
@@ -560,6 +570,7 @@ export const COLOR_UNIQUE_SECTIONS = [
   { key: 'atmosphere', label: 'Atmosphere', effects: ['nebula', 'aurorastorm', 'deepfield'] },
   { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin'] },
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
+  { key: 'print',      label: 'Print',      effects: ['risograph'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
 // Every valid value of state.color (except 'none'): maps + unique effects +
@@ -599,6 +610,7 @@ export const BLEND_MODES = {
   infrared:     'source-over',
   blackbody:    'source-over',
   hubble:       'source-over',
+  risograph:    'source-over',
   neontube:     'source-over',
   deepfield:    'source-over',
   decayflow:    'source-over',

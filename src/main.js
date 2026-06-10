@@ -1350,6 +1350,7 @@ const COLOR_SWATCH_GRADIENTS = {
   depthstack: 'linear-gradient(90deg, #050814, #23356f, #7354b8, #e8f3ff)',
   abyss:      'linear-gradient(90deg, #010010, #0a0050, #7a006e, #ff00aa, #ff8acd)',
   sequin:     'linear-gradient(90deg, #00aaff, #6600ff, #cc00ff, #ff0088, #ff5500, #ffcc00)',
+  risograph:  'linear-gradient(90deg, #f5ead8, #e8b89a, #c86060, #a04080, #f5ead8)',
 };
 const COLOR_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
@@ -1358,6 +1359,7 @@ const COLOR_LABEL = {
   nebula: 'Nebula', aurorastorm: 'Aurora', deepfield: 'DeepField', neontube: 'NeonTube',
   prismatic: 'Prismatic', heatbleed: 'HeatBleed', depthstack: 'DepthStack', abyss: 'Abyss',
   sequin: 'Sequin',
+  risograph: 'Riso',
   chroma: 'ChromaEngine',
 };
 
@@ -1384,6 +1386,7 @@ const COLOR_MAP_TIPS = {
   depthstack: 'Holographic spectral depth planes. Banded color zones shift with luminance gradients.',
   sequin:     'Three hue-bounded shimmer profiles: Cyan, Cyan-Magenta, or Ember. Sparkle dots twinkle at peaks; Speed oscillates the palette without ever bleeding into green.',
   abyss:      'Stereoscopic void. Real R/B chromatic displacement creates 3D depth. Hue sweeps electric blue → vivid magenta → warm rose.',
+  risograph:  'Two-color indie risograph print. Ink A covers shadows, Ink B the midtones — misregistration drifts them apart; halftone adds the dot-screen texture.',
 };
 
 // Per-effect knob memory access. Ensures state.colorParams[type] exists and

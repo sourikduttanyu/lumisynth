@@ -987,6 +987,40 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+const FRAG_RISOGRAPH = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 hsv2rgb(vec3 c) { vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0); vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www); return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y); }
+void main() {
+  vec2 uv = vUV;
+  vec2 offset = vec2(0.012, -0.008) * uParams.z;
+  float vA = texture(u_video, uv - offset * 0.5).r;
+  float vB = texture(u_video, uv + offset * 0.5).r;
+  // Ink A covers shadows, ink B covers midtones
+  float inkA = 1.0 - vA;
+  float inkB = vB * (1.0 - vB) * 4.0;
+  // Halftone dot pattern — offset grids for each layer
+  float dotSize = 120.0;
+  float dotA = 1.0 - length(fract((uv - offset * 0.5) * dotSize) - 0.5) / 0.7;
+  float dotB = 1.0 - length(fract((uv + offset * 0.5) * dotSize + 0.5) - 0.5) / 0.7;
+  float ht = uParams.w;
+  if (ht > 0.01) {
+    inkA *= smoothstep(1.0 - inkA * 2.0 - ht, 1.0 - inkA * 2.0 + 0.1, dotA);
+    inkB *= smoothstep(1.0 - inkB * 2.0 - ht, 1.0 - inkB * 2.0 + 0.1, dotB);
+  }
+  // Slightly dusty saturated riso inks on warm cream paper
+  vec3 colA = hsv2rgb(vec3(uParams.x, 0.85, 0.75));
+  vec3 colB = hsv2rgb(vec3(uParams.y, 0.85, 0.75));
+  vec3 paper = vec3(0.95, 0.92, 0.85);
+  vec3 col = paper;
+  col = mix(col, col * colA, clamp(inkA, 0.0, 1.0));
+  col = mix(col, col * colB, clamp(inkB, 0.0, 1.0) * 0.7);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 const FRAG_DECAYFLOW = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -1393,6 +1427,7 @@ const FRAGS = {
   deepfield:    FRAG_DEEPFIELD,
   blackbody:    FRAG_BLACKBODY,
   hubble:       FRAG_HUBBLE,
+  risograph:    FRAG_RISOGRAPH,
   decayflow:    FRAG_DECAYFLOW,
   feedbackwarp: FRAG_FEEDBACKWARP,
   bloom:        FRAG_BLOOM,
