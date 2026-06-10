@@ -434,6 +434,30 @@
             <input type="range" id="video-scrub" min="0" max="1000" step="1" value="0" aria-label="Scrub video" />
             <span class="video-time" id="video-time">0:00 / 0:00</span>
           </div>
+          <div id="timeline-panel" class="timeline-panel hidden" aria-label="Timeline segments">
+            <div class="timeline-head">
+              <span class="timeline-title">Timeline</span>
+              <span id="timeline-working" class="timeline-working">No segment selected</span>
+              <div class="timeline-actions">
+                <button id="timeline-mark-start" class="timeline-btn" type="button" data-tip="Mark the selected timeline cursor time as the START of a new segment. Click the timeline first to choose the time.">Mark Start</button>
+                <button id="timeline-mark-end" class="timeline-btn" type="button" data-tip="Mark the selected timeline cursor time as the END of the segment, then create it. Use after Mark Start.">Mark End</button>
+                <button id="timeline-add" class="timeline-btn" type="button" data-tip="Quick-add a new segment near the current playhead using the current look. Useful when you do not need precise start/end picking.">Quick Add</button>
+                <button id="timeline-duplicate" class="timeline-btn" type="button" data-tip="Duplicate the selected segment's time-block style and look into the next available empty range.">Duplicate</button>
+                <button id="timeline-capture" class="timeline-btn" type="button" data-tip="Save the current sidebar settings into the selected segment. Use after changing structure, color, blobs, or track FX.">Capture Look</button>
+                <button id="timeline-delete" class="timeline-btn danger" type="button" data-tip="Delete the selected segment. The uncovered video time will render raw with no effects.">Delete</button>
+              </div>
+            </div>
+            <div id="timeline-track" class="timeline-track">
+              <div id="timeline-playhead" class="timeline-playhead" aria-hidden="true"></div>
+            </div>
+            <div class="timeline-edit">
+              <label>Start <input id="timeline-start" class="timeline-time-input" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <label>End <input id="timeline-end" class="timeline-time-input" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <span id="timeline-status" class="timeline-status">Timeline supports uploaded video files only.</span>
+            </div>
+            <div class="timeline-help">Click the timeline to place the dotted cursor, then Mark Start and Mark End. Capture Look saves current effects into the selected segment.</div>
+            <div id="timeline-details" class="timeline-details hidden"></div>
+          </div>
           <div id="fps-overlay" class="hidden">— fps · 0 blobs</div>
         </main>
       </div>

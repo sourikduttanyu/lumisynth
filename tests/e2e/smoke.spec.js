@@ -1,16 +1,18 @@
 import { test, expect } from '@playwright/test';
 
-const STORAGE_KEY = 'lumisynth-state-v5';
+const STORAGE_KEY = 'lumisynth-state-v6';
+const LEGACY_STORAGE_KEY = 'lumisynth-state-v5';
 const INTRO_DISMISSED_KEY = 'lumisynth-intro-dismissed';
 
 const byValue = (group, value) => `${group} .toggle-btn[data-value="${value}"]`;
 
 async function gotoClean(page) {
   await page.goto('/');
-  await page.evaluate(([stateKey, introKey]) => {
+  await page.evaluate(([stateKey, legacyStateKey, introKey]) => {
     localStorage.removeItem(stateKey);
+    localStorage.removeItem(legacyStateKey);
     localStorage.removeItem(introKey);
-  }, [STORAGE_KEY, INTRO_DISMISSED_KEY]);
+  }, [STORAGE_KEY, LEGACY_STORAGE_KEY, INTRO_DISMISSED_KEY]);
   await page.reload();
   await expect(page.locator('#app')).toBeVisible();
 }

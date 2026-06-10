@@ -9,7 +9,7 @@ import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs } fr
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
 import {
-  STORAGE_KEY, RACK_SLOTS, DEFAULTS,
+  STORAGE_KEY, RACK_SLOTS, DEFAULTS, TIMELINE_DEFAULTS, TIMELINE_MIN_SEGMENT_SECONDS,
   COLOR_PARAM_SCHEMAS, TRACK_FX_PARAM_SCHEMAS,
   STRUCTURE_SECTIONS, COLOR_SECTIONS, BLEND_MODES, GL_RESETS,
   makeSlotId, makeFactoryParams, makeColorRack,
@@ -28,6 +28,7 @@ const state = {
   sourceKind: null,
   colorRack: makeColorRack(),
   trackFxRack: makeTrackFxRack(),
+  ...TIMELINE_DEFAULTS,
 };
 
 let frameCount  = 0;
@@ -76,6 +77,20 @@ const videoControls= document.getElementById('video-controls');
 const btnPlay      = document.getElementById('btn-play');
 const videoScrub   = document.getElementById('video-scrub');
 const videoTime    = document.getElementById('video-time');
+const timelinePanel = document.getElementById('timeline-panel');
+const timelineTrack = document.getElementById('timeline-track');
+const timelinePlayhead = document.getElementById('timeline-playhead');
+const timelineWorking = document.getElementById('timeline-working');
+const timelineMarkStart = document.getElementById('timeline-mark-start');
+const timelineMarkEnd = document.getElementById('timeline-mark-end');
+const timelineAdd = document.getElementById('timeline-add');
+const timelineDuplicate = document.getElementById('timeline-duplicate');
+const timelineDelete = document.getElementById('timeline-delete');
+const timelineCapture = document.getElementById('timeline-capture');
+const timelineStart = document.getElementById('timeline-start');
+const timelineEnd = document.getElementById('timeline-end');
+const timelineStatus = document.getElementById('timeline-status');
+const timelineDetails = document.getElementById('timeline-details');
 const fpsOverlay   = document.getElementById('fps-overlay');
 const colorKeyInput   = document.getElementById('color-key-input');
 const inkLowInput     = document.getElementById('ink-low-input');
@@ -144,9 +159,17 @@ function formatTime(seconds) {
   const s = Math.floor(seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
 }
+function formatTimePrecise(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '0.0';
+  return Number(seconds).toFixed(1);
+}
 function nearlyEqual(a, b) { return Math.abs(a - b) < 1e-6; }
-function structureOutputModeValue() {
-  return STRUCTURE_OUTPUT_MODE_VALUE[state.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
+let _renderLook = null;
+function currentLook() {
+  return _renderLook || state;
+}
+function structureOutputModeValue(look = currentLook()) {
+  return STRUCTURE_OUTPUT_MODE_VALUE[look.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
 }
 function normalizeHexColor(hex, fallback) {
   return (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)) ? hex.toLowerCase() : fallback;
@@ -159,11 +182,180 @@ function hexToRgb01(hex, fallback) {
     parseInt(safe.slice(5, 7), 16) / 255,
   ];
 }
-function inkColorUniforms() {
+function inkColorUniforms(look = currentLook()) {
   return {
-    inkLow: hexToRgb01(state.inkBlackHex, DEFAULTS.inkBlackHex),
-    inkHigh: hexToRgb01(state.inkCreamHex, DEFAULTS.inkCreamHex),
+    inkLow: hexToRgb01(look.inkBlackHex, DEFAULTS.inkBlackHex),
+    inkHigh: hexToRgb01(look.inkCreamHex, DEFAULTS.inkCreamHex),
   };
+}
+
+const LEGACY_STORAGE_KEYS = ['lumisynth-state-v5'];
+const TIMELINE_STATE_KEYS = new Set(['timelineSegments', 'selectedTimelineSegmentId']);
+const LOOK_STATE_KEYS = Object.keys(DEFAULTS).filter((k) => k !== 'speed' && !TIMELINE_STATE_KEYS.has(k));
+const cloneData = (value) => JSON.parse(JSON.stringify(value));
+
+function sanitizeColorRack(rack) {
+  if (!Array.isArray(rack) || rack.length !== RACK_SLOTS) return makeColorRack();
+  return rack.map((slot) => {
+    if (!slot || typeof slot !== 'object') {
+      return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
+    }
+    const type = (slot.type === 'none' || COLOR_SECTIONS.includes(slot.type)) ? slot.type : 'none';
+    const factoryP = makeFactoryParams(type);
+    const params = { ...factoryP };
+    if (slot.params && typeof slot.params === 'object') {
+      for (const k of Object.keys(factoryP)) {
+        const v = slot.params[k];
+        if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
+      }
+    }
+    return {
+      id: slot.id || makeSlotId(),
+      type,
+      enabled: !!slot.enabled && type !== 'none',
+      params,
+    };
+  });
+}
+
+function sanitizeTrackFxRack(rack) {
+  const types = Object.keys(TRACK_FX_PARAM_SCHEMAS);
+  if (!Array.isArray(rack) || rack.length !== RACK_SLOTS) return makeTrackFxRack();
+  return rack.map((slot) => {
+    if (!slot || typeof slot !== 'object') {
+      return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
+    }
+    const type = (slot.type === 'none' || types.includes(slot.type)) ? slot.type : 'none';
+    const factoryP = makeTrackFxFactoryParams(type);
+    const params = { ...factoryP };
+    if (slot.params && typeof slot.params === 'object') {
+      for (const k of Object.keys(factoryP)) {
+        const v = slot.params[k];
+        if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
+      }
+    }
+    return {
+      id: slot.id || makeSlotId(),
+      type,
+      enabled: !!slot.enabled && type !== 'none',
+      params,
+    };
+  });
+}
+
+function sanitizeLook(raw = {}) {
+  const look = {};
+  for (const k of LOOK_STATE_KEYS) {
+    const fallback = DEFAULTS[k];
+    const v = raw[k];
+    look[k] = (typeof v === typeof fallback) ? v : fallback;
+  }
+  look.inkBlackHex = normalizeHexColor(look.inkBlackHex, DEFAULTS.inkBlackHex);
+  look.inkCreamHex = normalizeHexColor(look.inkCreamHex, DEFAULTS.inkCreamHex);
+  look.colorKeyHex = normalizeHexColor(look.colorKeyHex, DEFAULTS.colorKeyHex);
+  look.colorRack = sanitizeColorRack(raw.colorRack);
+  look.trackFxRack = sanitizeTrackFxRack(raw.trackFxRack);
+  return look;
+}
+
+function makeLookSnapshot(source = state) {
+  const raw = {};
+  for (const k of LOOK_STATE_KEYS) raw[k] = source[k];
+  raw.colorRack = cloneData(source.colorRack || makeColorRack());
+  raw.trackFxRack = cloneData(source.trackFxRack || makeTrackFxRack());
+  return sanitizeLook(raw);
+}
+
+let _rawTimelineLook = null;
+function makeRawTimelineLook() {
+  if (!_rawTimelineLook) _rawTimelineLook = sanitizeLook({});
+  return _rawTimelineLook;
+}
+
+function applyLookToState(look) {
+  const safe = sanitizeLook(look);
+  for (const k of LOOK_STATE_KEYS) state[k] = safe[k];
+  state.colorRack = cloneData(safe.colorRack);
+  state.trackFxRack = cloneData(safe.trackFxRack);
+  applyStateToUI();
+}
+
+function makeTimelineSegment(start, end, look = makeLookSnapshot()) {
+  return {
+    id: makeSlotId(),
+    start,
+    end,
+    name: `SEG ${state.timelineSegments.length + 1}`,
+    look: sanitizeLook(look),
+  };
+}
+
+function sortedTimelineSegments() {
+  return [...(state.timelineSegments || [])].sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+function sanitizeTimelineSegments(rawSegments, duration = Infinity) {
+  if (!Array.isArray(rawSegments)) return [];
+  const maxEnd = Number.isFinite(duration) && duration > 0 ? duration : Infinity;
+  const segments = [];
+  for (const raw of rawSegments) {
+    if (!raw || typeof raw !== 'object') continue;
+    const start = Math.max(0, Number(raw.start));
+    const end = Math.min(maxEnd, Math.max(0, Number(raw.end)));
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    if (end - start < TIMELINE_MIN_SEGMENT_SECONDS) continue;
+    segments.push({
+      id: raw.id || makeSlotId(),
+      start,
+      end,
+      name: String(raw.name || `SEG ${segments.length + 1}`).slice(0, 24),
+      look: sanitizeLook(raw.look || raw.state || {}),
+    });
+  }
+  segments.sort((a, b) => a.start - b.start || a.end - b.end);
+  const clean = [];
+  let cursor = 0;
+  for (const seg of segments) {
+    const start = Math.max(seg.start, cursor);
+    const end = Math.max(start + TIMELINE_MIN_SEGMENT_SECONDS, seg.end);
+    if (end > maxEnd) continue;
+    clean.push({ ...seg, start, end });
+    cursor = end;
+  }
+  return clean;
+}
+
+function findTimelineSegmentAt(time) {
+  if (state.sourceKind !== 'video' || !Number.isFinite(time)) return null;
+  const duration = Number.isFinite(video.duration) ? video.duration : Infinity;
+  return sortedTimelineSegments().find((seg) => (
+    time >= seg.start && (time < seg.end || (nearlyEqual(seg.end, duration) && time <= seg.end))
+  )) || null;
+}
+
+function resolveTimelineLook(time) {
+  const segment = findTimelineSegmentAt(time);
+  if (segment) return { id: segment.id, look: segment.look };
+  if (state.sourceKind === 'video') return { id: null, look: makeRawTimelineLook() };
+  return { id: null, look: state };
+}
+
+function timelineRuntimeSignature(look) {
+  return JSON.stringify({
+    mode: look.mode,
+    perBlob: look.perBlob,
+    trackComposite: look.trackComposite,
+    trackChannel: look.trackChannel,
+    threshold: look.threshold,
+    trackMinSize: look.trackMinSize,
+    trackStability: look.trackStability,
+    trackMaxBlobs: look.trackMaxBlobs,
+    updateInterval: look.updateInterval,
+    colorKeyHex: look.colorKeyHex,
+    colorKeyHueTol: look.colorKeyHueTol,
+    colorKeySatMin: look.colorKeySatMin,
+    trackFxRack: look.trackFxRack,
+  });
 }
 
 // ---- Account / Cloud Presets ----
@@ -243,7 +435,13 @@ async function apiFetch(path, options = {}) {
 }
 
 function presetStateSnapshot() {
-  const { hasSource, sourceKind, ...persistable } = state;
+  const {
+    hasSource,
+    sourceKind,
+    timelineSegments,
+    selectedTimelineSegmentId,
+    ...persistable
+  } = state;
   return JSON.parse(JSON.stringify(persistable));
 }
 
@@ -795,23 +993,24 @@ _hiddenCards.forEach(c => c.classList.add('hidden'));
 // uniform call shape. COLOR effects are dispatched separately via
 // runColorEffect (each color slot owns its own params).
 function runEffect(name, opts) {
-  const outputMode = structureOutputModeValue();
-  const inkColors = inkColorUniforms();
+  const look = currentLook();
+  const outputMode = structureOutputModeValue(look);
+  const inkColors = inkColorUniforms(look);
   switch (name) {
     case 'ascii':
       return applyASCII(canvas.width, canvas.height, {
-        cellSize: state.asciiCellSize, contrast: state.asciiContrast,
-        blackThreshold: state.asciiBlackThresh, glyphStrength: state.asciiGlyphStrength,
+        cellSize: look.asciiCellSize, contrast: look.asciiContrast,
+        blackThreshold: look.asciiBlackThresh, glyphStrength: look.asciiGlyphStrength,
         outputMode, ...inkColors,
       }, opts);
     case 'erode':
-      return applyGLFilter('erode', canvas.width, canvas.height, [state.erodeMode, state.erodeRadius, state.erodeStrength, state.erodeEdge], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('erode', canvas.width, canvas.height, [look.erodeMode, look.erodeRadius, look.erodeStrength, look.erodeEdge], { ...opts, outputMode, ...inkColors });
     case 'watershed':
-      return applyGLFilter('watershed', canvas.width, canvas.height, [state.watershedBasin, state.watershedBoundary, state.watershedFlat, state.watershedDepth], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('watershed', canvas.width, canvas.height, [look.watershedBasin, look.watershedBoundary, look.watershedFlat, look.watershedDepth], { ...opts, outputMode, ...inkColors });
     case 'pixelsort':
-      return applyGLFilter('pixelsort', canvas.width, canvas.height, [state.pixelsortThresh, state.pixelsortLength, state.pixelsortOpacity, state.pixelsortDir], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('pixelsort', canvas.width, canvas.height, [look.pixelsortThresh, look.pixelsortLength, look.pixelsortOpacity, look.pixelsortDir], { ...opts, outputMode, ...inkColors });
     case 'melt':
-      return applyGLFilter('melt', canvas.width, canvas.height, [state.meltAmount, state.meltDrip, state.meltViscosity, state.meltDir], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -878,10 +1077,10 @@ const TOGGLE_CONFIG = [
 //
 // Per-blob (Inv / Thermal) remains independent — always layers on top
 // of whatever the main chain produced; not part of this resolver.
-function resolveActivePipeline() {
+function resolveActivePipeline(look = currentLook()) {
   return {
-    structure: state.structure !== 'none' ? state.structure : null,
-    colors:    state.colorRack
+    structure: look.structure !== 'none' ? look.structure : null,
+    colors:    look.colorRack
       .filter((s) => s.enabled && s.type !== 'none')
       .map((s) => ({ type: s.type, params: s.params })),
   };
@@ -1857,11 +2056,13 @@ function applyStateToUI() {
   if (colorKeyInput) colorKeyInput.value = state.colorKeyHex;
   if (inkLowInput) inkLowInput.value = normalizeHexColor(state.inkBlackHex, DEFAULTS.inkBlackHex);
   if (inkHighInput) inkHighInput.value = normalizeHexColor(state.inkCreamHex, DEFAULTS.inkCreamHex);
+  renderTimelinePanel();
 }
 
 // ---- Persistence ----
 let persistTimer = 0;
 function schedulePersist() {
+  syncSelectedSegmentFromState();
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     try {
@@ -1872,7 +2073,13 @@ function schedulePersist() {
 }
 function loadPersistedState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      for (const key of LEGACY_STORAGE_KEYS) {
+        raw = localStorage.getItem(key);
+        if (raw) break;
+      }
+    }
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
@@ -1908,43 +2115,7 @@ function loadPersistedState() {
     // length, missing fields, unknown types) replace with a fresh rack
     // rather than crash on render. Cheap insurance against forward-compat
     // accidents.
-    if (parsed.colorRack && (!Array.isArray(parsed.colorRack) || parsed.colorRack.length !== RACK_SLOTS)) {
-      parsed.colorRack = makeColorRack();
-    }
-    if (Array.isArray(parsed.colorRack)) {
-      parsed.colorRack = parsed.colorRack.map((slot) => {
-        if (!slot || typeof slot !== 'object') {
-          return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
-        }
-        const type = (slot.type === 'none' || COLOR_SECTIONS.includes(slot.type)) ? slot.type : 'none';
-        // Per-slot params migration: pre-this-commit slots had no params
-        // field. Per user spec the migration is STRICT FACTORY for all
-        // slots — even slots that already exist get their params reset
-        // (rather than inherit the dead global color knob values from
-        // older saves). Honest mental model: every slot starts at
-        // factory, no exceptions.
-        const factoryP = makeFactoryParams(type);
-        let params = factoryP;
-        // BUT — once this commit ships, subsequent saves persist the
-        // user's tweaks under slot.params. On those subsequent loads we
-        // DO want to read them back (otherwise every reload would wipe
-        // the user's work). Only the first-time-after-this-commit load
-        // takes the strict factory path; after that, validate-and-keep.
-        if (slot.params && typeof slot.params === 'object') {
-          params = { ...factoryP };
-          for (const k of Object.keys(factoryP)) {
-            const v = slot.params[k];
-            if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
-          }
-        }
-        return {
-          id:      slot.id || makeSlotId(),
-          type,
-          enabled: !!slot.enabled && type !== 'none',
-          params,
-        };
-      });
-    }
+    if (parsed.colorRack) parsed.colorRack = sanitizeColorRack(parsed.colorRack);
     // Strip dead global color knob state from older saves. These keys
     // used to live on `state` (state.synthMode, state.oxideCorr, ...)
     // and were read directly by runEffect. They no longer matter — slot
@@ -1963,36 +2134,16 @@ function loadPersistedState() {
     // each slot, fall back to factory params when malformed, drop unknown
     // types. STORAGE_KEY bumped to v3 so first-load-after-this-commit
     // sees no parsed.trackFxRack and uses the fresh rack from state init.
-    const TRACK_FX_TYPES = Object.keys(TRACK_FX_PARAM_SCHEMAS);
-    if (parsed.trackFxRack && (!Array.isArray(parsed.trackFxRack) || parsed.trackFxRack.length !== RACK_SLOTS)) {
-      parsed.trackFxRack = makeTrackFxRack();
-    }
-    if (Array.isArray(parsed.trackFxRack)) {
-      parsed.trackFxRack = parsed.trackFxRack.map((slot) => {
-        if (!slot || typeof slot !== 'object') {
-          return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
-        }
-        const type = (slot.type === 'none' || TRACK_FX_TYPES.includes(slot.type)) ? slot.type : 'none';
-        const factoryP = makeTrackFxFactoryParams(type);
-        let params = factoryP;
-        if (slot.params && typeof slot.params === 'object') {
-          params = { ...factoryP };
-          for (const k of Object.keys(factoryP)) {
-            const v = slot.params[k];
-            if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
-          }
-        }
-        return {
-          id:      slot.id || makeSlotId(),
-          type,
-          enabled: !!slot.enabled && type !== 'none',
-          params,
-        };
-      });
-    }
+    if (parsed.trackFxRack) parsed.trackFxRack = sanitizeTrackFxRack(parsed.trackFxRack);
+    if (parsed.timelineSegments) parsed.timelineSegments = sanitizeTimelineSegments(parsed.timelineSegments);
     for (const k of Object.keys(DEFAULTS)) if (k in parsed) state[k] = parsed[k];
     if (parsed.colorRack)    state.colorRack    = parsed.colorRack;
     if (parsed.trackFxRack)  state.trackFxRack  = parsed.trackFxRack;
+    if (Array.isArray(parsed.timelineSegments)) state.timelineSegments = parsed.timelineSegments;
+    state.selectedTimelineSegmentId = parsed.selectedTimelineSegmentId || null;
+    if (!state.timelineSegments.some((s) => s.id === state.selectedTimelineSegmentId)) {
+      state.selectedTimelineSegmentId = null;
+    }
   } catch { /* ignore */ }
 }
 
@@ -2004,7 +2155,10 @@ function performFullReset() {
   // reset explicitly so each session has fresh slot ids and factory params.
   state.colorRack   = makeColorRack();
   state.trackFxRack = makeTrackFxRack();
+  state.timelineSegments = [];
+  state.selectedTimelineSegmentId = null;
   applyStateToUI();
+  renderTimelinePanel();
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   showToast('Reset to defaults', 'ok', 2500);
 }
@@ -2193,6 +2347,7 @@ async function startRecording() {
   btnRecord.title = 'Stop recording (click to save)';
   btnRecordLbl.textContent = '0:00';
   _recordTickRaf = requestAnimationFrame(tickRecordLabel);
+  renderTimelinePanel();
   showToast(`Recording started (${_recordFormat.ext.toUpperCase()})`, 'ok', 1800);
 }
 
@@ -2240,6 +2395,7 @@ function teardownRecording() {
   btnRecord.setAttribute('aria-pressed', 'false');
   btnRecord.title = 'Record canvas as a video clip (click again to stop)';
   btnRecordLbl.textContent = 'Rec';
+  renderTimelinePanel();
 }
 
 if (btnRecord) {
@@ -2380,6 +2536,7 @@ document.getElementById('btn-camera').addEventListener('click', async () => {
     state.sourceKind = 'webcam';
     setHasSource(true, 'Camera');
     videoControls.classList.add('hidden');     // no scrub for camera
+    renderTimelinePanel();
     showToast('Camera active', 'ok', 2000);
   } catch (err) {
     showToast(`Camera unavailable: ${err.message || err.name}`, 'error', 6000);
@@ -2430,6 +2587,7 @@ function loadVideoSource(url, label) {
   state.sourceKind = 'video';
   setHasSource(true, label || 'Video');
   videoControls.classList.remove('hidden');    // scrub available for files
+  renderTimelinePanel();
 }
 
 function loadImageSource(url, label) {
@@ -2449,6 +2607,7 @@ function loadImageSource(url, label) {
     state.sourceKind = 'image';
     setHasSource(true, label || 'Image');
     videoControls.classList.add('hidden');     // no transport for stills
+    renderTimelinePanel();
     resizeCanvas();
   };
   imageEl.onerror = () => {
@@ -2460,6 +2619,10 @@ function loadImageSource(url, label) {
 function resetAllState() {
   resetFrameHistory(); resetTracker(); resetTrackOverlay();
   cachedBlobs = []; frameCount = 0;
+  _pendingTimelineStart = null;
+  _timelineCursorPinnedTime = null;
+  _lastResolvedTimelineSegmentId = null;
+  _lastResolvedTimelineRuntimeSig = '';
   // Smoothing state — both backends — gets purged so the next source
   // doesn't inherit a stale dead-filter pool that could mis-match its
   // first frame's blobs to leftover positions from the previous video.
@@ -2491,8 +2654,402 @@ function setHasSource(val, label) {
   } else {
     state.sourceKind = null;
     updateSourceLabel('No source loaded');
+    renderTimelinePanel();
   }
 }
+
+// ---- Timeline segments (video-only hard cuts) ----
+let _lastResolvedTimelineSegmentId = null;
+let _lastResolvedTimelineRuntimeSig = '';
+let _timelineApplyingLook = false;
+let _pendingTimelineStart = null;
+let _timelineCursorEl = null;
+let _timelineCursorPinnedTime = null;
+
+function timelineAvailable() {
+  return state.sourceKind === 'video' && Number.isFinite(video.duration) && video.duration > 0;
+}
+
+function syncSelectedSegmentFromState() {
+  if (_timelineApplyingLook || !state.selectedTimelineSegmentId) return;
+  const seg = state.timelineSegments.find((s) => s.id === state.selectedTimelineSegmentId);
+  if (!seg) return;
+  seg.look = makeLookSnapshot(state);
+}
+
+function selectedTimelineSegment() {
+  return state.timelineSegments.find((s) => s.id === state.selectedTimelineSegmentId) || null;
+}
+
+function sortTimelineInPlace() {
+  state.timelineSegments = sortedTimelineSegments();
+}
+
+function segmentOverlaps(start, end, ignoreId = null) {
+  return state.timelineSegments.some((seg) => {
+    if (seg.id === ignoreId) return false;
+    return start < seg.end && end > seg.start;
+  });
+}
+
+function findTimelineGap(preferredStart = 0, desiredLength = 2) {
+  if (!timelineAvailable()) return null;
+  const duration = video.duration;
+  const len = clamp(desiredLength, TIMELINE_MIN_SEGMENT_SECONDS, duration);
+  const sorted = sortedTimelineSegments();
+  const candidates = [];
+  let cursor = 0;
+  for (const seg of sorted) {
+    if (seg.start - cursor >= TIMELINE_MIN_SEGMENT_SECONDS) {
+      candidates.push({ start: cursor, end: seg.start });
+    }
+    cursor = Math.max(cursor, seg.end);
+  }
+  if (duration - cursor >= TIMELINE_MIN_SEGMENT_SECONDS) {
+    candidates.push({ start: cursor, end: duration });
+  }
+  for (const gap of candidates) {
+    const start = clamp(preferredStart, gap.start, Math.max(gap.start, gap.end - TIMELINE_MIN_SEGMENT_SECONDS));
+    const end = Math.min(gap.end, start + Math.min(len, gap.end - start));
+    if (end - start >= TIMELINE_MIN_SEGMENT_SECONDS) return { start, end };
+  }
+  return null;
+}
+
+function setTimelineDisabled(disabled) {
+  for (const el of [timelineMarkStart, timelineMarkEnd, timelineAdd, timelineDuplicate, timelineDelete, timelineCapture, timelineStart, timelineEnd]) {
+    if (el) el.disabled = !!disabled;
+  }
+}
+
+function ensureTimelineCursor() {
+  if (!_timelineCursorEl) {
+    _timelineCursorEl = document.createElement('div');
+    _timelineCursorEl.className = 'timeline-cursor mode-start hidden';
+    _timelineCursorEl.innerHTML = '<span class="timeline-cursor-label">0.0s</span>';
+  }
+  if (timelineTrack && _timelineCursorEl.parentElement !== timelineTrack) {
+    timelineTrack.appendChild(_timelineCursorEl);
+  }
+  return _timelineCursorEl;
+}
+
+function timelineTimeFromEvent(e) {
+  if (!timelineAvailable() || !timelineTrack) return 0;
+  const rect = timelineTrack.getBoundingClientRect();
+  const pct = rect.width > 0 ? clamp((e.clientX - rect.left) / rect.width, 0, 1) : 0;
+  return pct * video.duration;
+}
+
+function updateTimelineCursor(time, { pinned = _timelineCursorPinnedTime !== null } = {}) {
+  if (!timelineAvailable()) return;
+  const cursor = ensureTimelineCursor();
+  const pct = clamp(time / video.duration, 0, 1) * 100;
+  const mode = _pendingTimelineStart === null ? 'start' : 'end';
+  cursor.classList.remove('hidden', 'mode-start', 'mode-end', 'is-pinned');
+  cursor.classList.add(`mode-${mode}`);
+  cursor.classList.toggle('is-pinned', pinned);
+  cursor.style.left = `${pct}%`;
+  const label = cursor.querySelector('.timeline-cursor-label');
+  if (label) label.textContent = `${mode.toUpperCase()} ${formatTimePrecise(time)}s`;
+}
+
+function updateTimelinePlayhead(time = video.currentTime, activeId = _lastResolvedTimelineSegmentId) {
+  if (!timelinePanel || !timelineTrack || !timelinePlayhead) return;
+  if (!timelineAvailable()) {
+    timelinePlayhead.style.left = '0%';
+    if (_timelineCursorEl) _timelineCursorEl.classList.add('hidden');
+    return;
+  }
+  const pct = clamp(time / video.duration, 0, 1) * 100;
+  timelinePlayhead.style.left = `${pct}%`;
+  for (const el of timelineTrack.querySelectorAll('.timeline-segment')) {
+    el.classList.toggle('is-active', el.dataset.segmentId === activeId);
+  }
+}
+
+function renderTimelinePanel() {
+  if (!timelinePanel || !timelineTrack) return;
+  const available = timelineAvailable();
+  timelinePanel.classList.toggle('hidden', state.sourceKind !== 'video');
+  timelinePanel.classList.toggle('is-disabled', !available);
+  timelineTrack.innerHTML = '';
+
+  if (!available) {
+    setTimelineDisabled(true);
+    if (timelineStatus) timelineStatus.textContent = state.sourceKind === 'video' ? 'Load video metadata to edit timeline.' : 'Timeline supports uploaded video files only.';
+    if (timelineWorking) timelineWorking.textContent = 'No segment selected';
+    if (timelineStart) timelineStart.value = '';
+    if (timelineEnd) timelineEnd.value = '';
+    if (timelineDetails) {
+      timelineDetails.classList.add('hidden');
+      timelineDetails.textContent = '';
+    }
+    return;
+  }
+
+  const recording = !!_recorder;
+  setTimelineDisabled(recording);
+  const selected = selectedTimelineSegment();
+  const duration = video.duration;
+  for (const seg of sortedTimelineSegments()) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'timeline-segment';
+    btn.dataset.segmentId = seg.id;
+    btn.classList.toggle('is-selected', seg.id === state.selectedTimelineSegmentId);
+    btn.classList.toggle('is-expanded', seg.id === state.selectedTimelineSegmentId);
+    btn.style.left = `${(seg.start / duration) * 100}%`;
+    btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
+    btn.textContent = `${formatTime(seg.start)}-${formatTime(seg.end)}`;
+    btn.dataset.tip = `${seg.name}: ${formatTimePrecise(seg.start)}s to ${formatTimePrecise(seg.end)}s`;
+    btn.addEventListener('click', () => selectTimelineSegment(seg.id));
+    timelineTrack.appendChild(btn);
+  }
+  timelineTrack.appendChild(timelinePlayhead);
+  ensureTimelineCursor();
+  if (_timelineCursorPinnedTime !== null) {
+    updateTimelineCursor(_timelineCursorPinnedTime, { pinned: true });
+  } else if (_timelineCursorEl) {
+    _timelineCursorEl.classList.add('hidden');
+  }
+
+  if (timelineStart) timelineStart.value = selected ? formatTimePrecise(selected.start) : '';
+  if (timelineEnd) timelineEnd.value = selected ? formatTimePrecise(selected.end) : '';
+  if (timelineWorking) {
+    timelineWorking.textContent = selected
+      ? `Working on ${selected.name} · ${formatTimePrecise(selected.start)}-${formatTimePrecise(selected.end)}s`
+      : _pendingTimelineStart !== null
+        ? `Start marked at ${formatTimePrecise(_pendingTimelineStart)}s`
+        : 'No segment selected';
+  }
+  if (timelineDetails) {
+    if (selected) {
+      const activeColors = selected.look.colorRack.filter((s) => s.enabled && s.type !== 'none').map((s) => RACK_LABEL[s.type] || s.type);
+      const activeTrackFx = selected.look.trackFxRack.filter((s) => s.enabled && s.type !== 'none').map((s) => TRACK_FX_LABEL[s.type] || s.type);
+      timelineDetails.classList.remove('hidden');
+      timelineDetails.textContent = [
+        `${selected.name} expanded`,
+        `Structure: ${selected.look.structure}`,
+        `Color: ${activeColors.length ? activeColors.join(' > ') : 'none'}`,
+        `Track FX: ${activeTrackFx.length ? activeTrackFx.join(' > ') : 'none'}`,
+      ].join(' · ');
+    } else {
+      timelineDetails.classList.add('hidden');
+      timelineDetails.textContent = '';
+    }
+  }
+  if (timelineDuplicate) timelineDuplicate.disabled = recording || !selected;
+  if (timelineDelete) timelineDelete.disabled = recording || !selected;
+  if (timelineCapture) timelineCapture.disabled = recording || !selected;
+  if (timelineMarkEnd) timelineMarkEnd.disabled = recording || _pendingTimelineStart === null;
+  if (timelineStatus) {
+    timelineStatus.textContent = recording
+      ? 'Timeline locked while recording.'
+      : selected
+        ? `${selected.name} selected. Edits in the sidebar update this segment.`
+        : _pendingTimelineStart !== null
+          ? 'Scrub to the segment end, then click End.'
+        : `${state.timelineSegments.length} segment${state.timelineSegments.length === 1 ? '' : 's'}. Select one to edit.`;
+  }
+  updateTimelinePlayhead();
+}
+
+function sanitizeTimelineForCurrentDuration() {
+  state.timelineSegments = sanitizeTimelineSegments(state.timelineSegments, timelineAvailable() ? video.duration : Infinity);
+  if (!state.timelineSegments.some((s) => s.id === state.selectedTimelineSegmentId)) {
+    state.selectedTimelineSegmentId = null;
+  }
+}
+
+function selectTimelineSegment(id, { applyLook = true } = {}) {
+  const seg = state.timelineSegments.find((s) => s.id === id);
+  if (!seg) return;
+  state.selectedTimelineSegmentId = id;
+  if (applyLook) {
+    _timelineApplyingLook = true;
+    try { applyLookToState(seg.look); }
+    finally { _timelineApplyingLook = false; }
+  }
+  renderTimelinePanel();
+  schedulePersist();
+}
+
+function addTimelineSegment() {
+  if (!timelineAvailable()) {
+    showToast('Load an uploaded video before adding timeline segments', 'error');
+    return;
+  }
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    return;
+  }
+  const gap = findTimelineGap(video.currentTime, Math.min(2, video.duration));
+  if (!gap) {
+    showToast('No empty timeline range available', 'error');
+    return;
+  }
+  const seg = makeTimelineSegment(gap.start, gap.end);
+  state.timelineSegments.push(seg);
+  sortTimelineInPlace();
+  selectTimelineSegment(seg.id, { applyLook: false });
+}
+
+function markTimelineStart() {
+  if (!timelineAvailable()) {
+    showToast('Load an uploaded video before marking a timeline segment', 'error');
+    return;
+  }
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    return;
+  }
+  _pendingTimelineStart = clamp(_timelineCursorPinnedTime ?? video.currentTime ?? 0, 0, video.duration);
+  _timelineCursorPinnedTime = _pendingTimelineStart;
+  state.selectedTimelineSegmentId = null;
+  video.currentTime = _pendingTimelineStart;
+  updateTimelineCursor(_timelineCursorPinnedTime, { pinned: true });
+  renderTimelinePanel();
+  showToast(`Segment start marked at ${formatTimePrecise(_pendingTimelineStart)}s`, 'ok', 1500);
+}
+
+function markTimelineEnd() {
+  if (!timelineAvailable() || _pendingTimelineStart === null) return;
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    return;
+  }
+  const rawEnd = clamp(_timelineCursorPinnedTime ?? video.currentTime ?? 0, 0, video.duration);
+  const start = Math.min(_pendingTimelineStart, rawEnd);
+  const end = Math.max(_pendingTimelineStart, rawEnd);
+  if (end - start < TIMELINE_MIN_SEGMENT_SECONDS) {
+    showToast('Timeline segment is too short', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  if (segmentOverlaps(start, end)) {
+    showToast('Timeline segments cannot overlap', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  const seg = makeTimelineSegment(start, end);
+  state.timelineSegments.push(seg);
+  _pendingTimelineStart = null;
+  _timelineCursorPinnedTime = rawEnd;
+  video.currentTime = rawEnd;
+  sortTimelineInPlace();
+  selectTimelineSegment(seg.id, { applyLook: false });
+}
+
+function duplicateTimelineSegment() {
+  const selected = selectedTimelineSegment();
+  if (!selected || !timelineAvailable()) return;
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    return;
+  }
+  const len = selected.end - selected.start;
+  const gap = findTimelineGap(selected.end, len);
+  if (!gap) {
+    showToast('No empty timeline range available for duplicate', 'error');
+    return;
+  }
+  const seg = makeTimelineSegment(gap.start, gap.end, selected.look);
+  seg.name = `SEG ${state.timelineSegments.length + 1}`;
+  state.timelineSegments.push(seg);
+  sortTimelineInPlace();
+  selectTimelineSegment(seg.id);
+}
+
+function deleteTimelineSegment() {
+  const selected = selectedTimelineSegment();
+  if (!selected) return;
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    return;
+  }
+  state.timelineSegments = state.timelineSegments.filter((s) => s.id !== selected.id);
+  state.selectedTimelineSegmentId = null;
+  renderTimelinePanel();
+  schedulePersist();
+}
+
+function captureSelectedTimelineLook() {
+  const selected = selectedTimelineSegment();
+  if (!selected) return;
+  selected.look = makeLookSnapshot(state);
+  renderTimelinePanel();
+  schedulePersist();
+  showToast('Timeline segment updated from current look', 'ok', 1800);
+}
+
+function updateSelectedTimelineRange() {
+  const selected = selectedTimelineSegment();
+  if (!selected || !timelineAvailable()) return;
+  if (_recorder) {
+    showToast('Stop recording before editing the timeline', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  const start = Number.parseFloat(timelineStart.value);
+  const end = Number.parseFloat(timelineEnd.value);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    showToast('Timeline range needs numeric seconds', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  const nextStart = clamp(start, 0, video.duration);
+  const nextEnd = clamp(end, 0, video.duration);
+  if (nextEnd - nextStart < TIMELINE_MIN_SEGMENT_SECONDS) {
+    showToast('Timeline segment is too short', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  if (segmentOverlaps(nextStart, nextEnd, selected.id)) {
+    showToast('Timeline segments cannot overlap', 'error');
+    renderTimelinePanel();
+    return;
+  }
+  selected.start = nextStart;
+  selected.end = nextEnd;
+  sortTimelineInPlace();
+  renderTimelinePanel();
+  schedulePersist();
+}
+
+timelineAdd?.addEventListener('click', addTimelineSegment);
+timelineMarkStart?.addEventListener('click', markTimelineStart);
+timelineMarkEnd?.addEventListener('click', markTimelineEnd);
+timelineDuplicate?.addEventListener('click', duplicateTimelineSegment);
+timelineDelete?.addEventListener('click', deleteTimelineSegment);
+timelineCapture?.addEventListener('click', captureSelectedTimelineLook);
+timelineStart?.addEventListener('change', updateSelectedTimelineRange);
+timelineEnd?.addEventListener('change', updateSelectedTimelineRange);
+timelineTrack?.addEventListener('pointermove', (e) => {
+  if (!timelineAvailable() || _recorder) return;
+  updateTimelineCursor(timelineTimeFromEvent(e), { pinned: false });
+});
+timelineTrack?.addEventListener('pointerleave', () => {
+  if (_timelineCursorPinnedTime === null && _timelineCursorEl) {
+    _timelineCursorEl.classList.add('hidden');
+  }
+});
+timelinePanel?.addEventListener('click', (e) => {
+  if (!timelineAvailable() || _recorder) return;
+  const segmentBtn = e.target.closest('.timeline-segment');
+  if (segmentBtn) return;
+  const rect = timelineTrack?.getBoundingClientRect();
+  if (!rect || e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+  const t = timelineTimeFromEvent(e);
+  _timelineCursorPinnedTime = t;
+  video.currentTime = t;
+  if (videoScrub && Number.isFinite(video.duration) && video.duration > 0) {
+    videoScrub.value = String(Math.round((t / video.duration) * 1000));
+  }
+  if (videoTime) videoTime.textContent = `${formatTime(t)} / ${formatTime(video.duration)}`;
+  updateTimelineCursor(t, { pinned: true });
+  updateTimelinePlayhead(t, findTimelineSegmentAt(t)?.id || null);
+}, true);
 
 video.addEventListener('loadedmetadata', () => {
   resizeCanvas();
@@ -2500,6 +3057,8 @@ video.addEventListener('loadedmetadata', () => {
     const current = fileStatus.textContent.split(' · ')[0];
     updateSourceLabel(`${current} · ${video.videoWidth}×${video.videoHeight}`);
   }
+  sanitizeTimelineForCurrentDuration();
+  renderTimelinePanel();
 });
 
 // ---- Drag & drop ----
@@ -2562,6 +3121,7 @@ videoScrub.addEventListener('input', () => {
   const t = (parseFloat(videoScrub.value) / 1000) * video.duration;
   video.currentTime = t;
   videoTime.textContent = `${formatTime(t)} / ${formatTime(video.duration)}`;
+  updateTimelinePlayhead(t, findTimelineSegmentAt(t)?.id || null);
 });
 videoScrub.addEventListener('change', () => { scrubbing = false; });
 
@@ -2570,6 +3130,7 @@ video.addEventListener('timeupdate', () => {
   const pct = video.currentTime / video.duration;
   videoScrub.value = String(Math.round(pct * 1000));
   videoTime.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+  updateTimelinePlayhead(video.currentTime, findTimelineSegmentAt(video.currentTime)?.id || null);
 });
 
 // Color key mode — native <input type="color"> wired to state.colorKeyHex.
@@ -2577,6 +3138,7 @@ if (colorKeyInput) {
   colorKeyInput.value = state.colorKeyHex;
   colorKeyInput.addEventListener('input', () => {
     state.colorKeyHex = colorKeyInput.value;
+    schedulePersist();
   });
 }
 if (inkLowInput) {
@@ -2671,7 +3233,7 @@ const _deadFilters   = new Map();  // tracker id → { filter, lastBlob, ttl }
 const _displayBlobs = new Map();   // id → smoothed blob
 
 function _smoothBlobsOneEuro(latest, canvasW) {
-  const smooth = state.trackStability;
+  const smooth = currentLook().trackStability;
   if (smooth <= 0.001) {
     if (_activeFilters.size) _activeFilters.clear();
     if (_deadFilters.size)   _deadFilters.clear();
@@ -2754,7 +3316,7 @@ function _smoothBlobsOneEuro(latest, canvasW) {
 // flipping BLOB_SMOOTH_BACKEND back is a single-character change. Do not
 // edit this without also reverting the doc comment above.
 function _smoothBlobsEMALegacy(latest) {
-  const smooth = state.trackStability;
+  const smooth = currentLook().trackStability;
   if (smooth <= 0.001) {
     if (_displayBlobs.size) _displayBlobs.clear();
     return latest;
@@ -2792,7 +3354,8 @@ function smoothBlobs(latest, canvasW) {
 }
 
 function needsBlobPipeline() {
-  return state.mode === 'track' || state.perBlob !== 'none';
+  const look = currentLook();
+  return look.mode === 'track' || look.perBlob !== 'none';
 }
 
 function resolveDetectScale(cw, ch) {
@@ -2842,6 +3405,19 @@ function renderFrame(nowDOMHi) {
 
   if (!activeSourceReady()) return;
   const srcEl = activeSourceEl();
+  const timelineResolved = resolveTimelineLook(video.currentTime || 0);
+  const runtimeSig = timelineRuntimeSignature(timelineResolved.look);
+  if (
+    timelineResolved.id !== _lastResolvedTimelineSegmentId ||
+    runtimeSig !== _lastResolvedTimelineRuntimeSig
+  ) {
+    resetAllState();
+    _lastResolvedTimelineSegmentId = timelineResolved.id;
+    _lastResolvedTimelineRuntimeSig = runtimeSig;
+  }
+  _renderLook = timelineResolved.look;
+  const look = currentLook();
+  updateTimelinePlayhead(video.currentTime || 0, timelineResolved.id);
 
   const cw = canvas.width;
   const ch = canvas.height;
@@ -2872,19 +3448,19 @@ function renderFrame(nowDOMHi) {
       const offImageData = offCtx.getImageData(0, 0, ow, oh);
 
       frameCount++;
-      if (frameCount % Math.max(1, state.updateInterval) === 0) {
-        const minSizeDetect = state.trackMinSize * detectScale;
-        const cap = Math.min(30, state.trackMaxBlobs);
-        if (state.trackChannel === 'color') {
-          const hex = state.colorKeyHex.replace('#', '');
+      if (frameCount % Math.max(1, look.updateInterval) === 0) {
+        const minSizeDetect = look.trackMinSize * detectScale;
+        const cap = Math.min(30, look.trackMaxBlobs);
+        if (look.trackChannel === 'color') {
+          const hex = look.colorKeyHex.replace('#', '');
           const cr = parseInt(hex.slice(0, 2), 16);
           const cg = parseInt(hex.slice(2, 4), 16);
           const cb = parseInt(hex.slice(4, 6), 16);
-          setColorKeyTarget(cr, cg, cb, state.colorKeyHueTol, state.colorKeySatMin, 0.10);
+          setColorKeyTarget(cr, cg, cb, look.colorKeyHueTol, look.colorKeySatMin, 0.10);
         } else {
           clearColorKeyTarget();
         }
-        const rawBlobs  = detectBlobs(offImageData, state.threshold, cap, state.trackChannel, minSizeDetect);
+        const rawBlobs  = detectBlobs(offImageData, look.threshold, cap, look.trackChannel, minSizeDetect);
         const sx = cw / ow, sy = ch / oh;
         const scaledRaw = rawBlobs.map(b => ({
           ...b, x: b.x*sx, y: b.y*sy, w: b.w*sx, h: b.h*sy, cx: b.cx*sx, cy: b.cy*sy,
@@ -2918,7 +3494,7 @@ function renderFrame(nowDOMHi) {
   // pre-rack behavior.
   //
   // Per-blob (Inv / Thermal) layers on top of all of this — see block below.
-  const pipe = resolveActivePipeline();
+  const pipe = resolveActivePipeline(look);
   const totalStages = (pipe.structure ? 1 : 0) + pipe.colors.length;
   if (totalStages > 0) {
     ensureContext(cw, ch);
@@ -3001,7 +3577,7 @@ function renderFrame(nowDOMHi) {
   // were retired with the rest of the legacy overlay UI; we hard-code
   // 1× scale + rect clipping so the legacy behavior survives untouched
   // under whatever blob extents Kalman tracks naturally.
-  if (state.perBlob !== 'none' && blobs.length > 0) {
+  if (look.perBlob !== 'none' && blobs.length > 0) {
     const full = ctx.getImageData(0, 0, cw, ch);
     let touched = false;
     for (const blob of blobs) {
@@ -3010,7 +3586,7 @@ function renderFrame(nowDOMHi) {
       const bw = Math.min(cw - bx, Math.ceil(blob.w));
       const bh = Math.min(ch - by, Math.ceil(blob.h));
       if (bw <= 0 || bh <= 0) continue;
-      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, state.perBlob, 'rect');
+      applyFilterToSubregion(full.data, cw, bx, by, bw, bh, look.perBlob, 'rect');
       touched = true;
     }
     if (touched) ctx.putImageData(full, 0, 0);
@@ -3022,8 +3598,8 @@ function renderFrame(nowDOMHi) {
   // visualization on a clean black backdrop (spec: "clean export for
   // VJs and analysts"). OVERLAY composite leaves the LumiSynth output
   // alone and paints overlays on top.
-  if (state.mode === 'track') {
-    if (state.trackComposite === 'isolated') {
+  if (look.mode === 'track') {
+    if (look.trackComposite === 'isolated') {
       ctx.save();
       ctx.fillStyle = '#0a0908'; // Match display-screen instead of pure black.
       ctx.fillRect(0, 0, cw, ch);
@@ -3031,35 +3607,36 @@ function renderFrame(nowDOMHi) {
     }
     // Build the opts bag for the overlay renderer. trackFxRack contributes
     // 0–3 effects, in slot order, only enabled non-empty slots.
-    const effects = state.trackFxRack
+    const effects = look.trackFxRack
       .filter((s) => s.enabled && s.type !== 'none')
       .map((s) => ({ type: s.type, params: s.params }));
     drawTrackOverlay(ctx, blobs, cw, ch, {
       shape: {
-        type:       state.trackShape,
-        hueColor:   state.trackShapeColor,
-        thickness:  state.trackShapeThickness,
-        padding:    state.trackShapePadding,
-        styleParam: state.trackShapeStyle,
+        type:       look.trackShape,
+        hueColor:   look.trackShapeColor,
+        thickness:  look.trackShapeThickness,
+        padding:    look.trackShapePadding,
+        styleParam: look.trackShapeStyle,
       },
       lines: {
-        type:      state.trackLines,
-        hueColor:  state.trackLinesColor,
-        thickness: state.trackLinesThickness,
-        param:     state.trackLinesParam,
-        taper:     state.trackLinesTaper,
+        type:      look.trackLines,
+        hueColor:  look.trackLinesColor,
+        thickness: look.trackLinesThickness,
+        param:     look.trackLinesParam,
+        taper:     look.trackLinesTaper,
       },
       effects,
       labels: {
-        show:        state.trackLabels,
-        markerStyle: state.trackLabelMarker,
-        fontSize:    state.trackLabelFontSize,
-        hueColor:    state.trackLabelColor,
+        show:        look.trackLabels,
+        markerStyle: look.trackLabelMarker,
+        fontSize:    look.trackLabelFontSize,
+        hueColor:    look.trackLabelColor,
       },
     });
   }
 
   if (fpsEnabled) updateFps(blobs.length);
+  _renderLook = null;
 }
 
 // ---- Help tooltip ----

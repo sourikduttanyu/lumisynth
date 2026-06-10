@@ -26,16 +26,20 @@ uniform vec3 uInkLow;
 uniform vec3 uInkHigh;
 out vec4 fragColor;
 
+float luma(vec3 rgb) {
+  return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
+  if (mode < 1.5) {
+    float srcLum = max(luma(src), 0.001);
+    float targetLum = mix(srcLum, structure, 0.55);
+    return clamp(src * (targetLum / srcLum), 0.0, 1.0);
+  }
   float poster = smoothstep(0.42, 0.58, structure);
   return mix(uInkLow, uInkHigh, poster);
-}
-
-float luma(vec3 rgb) {
-  return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 }
 
 float hash12(vec2 p) {

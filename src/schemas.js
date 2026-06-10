@@ -12,7 +12,12 @@
  * All consumers import from here. main.js owns `state` and all DOM.
  */
 
-export const STORAGE_KEY = 'lumisynth-state-v5';
+export const STORAGE_KEY = 'lumisynth-state-v6';
+export const TIMELINE_MIN_SEGMENT_SECONDS = 0.1;
+export const TIMELINE_DEFAULTS = Object.freeze({
+  timelineSegments: [],
+  selectedTimelineSegmentId: null,
+});
 
 // Color rack: 3 fixed slots, each holding one COLOR effect (or empty), with
 // per-slot enable/disable + drag-to-reorder. Renders in series — slot 0 reads
