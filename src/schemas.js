@@ -6,31 +6,34 @@
  *   - COLOR_PARAM_SCHEMAS: knob/toggle definitions for every color effect
  *   - FX_PARAM_SCHEMAS: knob definitions for FX RACK effects
  *   - TRACK_FX_PARAM_SCHEMAS: knob definitions for track FX effects
- *   - Effect name lists (STRUCTURE_SECTIONS, COLOR_SECTIONS, FX_SECTIONS)
+ *   - Effect name lists (STRUCTURE_SECTIONS, COLOR_MAP_SECTIONS,
+ *     COLOR_UNIQUE_SECTIONS, COLOR_SECTIONS, FX_SECTIONS)
  *   - BLEND_MODES: effect → Canvas 2D composite operation
- *   - Rack factory functions (makeColorRack, makeFxRack, makeTrackFxRack, etc.)
+ *   - Factory functions (makeFactoryParams, makeFxRack, makeTrackFxRack, etc.)
  *
  * All consumers import from here. main.js owns `state` and all DOM.
  */
 
-// v7: saved-state schema gains `fxRack` (FX RACK went from placeholder to a
-// real 3-slot GL rack). sanitizeLook tolerates its absence, so v6 saves load
+// v7: saved-state schema gained `fxRack` (FX RACK went from placeholder to a
+// real 3-slot GL rack).
+// v8: the 3-slot COLOR rack collapsed into a single COLOR stage — `colorRack`
+// is replaced by `color` (selected effect), `colorParams` (per-effect knob
+// memory), and `colorHue`/`colorSat` (always-on grade pass). sanitizeLook
+// migrates old colorRack saves (first enabled slot wins), so v6/v7 saves load
 // cleanly through the legacy-key migration path.
-export const STORAGE_KEY = 'lumisynth-state-v7';
+export const STORAGE_KEY = 'lumisynth-state-v8';
 export const TIMELINE_MIN_SEGMENT_SECONDS = 0.1;
 export const TIMELINE_DEFAULTS = Object.freeze({
   timelineSegments: [],
   selectedTimelineSegmentId: null,
 });
 
-// Color rack: 3 fixed slots, each holding one COLOR effect (or empty), with
-// per-slot enable/disable + drag-to-reorder. Renders in series — slot 0 reads
-// STRUCTURE's output (or raw video), each subsequent slot reads the previous
-// slot's output. Disabled slots are skipped in the chain entirely.
-//
-// Always exactly RACK_SLOTS slots — the user fills, empties, and reorders
-// them but never adds/removes the slot itself. Keeping a fixed-shape array
-// makes the DOM stable for drag-and-drop and simplifies persistence.
+// Rack slot count for the FX RACK and TRACK FX rack: 3 fixed slots, each
+// holding one effect (or empty), with per-slot enable/disable +
+// drag-to-reorder. Always exactly RACK_SLOTS slots — the user fills, empties,
+// and reorders them but never adds/removes the slot itself. Keeping a
+// fixed-shape array makes the DOM stable for drag-and-drop and simplifies
+// persistence. (The COLOR rack was retired in v8 — COLOR is a single stage.)
 export const RACK_SLOTS = 3;
 
 export const DEFAULTS = Object.freeze({
@@ -40,10 +43,18 @@ export const DEFAULTS = Object.freeze({
   // SYNTH-mode pipeline.
   // - structure: 'none' | 'ascii' | 'erode' | 'watershed' | 'pixelsort' | 'melt'
   // - structureOutputMode: 'mono' | 'source' | 'ink'
-  // - colorRack: array of 3 slots (see makeColorRack()) — initialized at
-  //   startup, not in DEFAULTS, because each slot has a fresh per-instance id.
+  // - color: 'none' | any COLOR_SECTIONS name — the single selected COLOR
+  //   stage (the 3-slot rack was retired in v8; layering happens on the
+  //   timeline, one look per segment).
+  // - colorParams: { [effectName]: {param: value} } — per-effect knob memory,
+  //   lazily seeded with factory defaults on first pick. Lives outside
+  //   DEFAULTS (object-valued); sanitized by sanitizeLook in main.js.
+  // - colorHue / colorSat: always-on GRADE pass applied after the selected
+  //   color (and even with color='none'). colorHue 0..1 → 0..360° rotation;
+  //   colorSat 0..1 with 0.5 = neutral → 0..2× saturation.
   // - perBlob: 'none' | 'inv' | 'thermal' (legacy holding pen)
   structure: 'none', structureOutputMode: 'mono', perBlob: 'none',
+  color: 'none', colorHue: 0, colorSat: 0.5,
   inkBlackHex: '#0a0908', inkCreamHex: '#ebe0c7',
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
   erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
@@ -302,6 +313,69 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['sat', 'red', 'glow', 'boost'],
   },
+  // CUSTOM tab — the ChromaEngine. User-built 4-stop color ramp + a driver
+  // select choosing which scalar feeds the ramp. The 4 stops are hex strings
+  // in `colors` (passed to the shader as vec3 uniforms via opts.stops, same
+  // mechanism as the ink colors), NOT packed into uParams.
+  chroma: {
+    knobs: [
+      { key: 'bands', label: 'Bands', min: 0, max: 1, step: 0.01, default: 0,   tip: 'Posterize the ramp into discrete bands. 0 = smooth continuous gradient. Higher = fewer, chunkier color steps (3-16 bands).' },
+      { key: 'gamma', label: 'Gamma', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shapes the driver before it hits the ramp. Low = crushed toward the first stops. High = lifted toward the last stops. 0.5 = linear.' },
+    ],
+    toggles: [
+      { key: 'driver', label: 'Driver', default: 0, options: [
+        { value: 0, label: 'Luma',  tip: 'Brightness drives the ramp. Dark pixels → first stop, bright → last.' },
+        { value: 1, label: 'Inv',   tip: 'Inverted brightness drives the ramp. Bright pixels → first stop.' },
+        { value: 2, label: 'Sat',   tip: 'Saturation drives the ramp. Grey pixels → first stop, vivid → last.' },
+        { value: 3, label: 'Edge',  tip: 'Edge magnitude drives the ramp. Flat areas → first stop, edges → last.' },
+        { value: 4, label: 'Radial',tip: 'Distance from frame center drives the ramp. Center → first stop, corners → last.' },
+      ]},
+    ],
+    colors: [
+      { key: 'stop0', label: 'Stop 1', default: '#050814', tip: 'First ramp stop — the floor (driver = 0).' },
+      { key: 'stop1', label: 'Stop 2', default: '#2b1b6b', tip: 'Second ramp stop (driver ≈ 0.33).' },
+      { key: 'stop2', label: 'Stop 3', default: '#c93f9b', tip: 'Third ramp stop (driver ≈ 0.66).' },
+      { key: 'stop3', label: 'Stop 4', default: '#cfe9ff', tip: 'Last ramp stop — the peak (driver = 1).' },
+    ],
+    order: ['driver', 'bands', 'gamma'],
+  },
+};
+
+
+// ============================================================
+// FX RACK — 3-slot rack of post/texture stages running AFTER the COLOR
+// stage + GRADE (signal flow: STRUCTURE → COLOR → GRADE → FX RACK).
+// Two kinds of effect live here, distinguished by the `feedback` flag:
+//   - feedback: true  — stateful temporal passes in glFx.js; each slot keeps
+//     a persistent feedback texture between frames (flowfield).
+//   - no flag (stateless) — single-frame signal/texture passes whose shaders
+//     live in glFilters.js FRAGS (bloom, CRT, grain, etc). Same dispatch as
+//     COLOR effects, just racked after the color stage.
+// `order` maps slot params to the shader's uParams.xyzw, exactly like
+// COLOR_PARAM_SCHEMAS.
+// ============================================================
+export const FX_PARAM_SCHEMAS = {
+  flowfield: {
+    feedback: true,
+    knobs: [
+      { key: 'speed',   label: 'Flow',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow speed. How far pixels advect along the luma-gradient flow field each frame. 0 = static. 1 = fast swirling drift.' },
+      { key: 'persist', label: 'Persist', min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Trail persistence. How much of the previous frame\'s trails carries forward. Near 1 = long-lived accumulating trails. Low = trails die in a few frames.' },
+      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Trail brightness. How strongly gradient edges inject new energy into the trail buffer each frame.' },
+      { key: 'blend',   label: 'Blend',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Source blend. 0 = pure trail field. 1 = source image with trails layered over it.' },
+    ],
+    toggles: [],
+    order: ['speed', 'persist', 'bright', 'blend'],
+  },
+  bloom: {
+    knobs: [
+      { key: 'thresh',  label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = everything glows. 1 = only the brightest areas bloom.' },
+      { key: 'intens',  label: 'Intens', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = subtle haze. 1 = blazing glow.' },
+      { key: 'blue',    label: 'Blue',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = natural color bloom. 0.5 = blue neon tint. 1 = deep blue energy.' },
+      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: '0 = tight glow close to source. 1 = wide soft bloom.' },
+    ],
+    toggles: [],
+    order: ['thresh', 'intens', 'blue', 'radius'],
+  },
   decayflow: {
     knobs: [
       { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow advection speed. How fast pixels drift along the gradient field.' },
@@ -322,15 +396,15 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['warp', 'persist', 'inject', 'mode'],
   },
-  bloom: {
+  crt: {
     knobs: [
-      { key: 'thresh',  label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = everything glows. 1 = only the brightest areas bloom.' },
-      { key: 'intens',  label: 'Intens', min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: '0 = subtle haze. 1 = blazing glow.' },
-      { key: 'blue',    label: 'Blue',   min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = natural color bloom. 0.5 = blue neon tint. 1 = deep blue energy.' },
-      { key: 'radius',  label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: '0 = tight glow close to source. 1 = wide soft bloom.' },
+      { key: 'phosphor', label: 'Phosphor', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = clean. 1 = visible RGB phosphor subpixel grid.' },
+      { key: 'bloom',    label: 'Bloom',    min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = sharp. 1 = bright areas bleed and glow.' },
+      { key: 'barrel',   label: 'Barrel',   min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = flat. 1 = curved CRT screen barrel distortion.' },
+      { key: 'scanline', label: 'Scanline', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = no scanlines. 1 = heavy dark horizontal lines.' },
     ],
     toggles: [],
-    order: ['thresh', 'intens', 'blue', 'radius'],
+    order: ['phosphor', 'bloom', 'barrel', 'scanline'],
   },
   crtrolling: {
     knobs: [
@@ -341,16 +415,6 @@ export const COLOR_PARAM_SCHEMAS = {
     ],
     toggles: [],
     order: ['freq', 'amp', 'lumod', 'speed'],
-  },
-  noise: {
-    knobs: [
-      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Grain amount. 0 = clean. 1 = heavy noise.' },
-      { key: 'size',   label: 'Size',   min: 0, max: 1, step: 0.01, default: 0.2, control: 'slider', tip: 'Grain size. 0 = fine 35mm. 1 = chunky 8mm.' },
-      { key: 'shadow', label: 'Shadow', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shadow bias. 0 = uniform grain. 1 = heavier grain in dark areas.' },
-      { key: 'color',  label: 'Color',  min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = monochromatic grain. 1 = RGB color noise.' },
-    ],
-    toggles: [],
-    order: ['amount', 'size', 'shadow', 'color'],
   },
   scanlines: {
     knobs: [
@@ -372,40 +436,22 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['bitdepth', 'dither', 'bleed', 'pixelate'],
   },
-  crt: {
+  noise: {
     knobs: [
-      { key: 'phosphor', label: 'Phosphor', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = clean. 1 = visible RGB phosphor subpixel grid.' },
-      { key: 'bloom',    label: 'Bloom',    min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = sharp. 1 = bright areas bleed and glow.' },
-      { key: 'barrel',   label: 'Barrel',   min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = flat. 1 = curved CRT screen barrel distortion.' },
-      { key: 'scanline', label: 'Scanline', min: 0, max: 1, step: 0.01, default: 0.3, tip: '0 = no scanlines. 1 = heavy dark horizontal lines.' },
+      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Grain amount. 0 = clean. 1 = heavy noise.' },
+      { key: 'size',   label: 'Size',   min: 0, max: 1, step: 0.01, default: 0.2, control: 'slider', tip: 'Grain size. 0 = fine 35mm. 1 = chunky 8mm.' },
+      { key: 'shadow', label: 'Shadow', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shadow bias. 0 = uniform grain. 1 = heavier grain in dark areas.' },
+      { key: 'color',  label: 'Color',  min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = monochromatic grain. 1 = RGB color noise.' },
     ],
     toggles: [],
-    order: ['phosphor', 'bloom', 'barrel', 'scanline'],
+    order: ['amount', 'size', 'shadow', 'color'],
   },
 };
 
-// ============================================================
-// FX RACK — same 3-slot pattern as colorRack, but for stateful feedback
-// effects that run AFTER the COLOR rack (signal flow: STRUCTURE → COLOR →
-// FX RACK). These are temporal: each effect keeps a persistent feedback
-// texture between frames (see glFx.js), unlike the stateless COLOR passes.
-// `order` maps slot params to the shader's uParams.xyzw, exactly like
-// COLOR_PARAM_SCHEMAS.
-// ============================================================
-export const FX_PARAM_SCHEMAS = {
-  flowfield: {
-    knobs: [
-      { key: 'speed',   label: 'Flow',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow speed. How far pixels advect along the luma-gradient flow field each frame. 0 = static. 1 = fast swirling drift.' },
-      { key: 'persist', label: 'Persist', min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Trail persistence. How much of the previous frame\'s trails carries forward. Near 1 = long-lived accumulating trails. Low = trails die in a few frames.' },
-      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Trail brightness. How strongly gradient edges inject new energy into the trail buffer each frame.' },
-      { key: 'blend',   label: 'Blend',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Source blend. 0 = pure trail field. 1 = source image with trails layered over it.' },
-    ],
-    toggles: [],
-    order: ['speed', 'persist', 'bright', 'blend'],
-  },
-};
-
-export const FX_SECTIONS = ['flowfield'];
+export const FX_SECTIONS = [
+  'flowfield', 'bloom', 'decayflow', 'feedbackwarp',
+  'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
+];
 
 // ============================================================
 // TRACK FX RACK — same 3-slot pattern as colorRack but for the spec's
@@ -444,13 +490,30 @@ export const TRACK_FX_PARAM_SCHEMAS = {
 };
 
 export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'watershed', 'pixelsort', 'melt'];
-export const COLOR_SECTIONS = [
+// The MAPS tab of the COLOR picker — pure per-pixel color mapping (ramps,
+// grades, palette swaps; no neighbor sampling, no added elements). Adding a
+// map here (plus its schema/shader/label entries) is all the picker needs;
+// the grid is built from this list at startup.
+export const COLOR_MAP_SECTIONS = [
   'oxide','synth','biolum','thermo','falsecolor',
-  'depthstack','prismatic','acidwash','xray','heatbleed',
-  'nebula','solarize','aurorastorm','cyanotype','infrared',
-  'neontube','deepfield','decayflow','feedbackwarp','bloom',
-  'crtrolling','noise','scanlines','degrade','crt',
+  'acidwash','xray','solarize','cyanotype','infrared',
 ];
+// The UNIQUE tab — effects that BUILD something: they sample neighbors, add
+// elements (stars, halos, streaks), displace, or glow. Grouped into labeled
+// categories rendered as in-grid headers; categories are seeded buckets for
+// future TouchDesigner ports — add an effect to a category (or add a new
+// category row) and the grid builds itself. Still stateless single-frame
+// passes: anything that needs to ACCUMULATE across frames belongs in the
+// FX RACK instead.
+export const COLOR_UNIQUE_SECTIONS = [
+  { key: 'atmosphere', label: 'Atmosphere', effects: ['nebula', 'aurorastorm', 'deepfield'] },
+  { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed'] },
+  { key: 'dimension',  label: 'Dimension',  effects: ['depthstack'] },
+];
+export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
+// Every valid value of state.color (except 'none'): maps + unique effects +
+// the CUSTOM tab's ChromaEngine. Validation/migration checks against this.
+export const COLOR_SECTIONS = [...COLOR_MAP_SECTIONS, ...COLOR_UNIQUE_FLAT, 'chroma'];
 
 // No GL_RESETS: all current structure effects are stateless single-frame ops.
 export const GL_RESETS = {};
@@ -491,41 +554,35 @@ export const BLEND_MODES = {
   scanlines:    'source-over',
   degrade:      'source-over',
   crt:          'source-over',
+  chroma:       'source-over',
+  // Internal GRADE pass (hue rotate + saturation) — auto-appended after the
+  // COLOR stage by resolveActivePipeline; never appears in any picker.
+  grade:        'source-over',
   flowfield:    'source-over',
 };
 
 // ---- Factory functions ----
 
-// Build a fresh factory-defaults params object for an effect type. Every
-// new slot pick goes through this — the user's request was "factory" for
-// every slot (not "inherit current global tweaks"), so this is the only
-// initializer for slot params. There's no "inherit" path.
+// Build a fresh factory-defaults params object for a COLOR effect type.
+// Seeds colorParams[type] the first time an effect is picked. Includes
+// knob/toggle numeric defaults AND `colors` hex-string defaults (chroma's
+// ramp stops).
 export function makeFactoryParams(type) {
   const schema = COLOR_PARAM_SCHEMAS[type];
   if (!schema) return {};
   const p = {};
-  for (const k of schema.knobs)   p[k.key] = k.default;
-  for (const t of schema.toggles) p[t.key] = t.default;
+  for (const k of schema.knobs)        p[k.key] = k.default;
+  for (const t of schema.toggles)      p[t.key] = t.default;
+  for (const c of schema.colors || []) p[c.key] = c.default;
   return p;
 }
 
 // Per-instance slot ids. Used as DOM keys + drag-and-drop identity. Stable
 // across re-renders so dragging a slot doesn't recreate its DOM mid-drag.
+// (Also used as timeline segment ids.)
 export function makeSlotId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export function makeColorRack() {
-  return Array.from({ length: RACK_SLOTS }, () => ({
-    id: makeSlotId(),
-    type: 'none',
-    enabled: false,
-    // Per-slot params — factory defaults via makeFactoryParams when the
-    // slot is filled. Empty slots carry an empty {} so the field is always
-    // present (avoids undefined checks throughout the render path).
-    params: {},
-  }));
 }
 
 export function makeFxFactoryParams(type) {

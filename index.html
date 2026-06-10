@@ -182,45 +182,50 @@
           </div>
         </section>
 
-        <!-- ============ COLOR ============ -->
-        <!-- COLOR rack untouched per "ignore color and fx for now". -->
-        <div class="stage-divider" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">stack · 0–3 chained</span></div>
+        <!-- ============ COLOR (single stage, v8) ============ -->
+        <div class="stage-divider" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">one stage · graded</span></div>
 
         <section class="control-section" data-mode-section="synth">
-          <div class="section-label" id="lbl-color">Slots</div>
-          <div class="color-rack" id="color-rack" role="list" aria-labelledby="lbl-color"
-               data-tip="Up to 3 color stages chained in series. Each slot reads the previous slot's output. Drag the handle to reorder; toggle to A/B without losing the slot; × clears.">
+          <div class="toggle-group" id="color-tab-group" role="tablist" aria-label="Color source tabs">
+            <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   data-tip="The map library — pure per-pixel color shaders, one click each.">Maps</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" data-tip="Unique effects — shaders that build something: atmosphere, light phenomena, depth. Grouped by category.">Unique</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" data-tip="ChromaEngine — build your own 4-stop color ramp and pick what drives it.">Custom</button>
+          </div>
+
+          <!-- MAPS tab: swatch grid + knobs for the selected map. Grid is
+               built at startup from COLOR_MAP_SECTIONS in main.js — adding a
+               map needs no markup here. -->
+          <div id="color-tab-maps">
+            <div class="toggle-group filter-swatch-group color-maps-grid" id="color-maps-grid" role="radiogroup" aria-label="Color map library"></div>
+            <div id="color-maps-knob-panel"></div>
+          </div>
+
+          <!-- UNIQUE tab: categorized swatch grid built at startup from
+               COLOR_UNIQUE_SECTIONS in schemas.js — categories render as
+               in-grid headers; adding an effect needs no markup here. -->
+          <div id="color-tab-unique" class="hidden color-source-tab">
+            <div id="color-unique-grid" aria-label="Unique color effects"></div>
+            <div id="color-unique-knob-panel"></div>
+          </div>
+
+          <!-- CUSTOM tab: the ChromaEngine. Driver select + 4 ramp stops +
+               shaping knobs, all built from the chroma schema in main.js. -->
+          <div id="color-tab-custom" class="hidden color-source-tab">
+            <div class="section-label" id="lbl-chroma-driver">Driver</div>
+            <div class="toggle-group" id="chroma-driver-group" role="radiogroup" aria-labelledby="lbl-chroma-driver"></div>
+            <div class="section-label" id="lbl-chroma-stops">Ramp stops</div>
+            <div class="color-picker-row ink-color-row" id="chroma-stop-row" aria-labelledby="lbl-chroma-stops"></div>
+            <div id="chroma-knob-panel"></div>
+          </div>
+
+          <!-- GRADE: always-on post pass over whatever color is selected
+               (or raw video when None). Static state knobs. -->
+          <div class="section-label" id="lbl-grade">Grade</div>
+          <div class="knob-cluster" aria-labelledby="lbl-grade">
+            <div class="knob" id="color-hue" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Grade Hue Rotate" data-tip="Hue rotation applied after the color stage (0–360°). Spin any map into your blues / violets / magentas. Works even with no color selected." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="color-hue-val">0</span></div>
+            <div class="knob" id="color-sat" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Grade Saturation" data-tip="Saturation applied after the color stage. 0.5 = neutral. Below = desaturate toward grey; above = boost up to 2×." tabindex="0"><span class="knob-label">Sat</span><span class="knob-val" id="color-sat-val">0.5</span></div>
           </div>
         </section>
-
-        <div class="color-picker-popover hidden" id="color-picker-popover" role="dialog" aria-label="Pick a color for this slot">
-          <button type="button" class="color-pick" data-pick-color="none"         data-tip="Clear this slot. Slot becomes empty and is skipped in the chain.">None</button>
-          <button type="button" class="color-pick" data-pick-color="oxide"        data-tip="Oxide / patina material. Re-skins the input as corroded metal.">Oxide</button>
-          <button type="button" class="color-pick" data-pick-color="synth"        data-tip="Synthwave color grade. Maps luma to a 6-band palette.">Synth</button>
-          <button type="button" class="color-pick" data-pick-color="biolum"       data-tip="Bioluminescent glow. Re-tints the input as deep-water bioluminescence.">BioLum</button>
-          <button type="button" class="color-pick" data-pick-color="thermo"       data-tip="Thermal-camera ramp. Maps luma to deep blue → cyan → yellow → red → white.">Thermo</button>
-          <button type="button" class="color-pick" data-pick-color="falsecolor"   data-tip="False-color palette swap. Cross-fades between four palettes.">FalseClr</button>
-          <button type="button" class="color-pick" data-pick-color="depthstack"   data-tip="Holographic spectral depth planes. Banded color zones shift with luminance gradients.">DepthStack</button>
-          <button type="button" class="color-pick" data-pick-color="prismatic"    data-tip="Warm spectral dispersion. Prismatic chromatic aberration with yellow-pink spectrum.">Prismatic</button>
-          <button type="button" class="color-pick" data-pick-color="acidwash"     data-tip="Psychedelic color banding. Sine-folded hue mapping creates repeating color cycles.">AcidWash</button>
-          <button type="button" class="color-pick" data-pick-color="xray"         data-tip="Medical radiograph aesthetic. Inverted exposure, edge enhancement, film tint.">X-Ray</button>
-          <button type="button" class="color-pick" data-pick-color="heatbleed"    data-tip="Thermal color that bleeds spatially based on intensity. Hot colors spread outward.">HeatBleed</button>
-          <button type="button" class="color-pick" data-pick-color="nebula"       data-tip="Cosmic gas cloud palette. Emission, reflection, or planetary nebula aesthetics.">Nebula</button>
-          <button type="button" class="color-pick" data-pick-color="solarize"     data-tip="Solarization / Sabattier effect. Tone folding at a luminance threshold.">Solarize</button>
-          <button type="button" class="color-pick" data-pick-color="aurorastorm"  data-tip="Violent solar storm aurora. Vertical curtain streaks with extreme color bands.">Aurora</button>
-          <button type="button" class="color-pick" data-pick-color="cyanotype"    data-tip="Blueprint paper aesthetic. Deep cobalt to pale cyan with paper grain.">Cyanotype</button>
-          <button type="button" class="color-pick" data-pick-color="infrared"     data-tip="Aerochrome infrared film. Magentas in foliage zones, deep blue shadows.">Infrared</button>
-          <button type="button" class="color-pick" data-pick-color="neontube"     data-tip="Emissive neon line-art. Edges glow as bright neon cores with atmospheric halo.">NeonTube</button>
-          <button type="button" class="color-pick" data-pick-color="deepfield"    data-tip="Hubble Ultra Deep Field aesthetic. Dark void with warm redshifted galaxy colors.">DeepField</button>
-          <button type="button" class="color-pick" data-pick-color="decayflow"    data-tip="Flow field advection trails. Pixels drift along gradient directions leaving color residue.">DecayFlow</button>
-          <button type="button" class="color-pick" data-pick-color="feedbackwarp" data-tip="Gradient-driven warp feedback. Image warped by its own luminance field recursively.">FbWarp</button>
-          <button type="button" class="color-pick" data-pick-color="bloom"        data-tip="Neon bloom glow. Bright areas spread with a blue energy halo.">Bloom</button>
-          <button type="button" class="color-pick" data-pick-color="crtrolling"   data-tip="CRT rolling distortion. Vertical sine waves with luma modulation and chroma offset.">CRT Roll</button>
-          <button type="button" class="color-pick" data-pick-color="noise"        data-tip="Adaptive film grain / sensor noise with shadow bias and optional color noise.">Noise</button>
-          <button type="button" class="color-pick" data-pick-color="scanlines"    data-tip="CRT/VHS scanline artifacts with per-row jitter and RGB fringing.">Scanlines</button>
-          <button type="button" class="color-pick" data-pick-color="degrade"      data-tip="Bit depth reduction and color banding. Macroblocks, dithering, pixelation.">Degrade</button>
-          <button type="button" class="color-pick" data-pick-color="crt"          data-tip="Full CRT simulation. Phosphor subpixels, bloom, barrel distortion, scanlines.">CRT</button>
-        </div>
 
         <!-- ============ FX RACK ============ -->
         <div class="stage-divider" data-stage="fx-rack" data-mode-section="synth">FX RACK <span class="stage-sub">chain · 0–3 slots</span></div>
@@ -232,10 +237,9 @@
           </div>
         </section>
 
-        <div class="color-picker-popover hidden" id="fx-picker-popover" role="dialog" aria-label="Pick an FX effect for this slot">
-          <button type="button" class="color-pick" data-pick-fx="none"      data-tip="Clear this slot. Slot becomes empty and is skipped in the chain.">None</button>
-          <button type="button" class="color-pick" data-pick-fx="flowfield" data-tip="Flow Field. Advects pixels along the luma-gradient flow and accumulates feedback trails frame over frame.">FlowField</button>
-        </div>
+        <!-- FX picker buttons are built at startup from FX_SECTIONS in
+             main.js (buildFxPicker) — adding an FX effect needs no markup. -->
+        <div class="color-picker-popover hidden" id="fx-picker-popover" role="dialog" aria-label="Pick an FX effect for this slot"></div>
 
         <!-- ============ PER-BLOB (legacy, untouched per "ignore fx") ============ -->
         <div class="stage-divider" data-stage="perblob">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>

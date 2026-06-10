@@ -790,6 +790,57 @@ label.section-label { cursor: pointer; }
    placeholder markup. */
 
 /* ============================================================
+   COLOR — single-stage tabbed UI (v8). MAPS and UNIQUE grids reuse
+   .filter-swatch-group mechanics with per-button inline gradient
+   backgrounds (set from COLOR_SWATCH_GRADIENTS in main.js); the scrim
+   pseudo-element keeps labels readable. UNIQUE renders labeled category
+   headers between its rows (data: COLOR_UNIQUE_SECTIONS). Kept light:
+   small buttons, generous rhythm, hairline accents only.
+   ============================================================ */
+#color-tab-group { margin-bottom: var(--space-md); }
+
+.color-maps-grid {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px; /* keep the orange active border clear of the scrollbar */
+}
+.color-maps-grid .toggle-btn { min-height: 32px; font-size: 10px; }
+
+#color-maps-knob-panel,
+#color-unique-knob-panel,
+#chroma-knob-panel {
+  margin-top: var(--space-md);
+}
+
+/* UNIQUE tab: small uppercase category headers between swatch rows.
+   Dimmer + smaller than .section-label so the tab reads as one library
+   with shelves, not three stacked sections. */
+.color-grid-category {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-sm) 0 var(--space-xs);
+}
+.color-grid-category:first-child { margin-top: 0; }
+.color-unique-row { margin-bottom: var(--space-xs); }
+
+/* Subtle "this tab's engine is the live selection" indicator: the orange
+   signal as a hairline on the tab body. Class toggled by
+   updateColorActiveStates() — never a rebuild. */
+.color-source-tab { border-left: 2px solid transparent; padding-left: var(--space-sm); }
+.color-source-tab.color-source-active { border-left-color: var(--orange-signal); }
+
+/* GRADE sits below whichever tab is open — give it a hairline of its own
+   so it reads as the stage's permanent output row. */
+#lbl-grade {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-hairline);
+}
+
+/* ============================================================
    ACTION + TOGGLE BUTTONS
    ============================================================ */
 .action-btn {

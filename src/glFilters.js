@@ -1107,6 +1107,83 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+// CHROMA — the ChromaEngine: user-built 4-stop ramp + driver select.
+// uParams.x = driver (0 luma / 1 inverted / 2 saturation / 3 edge / 4 radial),
+// y = bands (0 = smooth, else 3-16 posterize steps), z = gamma shaping.
+// The 4 ramp stops arrive as vec3 uniforms (uStop0..3) via opts.stops — same
+// out-of-band mechanism as the ink colors, since they don't fit in uParams.
+const FRAG_CHROMA = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform vec3 uStop0;
+uniform vec3 uStop1;
+uniform vec3 uStop2;
+uniform vec3 uStop3;
+out vec4 fragColor;
+float lumaAt(vec2 uv) { return dot(texture(u_video, uv).rgb, vec3(0.299,0.587,0.114)); }
+void main() {
+  vec2 uv = vUV;
+  vec3 src = texture(u_video, uv).rgb;
+  float lum = dot(src, vec3(0.299,0.587,0.114));
+  float t;
+  float driver = uParams.x;
+  if (driver < 0.5) {
+    t = lum;
+  } else if (driver < 1.5) {
+    t = 1.0 - lum;
+  } else if (driver < 2.5) {
+    float mx = max(src.r, max(src.g, src.b));
+    float mn = min(src.r, min(src.g, src.b));
+    t = mx > 0.001 ? (mx - mn) / mx : 0.0;
+  } else if (driver < 3.5) {
+    vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+    float gx = lumaAt(uv + vec2(texel.x, 0.0)) - lumaAt(uv - vec2(texel.x, 0.0));
+    float gy = lumaAt(uv + vec2(0.0, texel.y)) - lumaAt(uv - vec2(0.0, texel.y));
+    t = clamp(length(vec2(gx, gy)) * 4.0, 0.0, 1.0);
+  } else {
+    t = clamp(length(uv - 0.5) / 0.7071, 0.0, 1.0);
+  }
+  // Gamma shaping: 0.5 = linear, low crushes toward stop0, high lifts.
+  t = pow(clamp(t, 0.0, 1.0), mix(2.2, 0.45, uParams.z));
+  // Optional banding: knob maps to 3-16 discrete steps.
+  if (uParams.y > 0.03) {
+    float n = mix(3.0, 16.0, uParams.y);
+    t = floor(t * n) / max(n - 1.0, 1.0);
+    t = clamp(t, 0.0, 1.0);
+  }
+  // 4-stop piecewise ramp.
+  vec3 col;
+  float seg = t * 3.0;
+  if      (seg < 1.0) col = mix(uStop0, uStop1, seg);
+  else if (seg < 2.0) col = mix(uStop1, uStop2, seg - 1.0);
+  else                col = mix(uStop2, uStop3, clamp(seg - 2.0, 0.0, 1.0));
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+// GRADE — internal post pass for the COLOR stage's always-on Hue/Sat knobs.
+// Auto-appended after the selected color (or alone, grading raw video) by
+// resolveActivePipeline; never appears in a picker.
+// uParams.x = hue rotation (0..1 → 0..360°), y = saturation (0.5 neutral → 0..2×).
+const FRAG_GRADE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec3 col = texture(u_video, vUV).rgb;
+  float angle = uParams.x * 6.2831853;
+  // Hue rotation about the luma axis (Rodrigues on the grey diagonal).
+  float c = cos(angle), s = sin(angle);
+  vec3 k = vec3(0.57735);
+  col = col * c + cross(k, col) * s + k * dot(k, col) * (1.0 - c);
+  float lum = dot(col, vec3(0.299,0.587,0.114));
+  col = mix(vec3(lum), col, clamp(uParams.y * 2.0, 0.0, 2.0));
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
@@ -1139,6 +1216,12 @@ const FRAGS = {
   scanlines:    FRAG_SCANLINES,
   degrade:      FRAG_DEGRADE,
   crt:          FRAG_CRT,
+  // Single-COLOR stage additions (v8). Note: the stateless FX RACK effects
+  // (bloom, decayflow, feedbackwarp, crt, crtrolling, scanlines, degrade,
+  // noise) also live in this registry — runFxEffect dispatches them through
+  // applyGLFilter; only feedback effects route to glFx.js.
+  chroma:       FRAG_CHROMA,
+  grade:        FRAG_GRADE,
 };
 
 // ---- WebGL helpers ----
@@ -1190,6 +1273,8 @@ function getProgram(name) {
     outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
     inkLow: gl.getUniformLocation(prog, 'uInkLow'),
     inkHigh: gl.getUniformLocation(prog, 'uInkHigh'),
+    // ChromaEngine ramp stops (null for every other effect).
+    stops: [0, 1, 2, 3].map((i) => gl.getUniformLocation(prog, `uStop${i}`)),
   };
   _programs[name] = entry;
   return entry;
@@ -1229,6 +1314,13 @@ export function applyGLFilter(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
     const inkHigh = opts.inkHigh ?? [0.92, 0.88, 0.78];
     gl.uniform3f(entry.inkLow, inkLow[0], inkLow[1], inkLow[2]);
     gl.uniform3f(entry.inkHigh, inkHigh[0], inkHigh[1], inkHigh[2]);
+  }
+  if (opts.stops) {
+    for (let i = 0; i < 4; i++) {
+      if (entry.stops[i] && opts.stops[i]) {
+        gl.uniform3f(entry.stops[i], opts.stops[i][0], opts.stops[i][1], opts.stops[i][2]);
+      }
+    }
   }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
