@@ -846,6 +846,46 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+const FRAG_SEQUIN = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uTime;
+out vec4 fragColor;
+float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec3 hsv2rgb(vec3 c) { vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0); vec3 q = abs(fract(c.xxx + K.xyz) * 6.0 - K.www); return c.z * mix(K.xxx, clamp(q - K.xxx, 0.0, 1.0), c.y); }
+vec3 grad3(float x, vec3 a, vec3 b, vec3 c) { return x < 0.5 ? mix(a, b, x * 2.0) : mix(b, c, (x - 0.5) * 2.0); }
+void main() {
+  float luma = dot(texture(u_video, vUV).rgb, vec3(0.299, 0.587, 0.114));
+  float t = uTime;
+  float spd = uParams.w;
+  float L = clamp((luma - 0.5) * mix(1.0, 3.0, uParams.y) + 0.5, 0.0, 1.0);
+  L = mix(L, sqrt(L), 0.12);
+  // Three hue-bounded profiles — no green leak ever
+  int prof = int(floor(clamp(uParams.x, 0.0, 1.0) * 2.999));
+  float hS, hH, sat; vec3 sparkTint;
+  if (prof == 0) {        // Cyan: teal → blue-cyan
+    hS = 0.58; hH = 0.51; sat = 0.85; sparkTint = hsv2rgb(vec3(0.52, 0.7, 1.0));
+  } else if (prof == 1) { // Cyan-Magenta: blue-cyan → violet → magenta
+    hS = 0.52; hH = 0.90; sat = 0.90; sparkTint = hsv2rgb(vec3(0.50, 0.85, 1.0));
+  } else {                // Ember: deep red → gold
+    hS = 0.00; hH = 0.11; sat = 0.85; sparkTint = hsv2rgb(vec3(0.10, 0.60, 1.0));
+  }
+  // Bounded oscillation: wobble hue band ±0.035, never free-runs the wheel
+  float wob = sin(t * mix(0.0, 3.0, spd)) * 0.035;
+  hS += wob; hH += wob;
+  vec3 col = grad3(L,
+    hsv2rgb(vec3(hS, sat, 0.05)),
+    hsv2rgb(vec3(mix(hS, hH, 0.5), sat, 0.6)),
+    hsv2rgb(vec3(hH, sat * 0.8, 1.0)));
+  // Sparkle: hash-keyed twinkle at luma peaks, rate follows speed
+  float sp = hash21(floor(gl_FragCoord.xy * 0.6) + floor(t * mix(2.0, 12.0, spd)));
+  col = mix(col, sparkTint, step(1.0 - uParams.z * 0.25, sp) * smoothstep(0.25, 0.6, L) * 0.7);
+  float g = dot(col, vec3(0.299, 0.587, 0.114));
+  fragColor = vec4(clamp(mix(vec3(g), col, 1.2), 0.0, 1.0), 1.0);
+}`;
+
 const FRAG_DEEPFIELD = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -1315,6 +1355,7 @@ const FRAGS = {
   cyanotype:    FRAG_CYANOTYPE,
   infrared:     FRAG_INFRARED,
   neontube:     FRAG_NEONTUBE,
+  sequin:       FRAG_SEQUIN,
   deepfield:    FRAG_DEEPFIELD,
   blackbody:    FRAG_BLACKBODY,
   hubble:       FRAG_HUBBLE,

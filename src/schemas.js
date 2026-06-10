@@ -253,6 +253,16 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['bleed', 'radius', 'range', 'glowamt'],
   },
+  sequin: {
+    knobs: [
+      { key: 'profile', label: 'Profile', min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = Cyan (teal→blue-cyan). 0.5 = Cyan-Magenta (blue→violet→magenta). 1 = Ember (red→gold). Snaps to three hue-bounded families.' },
+      { key: 'contrast',label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Luminance contrast. 0 = flat soft grade. 1 = punchy three-stop curve.' },
+      { key: 'sparkle', label: 'Sparkle', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Density of sparkle dots at luma peaks. 0 = none. 1 = dense glitter on highlights.' },
+      { key: 'speed',   label: 'Speed',   min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Animation speed. 0 = frozen. 1 = fast palette shimmer + rapid sparkle twinkling.' },
+    ],
+    toggles: [],
+    order: ['profile', 'contrast', 'sparkle', 'speed'],
+  },
   nebula: {
     knobs: [
       { key: 'type',    label: 'Type',    min: 0, max: 1, step: 0.01, default: 0.5, tip: '0 = emission nebula (red/pink). 0.5 = reflection nebula (blue). 1 = planetary nebula (teal/magenta).' },
@@ -538,7 +548,7 @@ export const COLOR_MAP_SECTIONS = [
 // FX RACK instead.
 export const COLOR_UNIQUE_SECTIONS = [
   { key: 'atmosphere', label: 'Atmosphere', effects: ['nebula', 'aurorastorm', 'deepfield'] },
-  { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed'] },
+  { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin'] },
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
@@ -571,6 +581,7 @@ export const BLEND_MODES = {
   acidwash:     'source-over',
   xray:         'source-over',
   heatbleed:    'source-over',
+  sequin:       'source-over',
   nebula:       'source-over',
   solarize:     'source-over',
   aurorastorm:  'source-over',
