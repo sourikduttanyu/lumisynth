@@ -87,6 +87,7 @@
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="watershed"  aria-label="Watershed"      data-tip="STRUCTURE. Luminance basins with sharp boundaries — each basin settles to a local average. Basin Size, Boundary, Flatness, Depth Tint."><span>Watershed</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort"  aria-label="Pixel Sort"     data-tip="STRUCTURE. Bright pixels cast sharp sorted streak trails. Threshold, Length, Opacity, Direction."><span>PixSort</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"       aria-label="Melt"           data-tip="STRUCTURE. Luminance drips downward like heated wax. Amount, Drip Length, Viscosity, Direction."><span>Melt</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"    aria-label="Frequency Modulation" data-tip="STRUCTURE. FM raster synthesis — scan rows of dots whose wiggle frequency is driven by brightness. Bright areas vibrate into tight ribbons; dark areas rest as sparse dots. Layer with Drag FX."><span>FreqMod</span></button>
           </div>
           <div class="section-label" id="lbl-structure-output">Output</div>
           <div class="toggle-group" id="structure-output-group" role="radiogroup" aria-labelledby="lbl-structure-output">
@@ -169,6 +170,16 @@
             <div class="knob" id="melt-drip"      data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Melt Drip"      data-tip="Drip length. 0 = short. 1 = long drips." tabindex="0"><span class="knob-label">Drip</span><span class="knob-val" id="melt-drip-val">0.4</span></div>
             <div class="knob" id="melt-viscosity" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Melt Viscosity" data-tip="Viscosity. 0 = water/fast. 1 = honey/slow thick drips." tabindex="0"><span class="knob-label">Visc</span><span class="knob-val" id="melt-viscosity-val">0.5</span></div>
             <div class="knob" id="melt-dir"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Melt Direction" data-tip="Drip direction. 0 = down, 0.5 = sideways, 1 = up." tabindex="0"><span class="knob-label">Dir</span><span class="knob-val" id="melt-dir-val">0</span></div>
+          </div>
+        </section>
+
+        <section class="effect-card hidden" id="freqmod-controls" data-card-effect="freqmod" data-mode-section="synth" aria-label="FreqMod parameters">
+          <div class="effect-card-header"><div class="effect-card-title">FreqMod</div><button class="card-reset-btn" type="button" data-reset-card="freqmod" title="Reset FreqMod knobs" aria-label="Reset FreqMod knobs">×</button></div>
+          <div class="knob-grid">
+            <div class="knob" id="freqmod-rows" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="FreqMod Rows" data-tip="Scan row count. 0 = 24 thick rows. 1 = 120 fine rows." tabindex="0"><span class="knob-label">Rows</span><span class="knob-val" id="freqmod-rows-val">0.5</span></div>
+            <div class="knob" id="freqmod-mod"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.6" aria-label="FreqMod Depth" data-tip="FM depth. How hard brightness drives the wiggle frequency. 0 = calm flat rows. 1 = bright areas vibrate into tight zigzag ribbons." tabindex="0"><span class="knob-label">Mod</span><span class="knob-val" id="freqmod-mod-val">0.6</span></div>
+            <div class="knob" id="freqmod-wave" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="FreqMod Wave" data-tip="Wave amplitude. How far the carrier displaces each row. 0 = straight dotted lines. 1 = rows overlap their neighbors." tabindex="0"><span class="knob-label">Wave</span><span class="knob-val" id="freqmod-wave-val">0.5</span></div>
+            <div class="knob" id="freqmod-dots" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="FreqMod Dots" data-tip="Dot breakup. 0 = fine dense stipple. 1 = big sparse dots." tabindex="0"><span class="knob-label">Dots</span><span class="knob-val" id="freqmod-dots-val">0.5</span></div>
           </div>
         </section>
 

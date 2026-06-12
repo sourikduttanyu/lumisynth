@@ -1063,6 +1063,8 @@ function runEffect(name, opts) {
       return applyGLFilter('pixelsort', canvas.width, canvas.height, [look.pixelsortThresh, look.pixelsortLength, look.pixelsortOpacity, look.pixelsortDir], { ...opts, outputMode, ...inkColors });
     case 'melt':
       return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
+    case 'freqmod':
+      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodRows, look.freqmodMod, look.freqmodWave, look.freqmodDots], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':

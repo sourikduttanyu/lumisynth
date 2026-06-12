@@ -63,6 +63,57 @@ void main() {
   fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
 }`;
 
+// FREQMOD — video-synthesis FM screening. The image becomes horizontal scan
+// rows of dots; local brightness modulates the frequency of each row's wiggle
+// (true FM-raster style — bright areas vibrate into tight zigzag ribbons,
+// dark areas rest as sparse calm dots). Layer with Drag in the FX rack for
+// oscillographic smears.
+// uParams: x=Rows, y=Mod depth, z=Wave amplitude, w=Dot breakup
+const FRAG_FREQMOD = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
+uniform float uTime;
+out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(uInkLow, uInkHigh, poster);
+}
+
+void main() {
+  vec2 uv = vUV;
+  float rows = floor(mix(24.0, 120.0, uParams.x));
+  float rowIdx = floor(uv.y * rows);
+  float rowCenter = (rowIdx + 0.5) / rows;
+  vec3 src = texture(u_video, uv).rgb;
+  float L = dot(texture(u_video, vec2(uv.x, rowCenter)).rgb, vec3(0.299, 0.587, 0.114));
+
+  // FM carrier: wiggle frequency scales with local brightness
+  float freq = mix(40.0, 900.0, uParams.y * L);
+  float phase = uv.x * freq + rowIdx * 2.39996 + uTime * 0.6;
+  float wave = sin(phase);
+
+  // position within the row (-1..1); the carrier displaces the row line
+  float dy = (fract(uv.y * rows) - 0.5) * 2.0;
+  float target = wave * uParams.z * 0.85;
+  float lineMask = 1.0 - smoothstep(0.0, 0.45, abs(dy - target));
+
+  // break the line into dots
+  float dotFreq = mix(420.0, 60.0, uParams.w);
+  float dots = smoothstep(0.15, 0.65, sin(uv.x * dotFreq + rowIdx * 1.7) * 0.5 + 0.5);
+
+  float structure = lineMask * dots * smoothstep(0.02, 0.12, L) * (0.25 + 0.75 * L);
+  fragColor = vec4(applyStructureOutput(structure * 1.35, src, uOutputMode), 1.0);
+}`;
+
 const FRAG_OXIDE = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -1614,6 +1665,7 @@ const FRAGS = {
   watershed:    FRAG_WATERSHED,
   pixelsort:    FRAG_PIXELSORT,
   melt:         FRAG_MELT,
+  freqmod:      FRAG_FREQMOD,
   // COLOR additions
   depthstack:   FRAG_DEPTHSTACK,
   abyss:        FRAG_ABYSS,
