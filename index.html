@@ -71,16 +71,6 @@
           </div>
         </section>
 
-        <section class="control-section">
-          <div class="section-label" id="lbl-speed">Speed</div>
-          <div class="toggle-group" id="speed-group" role="radiogroup" aria-labelledby="lbl-speed">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="1">1×</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="2">2×</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="3">3×</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="4">4×</button>
-          </div>
-        </section>
-
         <!-- ============================================================
              SYNTH-mode sections. Visible only when body[data-mode="synth"].
              ============================================================ -->
@@ -241,10 +231,10 @@
              main.js (buildFxPicker) — adding an FX effect needs no markup. -->
         <div class="color-picker-popover hidden" id="fx-picker-popover" role="dialog" aria-label="Pick an FX effect for this slot"></div>
 
-        <!-- ============ PER-BLOB (legacy, untouched per "ignore fx") ============ -->
-        <div class="stage-divider" data-stage="perblob">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
+        <!-- ============ PER-BLOB (TRACK only — hidden from synth to keep it clean) ============ -->
+        <div class="stage-divider" data-stage="perblob" data-mode-section="track">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
 
-        <section class="control-section">
+        <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-perblob">Overlay</div>
           <div class="toggle-group filter-swatch-group" id="perblob-group" role="radiogroup" aria-labelledby="lbl-perblob">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"    aria-label="No per-blob overlay" data-tip="No per-blob overlay. Only the main chain renders."><span>None</span></button>
@@ -436,32 +426,20 @@
             </div>
           </div>
           <div id="drop-overlay" aria-hidden="true">Drop video or image</div>
-          <div id="video-controls" class="hidden" aria-label="Playback controls">
-            <button id="btn-play" type="button" aria-label="Play / pause">▶</button>
-            <input type="range" id="video-scrub" min="0" max="1000" step="1" value="0" aria-label="Scrub video" />
-            <span class="video-time" id="video-time">0:00 / 0:00</span>
-          </div>
-          <div id="timeline-panel" class="timeline-panel hidden" aria-label="Timeline segments">
-            <div class="timeline-head">
-              <span class="timeline-title">Timeline</span>
-              <span id="timeline-working" class="timeline-working">No segment selected</span>
+          <div id="timeline-panel" class="timeline-panel hidden" aria-label="Playback and timeline segments">
+            <div class="timeline-bar">
+              <button id="btn-play" type="button" aria-label="Play / pause">▶</button>
+              <div id="timeline-track" class="timeline-track" data-tip="Click or drag to scrub. Drag a segment to move it; drag its edges to retime it.">
+                <div id="timeline-playhead" class="timeline-playhead" aria-hidden="true"></div>
+              </div>
+              <span class="video-time" id="video-time">0:00 / 0:00</span>
               <div class="timeline-actions">
-                <button id="timeline-add" class="timeline-btn" type="button" data-tip="Add a 1-second segment starting at the current playback time. Drag its left or right edge to adjust timing.">Add Segment</button>
-                <button id="timeline-duplicate" class="timeline-btn" type="button" data-tip="Duplicate the selected segment's time-block style and look into the next available empty range.">Duplicate</button>
-                <button id="timeline-capture" class="timeline-btn" type="button" data-tip="Save the current sidebar settings into the selected segment. Use after changing structure, color, blobs, or track FX.">Capture Look</button>
-                <button id="timeline-delete" class="timeline-btn danger" type="button" data-tip="Delete the selected segment. The uncovered video time will render raw with no effects.">Delete</button>
+                <button id="timeline-add" class="timeline-btn" type="button" data-tip="Add a 1-second segment at the playhead. Drag it to move; drag its edges to retime.">+ Seg</button>
+                <button id="timeline-duplicate" class="timeline-btn" type="button" data-tip="Duplicate the selected segment into the next empty range.">Dup</button>
+                <button id="timeline-capture" class="timeline-btn" type="button" data-tip="Save the current look into the selected segment.">Set</button>
+                <button id="timeline-delete" class="timeline-btn danger" type="button" data-tip="Delete the selected segment." aria-label="Delete segment">✕</button>
               </div>
             </div>
-            <div id="timeline-track" class="timeline-track">
-              <div id="timeline-playhead" class="timeline-playhead" aria-hidden="true"></div>
-            </div>
-            <div class="timeline-edit">
-              <label>Start <input id="timeline-start" class="timeline-time-input" type="number" min="0" step="0.1" inputmode="decimal" /></label>
-              <label>End <input id="timeline-end" class="timeline-time-input" type="number" min="0" step="0.1" inputmode="decimal" /></label>
-              <span id="timeline-status" class="timeline-status">Timeline supports uploaded video files only.</span>
-            </div>
-            <div class="timeline-help">Click the timeline to place the dotted cursor, then Mark Start and Mark End. Capture Look saves current effects into the selected segment.</div>
-            <div id="timeline-details" class="timeline-details hidden"></div>
           </div>
           <div id="fps-overlay" class="hidden">— fps · 0 blobs</div>
         </main>

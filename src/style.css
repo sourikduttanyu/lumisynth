@@ -35,25 +35,29 @@
    + "The Display-Is-The-Canvas Rule" + "The Two-Color Rule".
    ============================================================ */
 :root {
-  /* Chassis ladder (hue 70, warm dark grey, dark→light) */
-  --bg-stage:        oklch(14% 0.008 70);
-  --bg-room:         oklch(18% 0.010 70);
-  --surface-card:    oklch(22% 0.012 70);
-  --surface-raised:  oklch(26% 0.012 70);
-  --surface-hover:   oklch(32% 0.014 70);
-  --border-hairline: oklch(34% 0.010 70);
-  --border-strong:   oklch(50% 0.012 70);   /* one step up from hairline; used for expanded/active container chrome (e.g. expanded color rack slot) */
+  /* Chassis ladder (hue 85, warm cream/bone — the Teenage Engineering K.O.II /
+     OP-1 read: light plastic chassis, dark legends, dark LCD screens).
+     On a LIGHT chassis "raised" reads as LIGHTER-than-room (white plastic keys)
+     and hover DARKENS one step (key being pressed). */
+  --bg-stage:        oklch(84% 0.014 85);
+  --bg-room:         oklch(91% 0.012 85);
+  --surface-card:    oklch(95% 0.010 85);
+  --surface-raised:  oklch(98% 0.006 85);
+  --surface-hover:   oklch(88% 0.014 85);
+  --border-hairline: oklch(76% 0.014 85);
+  --border-strong:   oklch(56% 0.016 85);   /* one step up from hairline; used for expanded/active container chrome (e.g. expanded color rack slot) */
 
-  /* Display surfaces (deep, embedded screen — darker than chassis) */
+  /* Display surfaces (deep, embedded screen — the dark LCD set into the cream
+     chassis, exactly like TE hardware). Unchanged across the palette flip. */
   --display-bezel:    oklch(8%  0.005 70);
   --display-screen:   oklch(5%  0.005 70);
   --display-hairline: oklch(24% 0.005 70);   /* subtle separators on display surfaces */
 
-  /* Text on chassis (light on dark) */
-  --text-key:    oklch(95% 0.005 70);
-  --text-body:   oklch(82% 0.008 70);
-  --text-muted:  oklch(62% 0.012 70);
-  --text-faint:  oklch(48% 0.014 70);
+  /* Text on chassis (dark legends on cream — TE silkscreen) */
+  --text-key:    oklch(18% 0.012 85);
+  --text-body:   oklch(30% 0.012 85);
+  --text-muted:  oklch(46% 0.014 85);
+  --text-faint:  oklch(60% 0.014 85);
 
   /* Text on display */
   --text-on-display: oklch(92% 0.005 70);
@@ -63,22 +67,22 @@
   --orange-signal: #ff5722;
   --red-accent:    #e63946;
 
-  /* Hardware caps for the SVG knob — white cap on dark chassis is the
-     iconic Octatrack / Push / Eurorack-knob read. */
-  --knob-cap-white: oklch(94% 0.005 70);
-  --knob-cap-black: oklch(10% 0.008 70);
+  /* Hardware caps for the SVG knob — a white plastic cap with a dark notch,
+     the TE volume-knob read. The 1px dark stroke keeps it legible on cream. */
+  --knob-cap-white: oklch(97% 0.005 85);
+  --knob-cap-black: oklch(14% 0.010 85);
 
   /* State (semantic) — all LOW chroma so they don't compete with --orange-signal.
-     Slightly brighter than the light-chassis equivalents for legibility on dark. */
-  --state-ok:     oklch(65% 0.10 145);   /* muted forest, confirm/done */
-  --state-danger: oklch(60% 0.18 25);    /* grounded red, destructive — distinct from --red-accent */
-  --state-info:   oklch(60% 0.10 235);   /* muted slate blue, informational status (e.g. modified-from-default) */
+     Darkened for legibility against the light chassis. */
+  --state-ok:     oklch(50% 0.11 145);   /* muted forest, confirm/done */
+  --state-danger: oklch(50% 0.18 25);    /* grounded red, destructive — distinct from --red-accent */
+  --state-info:   oklch(46% 0.10 235);   /* muted slate blue, informational status (e.g. modified-from-default) */
 
   /* Stage flow (signal-flow direction across OSC → FILTER → FX) — LOW chroma,
-     bumped up in lightness so the labels read clearly against dark chassis. */
-  --stage-osc:    oklch(68% 0.09 65);    /* muted amber: input, source */
-  --stage-filter: oklch(60% 0.13 5);     /* muted plum: transformation */
-  --stage-fx:     oklch(64% 0.08 220);   /* muted slate-teal: output */
+     darkened so the labels read as silkscreen print on the cream chassis. */
+  --stage-osc:    oklch(52% 0.11 65);    /* muted amber: input, source */
+  --stage-filter: oklch(46% 0.14 5);     /* muted plum: transformation */
+  --stage-fx:     oklch(48% 0.09 220);   /* muted slate-teal: output */
 
   /* Motion */
   --ease-out:       cubic-bezier(0.25, 1, 0.5, 1);
@@ -696,10 +700,10 @@ label.section-label { cursor: pointer; }
   gap: var(--space-sm);
   min-height: 30px;
   padding: var(--space-xs) var(--space-sm);
-  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border: 1px solid oklch(76% 0.014 85 / 0.55);
   border-radius: 4px;
   background:
-    linear-gradient(180deg, oklch(12% 0.006 70 / 0.72), oklch(8% 0.005 70 / 0.58));
+    linear-gradient(180deg, oklch(97% 0.008 85 / 0.85), oklch(89% 0.012 85 / 0.65));
   margin-bottom: var(--space-sm);
 }
 .color-rack-slot-toggle-label {
@@ -875,7 +879,7 @@ label.section-label { cursor: pointer; }
   padding: var(--space-md);
   border: 1px solid var(--border-hairline);
   border-radius: 7px;
-  background: linear-gradient(180deg, oklch(19% 0.010 70 / 0.76), oklch(14% 0.008 70 / 0.58));
+  background: linear-gradient(180deg, oklch(97% 0.008 85 / 0.85), oklch(90% 0.012 85 / 0.6));
 }
 .account-status {
   font-size: 10px;
@@ -923,9 +927,9 @@ label.section-label { cursor: pointer; }
   gap: var(--space-xs);
   align-items: center;
   padding: var(--space-xs);
-  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border: 1px solid oklch(76% 0.014 85 / 0.55);
   border-radius: 5px;
-  background: oklch(15% 0.008 70 / 0.62);
+  background: oklch(97% 0.008 85 / 0.7);
 }
 .preset-load {
   min-width: 0;
@@ -1027,8 +1031,8 @@ label.section-label { cursor: pointer; }
 .toggle-btn.active,
 .toggle-btn[aria-pressed="true"],
 .toggle-btn[aria-checked="true"] {
-  background: oklch(70% 0.21 45 / 0.22);
-  color: var(--text-key);
+  background: var(--orange-signal);
+  color: var(--knob-cap-black);
   border-color: var(--orange-signal);
   font-weight: 700;
 }
@@ -1124,10 +1128,10 @@ label.section-label { cursor: pointer; }
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2xl) var(--space-md);
   padding: var(--space-sm) var(--space-xs) var(--space-xl);
-  border: 1px solid oklch(34% 0.010 70 / 0.48);
+  border: 1px solid oklch(76% 0.014 85 / 0.6);
   border-radius: 7px;
   background:
-    linear-gradient(180deg, oklch(18% 0.010 70 / 0.72), oklch(14% 0.008 70 / 0.52));
+    linear-gradient(180deg, oklch(97% 0.008 85 / 0.8), oklch(90% 0.012 85 / 0.55));
 }
 .knob-cluster-center {
   grid-template-columns: minmax(88px, 1fr);
@@ -1249,10 +1253,10 @@ label.section-label { cursor: pointer; }
   cursor: default;
   min-height: 34px;
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid oklch(34% 0.010 70 / 0.42);
+  border: 1px solid oklch(76% 0.014 85 / 0.55);
   border-radius: 6px;
   background:
-    linear-gradient(180deg, oklch(12% 0.006 70 / 0.72), oklch(8% 0.005 70 / 0.58));
+    linear-gradient(180deg, oklch(97% 0.008 85 / 0.85), oklch(91% 0.012 85 / 0.65));
   transition:
     background var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out);
@@ -1260,13 +1264,13 @@ label.section-label { cursor: pointer; }
 .param-slider:hover,
 .param-slider:focus-within {
   background:
-    linear-gradient(180deg, oklch(15% 0.008 70 / 0.82), oklch(10% 0.006 70 / 0.72));
+    linear-gradient(180deg, oklch(98% 0.006 85 / 0.95), oklch(93% 0.010 85 / 0.8));
   border-color: oklch(70% 0.21 45 / 0.62);
 }
 .param-slider .knob-label {
   text-align: left;
   hyphens: none;
-  color: oklch(82% 0.008 70 / 0.72);
+  color: oklch(30% 0.012 85 / 0.85);
   letter-spacing: 0.11em;
   font-weight: 700;
 }
@@ -1299,16 +1303,16 @@ label.section-label { cursor: pointer; }
 .param-slider-input::-webkit-slider-runnable-track {
   height: 5px;
   border-radius: 999px;
-  border: 1px solid oklch(34% 0.010 70 / 0.54);
+  border: 1px solid oklch(76% 0.014 85 / 0.7);
   background:
-    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(22% 0.012 70) var(--slider-t) 100%);
+    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(82% 0.012 85) var(--slider-t) 100%);
 }
 .param-slider-input::-moz-range-track {
   height: 5px;
   border-radius: 999px;
-  border: 1px solid oklch(34% 0.010 70 / 0.54);
+  border: 1px solid oklch(76% 0.014 85 / 0.7);
   background:
-    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(22% 0.012 70) var(--slider-t) 100%);
+    linear-gradient(90deg, var(--orange-signal) 0 var(--slider-t), oklch(82% 0.012 85) var(--slider-t) 100%);
 }
 .param-slider-input::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1545,30 +1549,32 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
    Per The Display-Vs-Chassis Rule, controls (play, scrub) live on chassis
    surfaces. Light-grey panel against the dark canvas reads as a control
    strip dropped onto the screen — a familiar physical-instrument pattern. */
-#video-controls {
+/* Timeline — the single transport + segment bar at the bottom of the canvas.
+   Play, scrub (the track itself), time readout, and segment actions all live
+   in one row. */
+.timeline-panel {
   position: absolute;
-  bottom: var(--space-lg); left: 50%;
+  left: 50%;
+  bottom: var(--space-lg);
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
+  width: min(860px, calc(100% - 48px));
   background: var(--surface-card);
   border: 1px solid var(--border-hairline);
   border-radius: 6px;
-  z-index: 30;
-  opacity: 0;
-  transition: opacity var(--duration-base) var(--ease-out);
-  pointer-events: none;
-  min-width: 280px;
-  max-width: 60%;
+  padding: var(--space-sm) var(--space-md);
+  z-index: 31;
   box-shadow: 0 4px 16px oklch(0% 0 0 / 0.4);
 }
-#video-controls.visible {
-  opacity: 1;
-  pointer-events: auto;
+.timeline-panel.hidden { display: none; }
+.timeline-panel.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
-#video-controls.hidden { display: none; }
+.timeline-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
 #btn-play {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
@@ -1584,90 +1590,17 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   transition: background var(--duration-base) var(--ease-out);
 }
 #btn-play:hover { background: var(--surface-hover); }
-#video-scrub {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  background: var(--bg-stage);
-  border-radius: 2px;
-  cursor: pointer;
-}
-#video-scrub::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px; height: 14px;
-  background: var(--orange-signal);
-  border-radius: 50%;
-  border: 2px solid var(--knob-cap-white);
-  cursor: pointer;
-}
-#video-scrub::-moz-range-thumb {
-  width: 14px; height: 14px;
-  background: var(--orange-signal);
-  border-radius: 50%;
-  border: 2px solid var(--knob-cap-white);
-  cursor: pointer;
-}
 .video-time {
   font-size: 10px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  min-width: 76px;
   text-align: right;
-}
-
-.timeline-panel {
-  position: absolute;
-  left: 50%;
-  bottom: 64px;
-  transform: translateX(-50%);
-  width: min(760px, calc(100% - 48px));
-  background: var(--surface-card);
-  border: 1px solid var(--border-hairline);
-  border-radius: 6px;
-  padding: var(--space-md);
-  z-index: 31;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  box-shadow: 0 4px 16px oklch(0% 0 0 / 0.4);
-}
-.timeline-panel.hidden { display: none; }
-.timeline-panel.is-disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
-.timeline-head,
-.timeline-edit {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-.timeline-title {
-  color: var(--text-key);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.timeline-working {
-  color: var(--orange-signal);
-  flex: 1;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.10em;
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 .timeline-actions {
   display: flex;
   gap: var(--space-xs);
+  flex-shrink: 0;
 }
 .timeline-btn {
   background: var(--surface-raised);
@@ -1685,43 +1618,47 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 }
 .timeline-btn:hover { background: var(--surface-hover); }
 .timeline-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
-.timeline-btn.danger { color: oklch(82% 0.08 25); }
+.timeline-btn.danger { color: var(--state-danger); }
 .timeline-track {
   position: relative;
-  height: 36px;
+  flex: 1;
+  height: 32px;
   background: var(--bg-stage);
   border: 1px solid var(--border-hairline);
   border-radius: 4px;
   overflow: visible;
+  cursor: pointer;
+  touch-action: none;
 }
 .timeline-segment {
   position: absolute;
-  top: 5px;
-  bottom: 5px;
+  top: 4px;
+  bottom: 4px;
   min-width: 8px;
-  border: 1px solid oklch(72% 0.08 65);
+  border: 1px solid oklch(52% 0.10 65);
   border-radius: 3px;
-  background: oklch(40% 0.08 65 / 0.85);
+  background: oklch(83% 0.09 65 / 0.92);
   color: var(--text-key);
-  cursor: pointer;
+  cursor: grab;
   font: inherit;
   font-size: 9px;
   font-weight: 700;
   overflow: hidden;
   padding: 0 var(--space-xs);
   text-overflow: ellipsis;
+  touch-action: none;
   white-space: nowrap;
 }
 .timeline-segment.is-selected {
   border-color: var(--orange-signal);
-  background: oklch(45% 0.13 45 / 0.92);
+  background: oklch(85% 0.11 45 / 0.95);
 }
 .timeline-segment.is-active {
-  box-shadow: inset 0 0 0 1px var(--knob-cap-white);
+  box-shadow: inset 0 0 0 1px oklch(28% 0.06 65);
 }
-.timeline-segment.is-expanded {
-  top: 2px;
-  bottom: 2px;
+.timeline-segment.is-dragging {
+  cursor: grabbing;
+  opacity: 0.85;
 }
 .timeline-segment-label {
   display: block;
@@ -1750,7 +1687,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   right: 2px;
   width: 2px;
   height: 60%;
-  background: oklch(72% 0.08 65 / 0.4);
+  background: oklch(45% 0.10 65 / 0.5);
   border-radius: 1px;
 }
 .timeline-resize-handle--left::after {
@@ -1776,93 +1713,6 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   transform: translateX(-1px);
   z-index: 2;
 }
-.timeline-cursor {
-  --timeline-cursor-color: var(--orange-signal);
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 2px dotted var(--timeline-cursor-color);
-  pointer-events: none;
-  transform: translateX(-1px);
-  z-index: 4;
-}
-.timeline-cursor.hidden { display: none; }
-.timeline-cursor.mode-end {
-  --timeline-cursor-color: var(--state-info);
-}
-.timeline-cursor.is-pinned {
-  border-left-style: dashed;
-}
-.timeline-cursor-label {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 5px);
-  transform: translateX(-50%);
-  background: var(--display-bezel);
-  border: 1px solid var(--timeline-cursor-color);
-  border-radius: 3px;
-  color: var(--text-on-display);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.10em;
-  padding: 2px 5px;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.timeline-edit {
-  color: var(--text-muted);
-  font-size: 9px;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
-.timeline-edit label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-.timeline-time-input {
-  width: 68px;
-  background: var(--bg-stage);
-  border: 1px solid var(--border-hairline);
-  border-radius: 3px;
-  color: var(--text-key);
-  font: inherit;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  padding: var(--space-xs);
-}
-.timeline-status {
-  color: var(--text-faint);
-  flex: 1;
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.timeline-help {
-  color: var(--text-faint);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  line-height: 1.35;
-  text-transform: uppercase;
-}
-.timeline-details {
-  background: var(--bg-stage);
-  border: 1px solid var(--border-hairline);
-  border-radius: 4px;
-  color: var(--text-muted);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  line-height: 1.4;
-  overflow: hidden;
-  padding: var(--space-sm) var(--space-md);
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.timeline-details.hidden { display: none; }
-
 /* FPS overlay — information presented on the canvas, lives on display surface
    per The Display-Vs-Chassis Rule. */
 #fps-overlay {
@@ -2220,8 +2070,8 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
 .topbar-mode .toggle-btn:hover { background: oklch(12% 0.005 70); }
 .topbar-mode .toggle-btn.active,
 .topbar-mode .toggle-btn[aria-checked="true"] {
-  background: oklch(70% 0.21 45 / 0.22);
-  color: var(--text-on-display);
+  background: var(--orange-signal);
+  color: var(--knob-cap-black);
   border-color: var(--orange-signal);
   font-weight: 700;
 }

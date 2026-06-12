@@ -1,31 +1,31 @@
 ---
 name: LumiSynth
-description: Browser-only real-time video instrument. Dark warm-grey graphite chassis, deep embedded display surfaces, orange signals.
+description: Browser-only real-time video instrument. Teenage Engineering cream chassis, dark embedded LCD display surfaces, orange signals.
 colors:
   orange-signal:    "#ff5722"
   red-accent:       "#e63946"
-  bg-stage:         "#1f1c19"
-  bg-room:          "#28241f"
-  surface-card:     "#322d27"
-  surface-raised:   "#3b3630"
-  surface-hover:    "#48433b"
-  border-hairline:  "#4c4740"
+  bg-stage:         "#d6d0c3"
+  bg-room:          "#e9e3d8"
+  surface-card:     "#f3eee4"
+  surface-raised:   "#fbf7ee"
+  surface-hover:    "#ded8cb"
+  border-hairline:  "#beb7a8"
   display-screen:   "#0a0908"
   display-bezel:    "#100f0d"
   display-hairline: "#393631"
-  text-key:         "#f5f2ed"
-  text-body:        "#cfcac2"
-  text-muted:       "#988f83"
-  text-faint:       "#736b5f"
+  text-key:         "#262220"
+  text-body:        "#46413a"
+  text-muted:       "#6e675c"
+  text-faint:       "#948c7e"
   text-on-display:  "#eae7e1"
-  state-ok:         "#75a070"
-  state-danger:     "#d65a4d"
-  state-info:       "#5d8bb5"
-  stage-osc:        "#b89669"
-  stage-filter:     "#b66575"
-  stage-fx:         "#7a96b1"
-  knob-cap-white:   "#f0ede8"
-  knob-cap-black:   "#16140f"
+  state-ok:         "#3f7a48"
+  state-danger:     "#b03a2e"
+  state-info:       "#2f6189"
+  stage-osc:        "#8a6a36"
+  stage-filter:     "#8c3a4e"
+  stage-fx:         "#3f6a82"
+  knob-cap-white:   "#faf7f0"
+  knob-cap-black:   "#1f1b17"
 typography:
   headline:
     fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -131,7 +131,9 @@ components:
 
 **Creative North Star: "The Studio Workbench"**
 
-LumiSynth is built for a workbench in a dim studio. The chassis is dark, restrained, warm-grey graphite. The work — the canvas — sits inside an even darker display embedded in that chassis, the way a screen sits in an Elektron Octatrack body or an Ableton Push 3. The chassis recedes by being a quiet warm grey; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing, active, or being touched. Everywhere else, the surface is a neutral warm graphite that the eye relaxes into without strain — a screen that can be looked at for hours without fatigue.
+> **Palette pivot (June 2026):** the chassis flipped from the dark Octatrack-style graphite to the Teenage Engineering K.O. II / OP-1 **cream** — light warm-bone plastic chassis, dark silkscreen legends, full-orange active keys with dark text, and the display surfaces kept near-black so the canvas reads as a dark LCD set into the cream body. The chassis ladder direction inverted ("raised" = lighter / near-white plastic keys, hover darkens one step like a pressed key); text ladder inverted to dark-on-light; state and stage hues darkened for legibility on cream. Everything else below — spacing, typography, component anatomy, the orange-is-signal rule, the display-vs-chassis split — is unchanged. Sections below that describe surface lightness in dark-chassis terms should be read through this pivot; the CSS tokens in `style.css` are canonical.
+
+LumiSynth is built for a workbench in a dim studio. The chassis is light, restrained, warm cream — TE K.O. II plastic. The work — the canvas — sits inside a deep dark display embedded in that chassis, the way the LCD sits in an OP-1 body. The chassis recedes by being quiet bone-white; the canvas asserts itself by being the deepest surface on the page, framed by a slightly lighter bezel. Orange appears only when something is changing, active, or being touched.
 
 The aesthetic family is **browser shader playground crossed with industrial sampler hardware**, with named references in PRODUCT.md to Teenage Engineering K.O. II / K.O. Sidekick (TE chrome language: knobs, type, button shapes), Lumen, Cables.gl, and Ableton Push. Where K.O. II is cream and built for daylight, LumiSynth picks the *dark* sibling aesthetic — Octatrack, Push 3 black, Eurorack — for chassis lightness, because a screen-based instrument lives in a different lighting environment than physical hardware. The TE *language* is preserved (single saturated accent, white plastic knob caps, terse uppercase labels, flat surfaces) while the *lightness* matches a dim-studio screen.
 
