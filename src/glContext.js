@@ -160,6 +160,105 @@ export function getChainFBOs() {
   return chain;
 }
 
+// ---- Frame-history ring (motion effects: motionedge / predator) ----
+// Four GPU-side copies of recent video frames, written by a passthrough draw
+// (no extra CPU upload). getMotionTex() returns the oldest entry — the frame
+// from ~4 captures ago — so stateless shaders can do "current minus 4".
+// The orchestrator calls captureFrameHistory() once per frame, AFTER
+// uploadVideoFrame, and only when the active pipeline contains a motion
+// effect — idle cost is zero.
+let hist = null; // { ring: [{fb,tex}×4], idx, prog, video, w, h, primed }
+
+const HIST_VERT = `#version 300 es
+in vec2 a_pos;
+out vec2 vUV;
+void main() { vUV = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+const HIST_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+out vec4 fragColor;
+void main() { fragColor = texture(u_video, vUV); }`;
+
+function makeHistProgram(gl) {
+  const compile = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error('[glContext] hist shader:', gl.getShaderInfoLog(s));
+      return null;
+    }
+    return s;
+  };
+  const vs = compile(gl.VERTEX_SHADER, HIST_VERT);
+  const fs = compile(gl.FRAGMENT_SHADER, HIST_FRAG);
+  if (!vs || !fs) return null;
+  const p = gl.createProgram();
+  gl.attachShader(p, vs);
+  gl.attachShader(p, fs);
+  gl.bindAttribLocation(p, 0, 'a_pos');
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error('[glContext] hist link:', gl.getProgramInfoLog(p));
+    return null;
+  }
+  return p;
+}
+
+export function captureFrameHistory() {
+  if (!S) return;
+  const { gl, vao } = S;
+  if (hist && (hist.w !== S.w || hist.h !== S.h)) {
+    for (const t of hist.ring) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); }
+    hist = null;
+  }
+  if (!hist) {
+    const prog = makeHistProgram(gl);
+    if (!prog) return;
+    hist = {
+      ring: [0, 1, 2, 3].map(() => makeChainFBO(gl, S.w, S.h)),
+      idx: 0, prog,
+      video: gl.getUniformLocation(prog, 'u_video'),
+      w: S.w, h: S.h, primed: false,
+    };
+  }
+  gl.viewport(0, 0, S.w, S.h);
+  gl.bindVertexArray(vao);
+  gl.useProgram(hist.prog);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, S.videoTex);
+  gl.uniform1i(hist.video, 0);
+  const writeTo = (slot) => {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, hist.ring[slot].fb);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  };
+  if (!hist.primed) {
+    // first capture (or after reset): seed all 4 slots with the current frame
+    // so the first few diffs are zero instead of a flash against black
+    for (let i = 0; i < 4; i++) writeTo(i);
+    hist.primed = true;
+  } else {
+    writeTo(hist.idx);
+  }
+  hist.idx = (hist.idx + 1) % 4;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+// Oldest ring entry (the slot about to be overwritten next). Falls back to
+// the live video texture before the first capture so shaders never sample
+// an unbound unit.
+export function getMotionTex() {
+  if (hist && hist.primed) return hist.ring[hist.idx].tex;
+  return S ? S.videoTex : null;
+}
+
+// Re-prime on source / segment change so the new source doesn't diff
+// against frames of the old one.
+export function resetMotionHistory() {
+  if (hist) hist.primed = false;
+}
+
 export function getGL()       { return S ? S.gl : null; }
 export function getCanvas()   { return S ? S.canvas : null; }
 export function getVideoTex() { return S ? S.videoTex : null; }

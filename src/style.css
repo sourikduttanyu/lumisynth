@@ -1089,6 +1089,7 @@ label.section-label { cursor: pointer; }
 .filter-swatch-group .toggle-btn[data-value="pixelsort"]  { background: linear-gradient(90deg, #0a0908 0 20%, #d9d2c4 20% 30%, #3b3630 30% 55%, #ff5722 55% 62%, #100f0d 62%); }
 .filter-swatch-group .toggle-btn[data-value="melt"]       { background: linear-gradient(180deg, #f0ede8, #b89669 35%, #ff5722 70%, #100f0d); }
 .filter-swatch-group .toggle-btn[data-value="freqmod"]    { background: repeating-linear-gradient(180deg, #05050a 0 5px, #e8e4d8 5px 6px, #05050a 6px 8px, #b8c4e8 8px 9px); }
+.filter-swatch-group .toggle-btn[data-value="motionedge"] { background: linear-gradient(135deg, #04040a, #0a2a3a 40%, #2fdfff 50%, #0a2a3a 60%, #04040a), linear-gradient(45deg, #000, #fff); }
 
 /* Active = 2px orange border. No glow. */
 .filter-swatch-group .toggle-btn.active,

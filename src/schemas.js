@@ -62,6 +62,7 @@ export const DEFAULTS = Object.freeze({
   pixelsortThresh: 0.4, pixelsortLength: 0.3, pixelsortOpacity: 0.8, pixelsortDir: 0.5,
   meltAmount: 0.5,     meltDrip: 0.4,         meltViscosity: 0.5,   meltDir: 0.0,
   freqmodRows: 0.5,    freqmodMod: 0.6,       freqmodWave: 0.5,     freqmodThresh: 0.2,
+  motionedgeEdge: 0.5, motionedgeMotion: 0.6, motionedgeThresh: 0.15, motionedgeBoost: 0.5,
 
   // ============ TRACK-mode state ============
   // Top-level mode + composite selector.
@@ -344,6 +345,16 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['hueA', 'hueB', 'reg', 'halftone'],
   },
+  predator: {
+    knobs: [
+      { key: 'sense',   label: 'Sense',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Motion sensitivity. How small a change between frames registers as heat. 1 = the slightest movement glows white-hot.' },
+      { key: 'spread',  label: 'Spread',  min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Heat halo radius around moving pixels. 0 = tight. 1 = wide soft heat plumes.' },
+      { key: 'palette', label: 'Palette', min: 0, max: 1, step: 0.01, default: 0.2,  tip: '0 = predator vision (cold blue body, orange-white heat). 1 = classic thermal (purple body, red-yellow heat).' },
+      { key: 'body',    label: 'Body',    min: 0, max: 1, step: 0.01, default: 0.6,  tip: 'How visible the still scene is. 0 = only motion shows against black. 1 = full cold-palette body.' },
+    ],
+    toggles: [],
+    order: ['sense', 'spread', 'palette', 'body'],
+  },
   octopus: {
     knobs: [
       { key: 'ink',     label: 'Ink',     min: 0, max: 1, step: 0.01, default: 0.6,  tip: 'How violently the dark zones billow with violet ink. 0 = still black depths. 1 = heavy churning ink clouds.' },
@@ -476,6 +487,39 @@ export const COLOR_PARAM_SCHEMAS = {
 // COLOR_PARAM_SCHEMAS.
 // ============================================================
 export const FX_PARAM_SCHEMAS = {
+  tunnel: {
+    feedback: true,
+    knobs: [
+      { key: 'zoom',   label: 'Zoom',   min: 0, max: 1, step: 0.01, default: 0.35, tip: 'How fast echoes recede into the tunnel. 0 = barely moving. 1 = fast infinite-zoom plunge.' },
+      { key: 'rotate', label: 'Rotate', min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Per-generation twist. 0.5 = straight tunnel. Either side spirals the echoes clockwise or counter-clockwise.' },
+      { key: 'drift',  label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Hue drift per echo generation. The tunnel shifts color as it deepens — the classic psychedelic feedback rainbow.' },
+      { key: 'mix',    label: 'Mix',    min: 0, max: 1, step: 0.01, default: 0.75, tip: 'Echo persistence. 0 = faint single echo. 1 = near-infinite hall of mirrors.' },
+    ],
+    toggles: [],
+    order: ['zoom', 'rotate', 'drift', 'mix'],
+  },
+  burnin: {
+    feedback: true,
+    knobs: [
+      { key: 'sear', label: 'Sear',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Luminance needed to burn into the screen. 0 = everything sears. 1 = only the very brightest highlights etch in.' },
+      { key: 'cool', label: 'Cool',  min: 0, max: 1, step: 0.01, default: 0.7,  tip: 'How slowly burns fade. 0 = quick afterglow. 1 = near-permanent burn-in that lingers for many seconds.' },
+      { key: 'hue',  label: 'Phos',  min: 0, max: 1, step: 0.01, default: 0.45, tip: 'Phosphor chemistry. 0 = amber radar scope. 0.5 = green oscilloscope. 1 = cyan vector display.' },
+      { key: 'bleed',label: 'Bleed', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'How far heat creeps outward as it cools. 0 = sharp burns. 1 = soft spreading glow.' },
+    ],
+    toggles: [],
+    order: ['sear', 'cool', 'hue', 'bleed'],
+  },
+  wobbletape: {
+    feedback: true,
+    knobs: [
+      { key: 'flutter', label: 'Flutter', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Wow/flutter strength — how hard the tape drags sideways each frame.' },
+      { key: 'accum',   label: 'Accum',   min: 0, max: 1, step: 0.01, default: 0.6, tip: 'How much each frame re-displaces the last. High = the image progressively stretches into taffy before the next snap.' },
+      { key: 'snap',    label: 'Snap',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Tracking-pulse rate. Each pulse snaps the smear back to a clean image. 0 = rare snaps (long degradation). 1 = constant snapping.' },
+      { key: 'tear',    label: 'Tear',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Chroma tear. R and B channels drag at different rates, fringing the smear like misaligned tape heads.' },
+    ],
+    toggles: [],
+    order: ['flutter', 'accum', 'snap', 'tear'],
+  },
   drag: {
     feedback: true,
     knobs: [
@@ -591,7 +635,8 @@ export const FX_PARAM_SCHEMAS = {
 };
 
 export const FX_SECTIONS = [
-  'drag', 'flowfield', 'bloom', 'godrays', 'decayflow', 'feedbackwarp',
+  'drag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
+  'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
 ];
 
@@ -631,7 +676,7 @@ export const TRACK_FX_PARAM_SCHEMAS = {
   },
 };
 
-export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'watershed', 'pixelsort', 'melt', 'freqmod'];
+export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'watershed', 'pixelsort', 'melt', 'freqmod', 'motionedge'];
 // The MAPS tab of the COLOR picker — pure per-pixel color mapping (ramps,
 // grades, palette swaps; no neighbor sampling, no added elements). Adding a
 // map here (plus its schema/shader/label entries) is all the picker needs;
@@ -655,6 +700,7 @@ export const COLOR_UNIQUE_SECTIONS = [
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
   { key: 'deepsea',    label: 'Deep Sea',   effects: ['octopus'] },
   { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint'] },
+  { key: 'motion',     label: 'Motion',     effects: ['predator'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
 // Every valid value of state.color (except 'none'): maps + unique effects +
@@ -676,6 +722,11 @@ export const BLEND_MODES = {
   pixelsort:    'source-over',
   melt:         'source-over',
   freqmod:      'source-over',
+  motionedge:   'source-over',
+  predator:     'source-over',
+  tunnel:       'source-over',
+  burnin:       'source-over',
+  wobbletape:   'source-over',
   oxide:        'source-over',
   synth:        'source-over',
   biolum:       'source-over',

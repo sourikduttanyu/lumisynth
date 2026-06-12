@@ -115,6 +115,104 @@ void main() {
   fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
 }`;
 
+// TUNNEL — the camera-pointed-at-its-own-TV effect. Each frame, the previous
+// output is re-sampled slightly zoomed and rotated under the current frame,
+// so bright content recedes into an infinite hall of echoes. Hue drift cycles
+// the echoes' color per generation — 70s analog video feedback, verbatim.
+// uParams: x=Zoom, y=Rotate (0.5 = none), z=Hue drift, w=Mix
+const FRAG_TUNNEL = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 p = uv - 0.5;
+  float zm = mix(1.004, 1.10, uParams.x);
+  float ang = (uParams.y - 0.5) * 0.55;
+  mat2 R = mat2(cos(ang), -sin(ang), sin(ang), cos(ang));
+  vec2 q = R * p / zm + 0.5;
+  vec3 fb = texture(u_feedback, clamp(q, 0.0, 1.0)).rgb;
+  // per-generation hue drift: cycle channels a little each bounce
+  fb = mix(fb, fb.brg, uParams.z * 0.28);
+  fb *= 0.978;
+  vec3 src = texture(u_video, uv).rgb;
+  vec3 outc = max(src, fb * mix(0.55, 0.985, uParams.w));
+  fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
+}`;
+
+// BURN-IN — long-exposure CRT phosphor memory. Bright pixels sear into the
+// feedback buffer and cool slowly through a phosphor palette as they fade —
+// white-hot → phosphor color → gone, like a radar scope with a burned screen.
+// Heat is recovered from the feedback's luma (the palette is luma-monotonic),
+// so display state and feedback state are the same buffer.
+// uParams: x=Sear threshold, y=Cool rate, z=Phosphor hue, w=Bleed
+const FRAG_BURNIN = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+out vec4 fragColor;
+float fbHeat(vec2 uv) { return dot(texture(u_feedback, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float r = mix(0.0, 2.2, uParams.w);
+  float hp = fbHeat(uv);
+  hp = max(hp, fbHeat(uv + vec2( r, 0.0) * texel) * 0.92);
+  hp = max(hp, fbHeat(uv + vec2(-r, 0.0) * texel) * 0.92);
+  hp = max(hp, fbHeat(uv + vec2(0.0,  r) * texel) * 0.92);
+  hp = max(hp, fbHeat(uv + vec2(0.0, -r) * texel) * 0.92);
+  float heat = hp * mix(0.860, 0.992, uParams.y);
+  vec3 src = texture(u_video, uv).rgb;
+  float Ls = dot(src, vec3(0.299, 0.587, 0.114));
+  heat = max(heat, smoothstep(uParams.x, uParams.x + 0.12, Ls));
+  // phosphor: 0 = amber radar, 0.5 = green scope, 1 = cyan
+  vec3 ph = uParams.z < 0.5
+    ? mix(vec3(1.0, 0.55, 0.08), vec3(0.18, 1.0, 0.28), uParams.z * 2.0)
+    : mix(vec3(0.18, 1.0, 0.28), vec3(0.22, 0.88, 1.0), (uParams.z - 0.5) * 2.0);
+  vec3 col = ph * pow(heat, 1.6);
+  col = mix(col, vec3(1.0, 0.98, 0.90), smoothstep(0.85, 1.0, heat) * heat);
+  col = max(col, src * 0.10);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+// WOBBLE TAPE — magnetic tape transport gone bad. Horizontal wow/flutter
+// displacement ACCUMULATES in the feedback buffer (each frame re-displaces
+// last frame's already-displaced image), progressively stretching and
+// smearing sideways — then a periodic "tracking" pulse snaps it clean.
+// uParams: x=Flutter, y=Accumulate, z=Snap rate, w=Chroma tear
+const FRAG_WOBBLETAPE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+uniform float uTime;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  float t = uTime;
+  float wob = sin(uv.y * 9.0 + t * 2.3)
+            + 0.6 * sin(uv.y * 23.0 - t * 3.7)
+            + 0.35 * sin(uv.y * 51.0 + t * 5.1);
+  vec2 off = vec2(wob * uParams.x * 0.006, 0.0);
+  float tear = uParams.w * 0.6;
+  vec3 fb;
+  fb.r = texture(u_feedback, clamp(uv + off * (1.0 + tear), 0.0, 1.0)).r;
+  fb.g = texture(u_feedback, clamp(uv + off,                0.0, 1.0)).g;
+  fb.b = texture(u_feedback, clamp(uv + off * (1.0 - tear), 0.0, 1.0)).b;
+  // tracking pulse: hold collapses briefly, image snaps back to clean source
+  float snapPhase = fract(t * mix(0.06, 0.9, uParams.z));
+  float kick = 1.0 - smoothstep(0.0, 0.10, snapPhase);
+  float hold = mix(0.25, 0.93, uParams.y) * (1.0 - kick);
+  vec3 src = texture(u_video, uv).rgb;
+  fragColor = vec4(clamp(mix(src, fb, hold), 0.0, 1.0), 1.0);
+}`;
+
 // Passthrough copy: feedback write-buffer → chain output. Needed because the
 // new feedback state must land in a persistent texture AND in the chain, and
 // one draw can only target one framebuffer.
@@ -128,8 +226,11 @@ void main() {
 }`;
 
 const FX_FRAGS = {
-  flowfield: FRAG_FLOWFIELD,
-  drag:      FRAG_DRAG,
+  flowfield:  FRAG_FLOWFIELD,
+  drag:       FRAG_DRAG,
+  tunnel:     FRAG_TUNNEL,
+  burnin:     FRAG_BURNIN,
+  wobbletape: FRAG_WOBBLETAPE,
 };
 
 // ---- WebGL helpers (same pattern as glFilters.js) ----
@@ -176,6 +277,7 @@ function getProgram(name, fragSrc) {
     video:    gl.getUniformLocation(prog, 'u_video'),
     feedback: gl.getUniformLocation(prog, 'u_feedback'),
     params:   gl.getUniformLocation(prog, 'uParams'),
+    time:     gl.getUniformLocation(prog, 'uTime'),
   };
   return _programs[name];
 }
@@ -275,6 +377,7 @@ export function applyFxEffect(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
   gl.bindTexture(gl.TEXTURE_2D, pair.read.tex);
   gl.uniform1i(entry.feedback, 1);
   gl.uniform4f(entry.params, params[0], params[1], params[2], params[3]);
+  if (entry.time != null) gl.uniform1f(entry.time, performance.now() / 1000);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   // Pass 2 — copy the new state to wherever the chain wants this stage's

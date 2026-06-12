@@ -7,7 +7,7 @@
  *   does NOT upload video or composite — renderFrame owns both.
  */
 
-import { ensureContext, getGL, getVideoTex } from './glContext.js';
+import { ensureContext, getGL, getVideoTex, getMotionTex } from './glContext.js';
 
 const VERT = `#version 300 es
 in vec2 a_pos;
@@ -114,6 +114,96 @@ void main() {
   float skirt = (1.0 - smoothstep(0.0, 0.85, d)) * 0.22;
   float structure = (core + skirt) * gate * (0.45 + 0.55 * L);
   fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+}`;
+
+// MOTIONEDGE — STRUCTURE. Spatial edges + temporal motion (current frame vs
+// the frame-history ring, ~4 frames back) combined into one structure mask.
+// Still scenes show outlines; anything moving lights up hard.
+// uParams: x=Edge gain, y=Motion gain, z=Threshold, w=Boost
+const FRAG_MOTIONEDGE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_prev;
+uniform vec4 uParams;
+uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
+out vec4 fragColor;
+
+vec3 applyStructureOutput(float structure, vec3 src, float mode) {
+  structure = clamp(structure, 0.0, 1.0);
+  if (mode < 0.5) return vec3(structure);
+  if (mode < 1.5) return src * structure;
+  float poster = smoothstep(0.42, 0.58, structure);
+  return mix(uInkLow, uInkHigh, poster);
+}
+
+float lumC(vec2 uv) { return dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+float lumP(vec2 uv) { return dot(texture(u_prev,  uv).rgb, vec3(0.299, 0.587, 0.114)); }
+
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 src = texture(u_video, uv).rgb;
+
+  // spatial edge: central-difference gradient on current luma
+  float gx = lumC(uv + vec2(texel.x, 0.0)) - lumC(uv - vec2(texel.x, 0.0));
+  float gy = lumC(uv + vec2(0.0, texel.y)) - lumC(uv - vec2(0.0, texel.y));
+  float edge = length(vec2(gx, gy)) * mix(0.0, 9.0, uParams.x);
+
+  // temporal motion: |current - ~4 frames ago|, with a small neighborhood
+  // max so thin movements read as solid strokes instead of speckle
+  float m = abs(lumC(uv) - lumP(uv));
+  m = max(m, abs(lumC(uv + vec2(texel.x, 0.0)) - lumP(uv + vec2(texel.x, 0.0))));
+  m = max(m, abs(lumC(uv - vec2(0.0, texel.y)) - lumP(uv - vec2(0.0, texel.y))));
+  float motion = m * mix(0.0, 11.0, uParams.y);
+
+  float sig = max(edge, motion);
+  float structure = smoothstep(uParams.z, uParams.z + 0.22, sig) * mix(0.55, 1.6, uParams.w);
+  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+}`;
+
+// PREDATOR — COLOR UNIQUE (Motion). Motion-as-heat thermal vision: pixels
+// that changed since ~4 frames ago glow hot; still regions settle into a
+// cold dim body palette. Instantaneous heat (no accumulation — feedback
+// trails belong in the FX rack).
+// uParams: x=Sense, y=Spread, z=Palette (predator blue → classic thermal), w=Body
+const FRAG_PREDATOR = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_prev;
+uniform vec4 uParams;
+out vec4 fragColor;
+
+float dHeat(vec2 uv) {
+  vec3 c = texture(u_video, uv).rgb;
+  vec3 p = texture(u_prev, uv).rgb;
+  return dot(abs(c - p), vec3(0.299, 0.587, 0.114));
+}
+
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  float r = mix(1.0, 7.0, uParams.y);
+  float heat = dHeat(uv);
+  heat = max(heat, dHeat(uv + vec2( r,  r) * texel) * 0.85);
+  heat = max(heat, dHeat(uv + vec2(-r,  r) * texel) * 0.85);
+  heat = max(heat, dHeat(uv + vec2( r, -r) * texel) * 0.85);
+  heat = max(heat, dHeat(uv + vec2(-r, -r) * texel) * 0.85);
+  heat = clamp(heat * mix(2.0, 16.0, uParams.x), 0.0, 1.0);
+
+  float L = dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114));
+  vec3 bodyA = mix(vec3(0.015, 0.03, 0.10), vec3(0.10, 0.26, 0.46), L);   // predator blue
+  vec3 bodyB = mix(vec3(0.07, 0.0, 0.14), vec3(0.46, 0.10, 0.44), L);     // thermal purple
+  vec3 body = mix(bodyA, bodyB, uParams.z) * mix(0.25, 1.0, uParams.w);
+
+  vec3 hot0 = mix(vec3(0.95, 0.55, 0.10), vec3(0.90, 0.20, 0.05), uParams.z);
+  vec3 hot1 = vec3(1.0, 0.96, 0.78);
+  vec3 heatCol = mix(hot0, hot1, smoothstep(0.55, 1.0, heat));
+  vec3 col = mix(body, heatCol, smoothstep(0.06, 0.55, heat));
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
 const FRAG_OXIDE = `#version 300 es
@@ -1668,6 +1758,8 @@ const FRAGS = {
   pixelsort:    FRAG_PIXELSORT,
   melt:         FRAG_MELT,
   freqmod:      FRAG_FREQMOD,
+  motionedge:   FRAG_MOTIONEDGE,
+  predator:     FRAG_PREDATOR,
   // COLOR additions
   depthstack:   FRAG_DEPTHSTACK,
   abyss:        FRAG_ABYSS,
@@ -1755,6 +1847,9 @@ function getProgram(name) {
   const entry = {
     prog,
     video:  gl.getUniformLocation(prog, 'u_video'),
+    // u_prev: the frame from ~4 captures ago (glContext frame-history ring).
+    // Null for shaders that don't declare it — binding is skipped entirely.
+    prev:   gl.getUniformLocation(prog, 'u_prev'),
     params: gl.getUniformLocation(prog, 'uParams'),
     uTime:  gl.getUniformLocation(prog, 'uTime'),
     outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
@@ -1794,6 +1889,12 @@ export function applyGLFilter(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, inTex);
   gl.uniform1i(entry.video, 0);
+  if (entry.prev != null) {
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, getMotionTex() || inTex);
+    gl.uniform1i(entry.prev, 2);
+    gl.activeTexture(gl.TEXTURE0);
+  }
   gl.uniform4f(entry.params, params[0], params[1], params[2], params[3]);
   if (entry.uTime != null) gl.uniform1f(entry.uTime, performance.now() / 1000);
   if (entry.outputMode) gl.uniform1f(entry.outputMode, opts.outputMode ?? 0);

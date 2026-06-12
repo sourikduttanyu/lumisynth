@@ -6,7 +6,7 @@ import { trackBlobs, resetTracker } from './kalman.js';
 import { applyASCII } from './ascii.js';
 import { applyGLFilter } from './glFilters.js';
 import { applyFxEffect, resetFxFeedback } from './glFx.js';
-import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs } from './glContext.js';
+import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs, captureFrameHistory, resetMotionHistory } from './glContext.js';
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
 import {
@@ -1065,6 +1065,8 @@ function runEffect(name, opts) {
       return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
     case 'freqmod':
       return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodRows, look.freqmodMod, look.freqmodWave, look.freqmodThresh], { ...opts, outputMode, ...inkColors });
+    case 'motionedge':
+      return applyGLFilter('motionedge', canvas.width, canvas.height, [look.motionedgeEdge, look.motionedgeMotion, look.motionedgeThresh, look.motionedgeBoost], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -1350,6 +1352,7 @@ const COLOR_SWATCH_GRADIENTS = {
   polaroid:   'linear-gradient(90deg, #2e3b34, #6a7a6a, #c9bfa3, #f2e6c4)',
   blacklight: 'linear-gradient(90deg, #050008, #2a0a55, #7a1fd0, #ff3df0, #b6ff4d)',
   dreamstatic:'linear-gradient(90deg, #0a0a14, #8898d8, #e8a8c8, #b8a8e8, #f0e8ff)',
+  predator:   'linear-gradient(90deg, #020512, #103a66, #2a6088, #ff8a1a, #fff3c4)',
 };
 const COLOR_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
@@ -1360,7 +1363,7 @@ const COLOR_LABEL = {
   sequin: 'Sequin',
   risograph: 'Riso',
   octopus: 'Octopus', hologram: 'Hologram', surveil: 'Surveil', newsprint: 'Newsprint',
-  polaroid: 'Polaroid', blacklight: 'Blacklight', dreamstatic: 'DreamStatic',
+  polaroid: 'Polaroid', blacklight: 'Blacklight', dreamstatic: 'DreamStatic', predator: 'Predator',
   chroma: 'ChromaEngine',
 };
 
@@ -1395,6 +1398,7 @@ const COLOR_MAP_TIPS = {
   polaroid:   'Instant-film chemistry. Cyan-green shadows, yellowed highlights, milky lifted blacks, corner vignette. Found in a shoebox.',
   blacklight: 'UV poster room. Deep purple-black base; only bright regions fluoresce in hot neon paint. Sweep Paint from violet to acid green.',
   dreamstatic:'Shadows dissolve into slowly crawling pastel static while bright content stays solid. A signal coming through from a dream.',
+  predator:   'Motion-as-heat thermal vision. Anything that moved since ~4 frames ago glows hot; still regions settle into a cold blue (or purple) body.',
 };
 
 // Per-effect knob memory access. Ensures state.colorParams[type] exists and
@@ -1752,12 +1756,15 @@ const fxRackEl   = document.getElementById('fx-rack');
 const fxPickerEl = document.getElementById('fx-picker-popover');
 
 const FX_LABEL = {
-  drag: 'Drag',
+  drag: 'Drag', tunnel: 'Tunnel', burnin: 'BurnIn', wobbletape: 'WobbleTape',
   flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
 };
 const FX_SWATCH_GRADIENTS = {
   drag:       'linear-gradient(90deg, #080006, #2a0060, #8000ff, #ff44cc, #ffaaff)',
+  tunnel:     'repeating-radial-gradient(circle at 50% 50%, #0a0414 0 6px, #3a1a6e 6px 9px, #b04ad8 9px 10px)',
+  burnin:     'linear-gradient(90deg, #020803, #0a3a12, #2fae3e, #b8ff7a, #fffbe8)',
+  wobbletape: 'linear-gradient(100deg, #0a0a0c, #3a3a44 30%, #ff4444 44%, #44ddff 48%, #3a3a44 60%, #0a0a0c)',
   flowfield:  'linear-gradient(90deg, #020c14, #0f4a6b, #2fa3c7, #c7f0ff)',
   bloom:      'linear-gradient(90deg, #020310, #142b7f, #5ea9ff, #f8fbff)',
   godrays:    'linear-gradient(90deg, #120800, #6b3200, #d47a00, #ffe066, #fff8cc)',
@@ -1771,6 +1778,9 @@ const FX_SWATCH_GRADIENTS = {
 };
 const FX_CHIP_TIP = {
   drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Chroma knob adds RGB dispersion to the smear. Click to swap.',
+  tunnel:     'Analog video feedback tunnel — camera pointed at its own TV. Echoes recede with zoom, twist, and per-generation hue drift. Click to swap.',
+  burnin:     'CRT phosphor burn-in. Bright pixels sear into the screen and cool slowly through amber / green / cyan phosphor as they fade. Click to swap.',
+  wobbletape: 'Tape transport gone bad. Horizontal wow/flutter accumulates frame over frame, stretching the image sideways until a tracking pulse snaps it clean. Click to swap.',
   flowfield:  'Flow Field in this slot. Pixels advect along the luma-gradient flow, accumulating feedback trails frame over frame. Click to swap.',
   bloom:      'Neon bloom glow. Bright areas spread with a blue energy halo. Click to swap.',
   godrays:    'Volumetric light shafts. 48-sample radial march from bright regions toward a configurable light center. Click to swap.',
@@ -3063,6 +3073,7 @@ function resetAllState() {
   // FX feedback trails belong to the old source / timeline segment — a new
   // one starts from black, same as every other temporal cache here.
   resetFxFeedback();
+  resetMotionHistory();
   cachedBlobs = []; frameCount = 0;
   _lastResolvedTimelineSegmentId = null;
   _lastResolvedTimelineRuntimeSig = '';
@@ -3856,6 +3867,11 @@ function renderFrame(nowDOMHi) {
   if (totalStages > 0) {
     ensureContext(cw, ch);
     uploadVideoFrame(srcEl);
+    // Motion effects diff the current frame against the frame-history ring
+    // (~4 frames back). Capture only when one is active — idle cost is zero.
+    if (pipe.structure === 'motionedge' || pipe.color?.type === 'predator') {
+      captureFrameHistory();
+    }
 
     if (totalStages === 1) {
       // Standalone single-stage fast path. No chain FBO allocation, no
