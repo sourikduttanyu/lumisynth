@@ -63,12 +63,12 @@ void main() {
   fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
 }`;
 
-// FREQMOD — video-synthesis FM screening. The image becomes horizontal scan
-// rows of dots; local brightness modulates the frequency of each row's wiggle
-// (true FM-raster style — bright areas vibrate into tight zigzag ribbons,
-// dark areas rest as sparse calm dots). Layer with Drag in the FX rack for
-// oscillographic smears.
-// uParams: x=Rows, y=Mod depth, z=Wave amplitude, w=Dot breakup
+// FREQMOD — analog FM oscillography. Each scan row is a continuous waveform
+// trace whose frequency AND amplitude follow the video's luminance: dark
+// regions flatline (or gate out entirely below Thresh), bright regions surge
+// into fast full-swing oscillation — like an oscilloscope reading the image
+// as a signal. Layer with Drag in the FX rack for phosphor smears.
+// uParams: x=Rows, y=Mod (frequency response), z=Wave (amplitude), w=Thresh
 const FRAG_FREQMOD = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -90,28 +90,30 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
 
 void main() {
   vec2 uv = vUV;
-  float rows = floor(mix(24.0, 120.0, uParams.x));
+  float rows = floor(mix(14.0, 72.0, uParams.x));
   float rowIdx = floor(uv.y * rows);
   float rowCenter = (rowIdx + 0.5) / rows;
   vec3 src = texture(u_video, uv).rgb;
   float L = dot(texture(u_video, vec2(uv.x, rowCenter)).rgb, vec3(0.299, 0.587, 0.114));
 
-  // FM carrier: wiggle frequency scales with local brightness
-  float freq = mix(40.0, 900.0, uParams.y * L);
-  float phase = uv.x * freq + rowIdx * 2.39996 + uTime * 0.6;
+  // Signal gate: below Thresh the trace dies out entirely; a soft knee just
+  // above it lets quiet signals fade in as dim flat lines before they swing.
+  float gate = smoothstep(uParams.w, uParams.w + 0.18, L);
+
+  // FM: both carrier frequency and swing follow the signal level.
+  float freq = mix(30.0, 260.0, uParams.y * L);
+  float phase = uv.x * freq + rowIdx * 2.39996 + uTime * 1.2;
   float wave = sin(phase);
 
-  // position within the row (-1..1); the carrier displaces the row line
   float dy = (fract(uv.y * rows) - 0.5) * 2.0;
-  float target = wave * uParams.z * 0.85;
-  float lineMask = 1.0 - smoothstep(0.0, 0.45, abs(dy - target));
+  float amp = uParams.z * 0.80 * gate * (0.25 + 0.75 * L);
+  float d = abs(dy - wave * amp);
 
-  // break the line into dots
-  float dotFreq = mix(420.0, 60.0, uParams.w);
-  float dots = smoothstep(0.15, 0.65, sin(uv.x * dotFreq + rowIdx * 1.7) * 0.5 + 0.5);
-
-  float structure = lineMask * dots * smoothstep(0.02, 0.12, L) * (0.25 + 0.75 * L);
-  fragColor = vec4(applyStructureOutput(structure * 1.35, src, uOutputMode), 1.0);
+  // Crisp trace core + soft phosphor skirt — a line, not grain.
+  float core = 1.0 - smoothstep(0.0, 0.22, d);
+  float skirt = (1.0 - smoothstep(0.0, 0.85, d)) * 0.22;
+  float structure = (core + skirt) * gate * (0.45 + 0.55 * L);
+  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
 }`;
 
 const FRAG_OXIDE = `#version 300 es

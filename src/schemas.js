@@ -61,7 +61,7 @@ export const DEFAULTS = Object.freeze({
   watershedBasin: 0.4, watershedBoundary: 0.5, watershedFlat: 0.5, watershedDepth: 0.0,
   pixelsortThresh: 0.4, pixelsortLength: 0.3, pixelsortOpacity: 0.8, pixelsortDir: 0.5,
   meltAmount: 0.5,     meltDrip: 0.4,         meltViscosity: 0.5,   meltDir: 0.0,
-  freqmodRows: 0.5,    freqmodMod: 0.6,       freqmodWave: 0.5,     freqmodDots: 0.5,
+  freqmodRows: 0.5,    freqmodMod: 0.6,       freqmodWave: 0.5,     freqmodThresh: 0.2,
 
   // ============ TRACK-mode state ============
   // Top-level mode + composite selector.

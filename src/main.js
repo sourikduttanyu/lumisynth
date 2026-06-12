@@ -1064,7 +1064,7 @@ function runEffect(name, opts) {
     case 'melt':
       return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
     case 'freqmod':
-      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodRows, look.freqmodMod, look.freqmodWave, look.freqmodDots], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodRows, look.freqmodMod, look.freqmodWave, look.freqmodThresh], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':
