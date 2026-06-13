@@ -531,6 +531,17 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['dir', 'dist', 'decay', 'wobble'],
   },
+  lumadrag: {
+    feedback: true,
+    knobs: [
+      { key: 'dir',   label: 'Dir',    min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Drag direction. 0 = right, 0.25 = up, 0.5 = left, 0.75 = down. Bright lines stream this way.' },
+      { key: 'dist',  label: 'Dist',   min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Drag distance — how far the trail advances each frame. 0 = no pull. 1 = fast streaks.' },
+      { key: 'decay', label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.9,  tip: 'Trail length. Near 1 = long clean streaks. Low = short stubs that die quickly.' },
+      { key: 'gate',  label: 'Gate',   min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Luminance gate — the cleanliness knob. Only pixels brighter than this seed a trail, so dark areas never smear. Raise it to drag ONLY the brightest lines and keep everything else planted.' },
+    ],
+    toggles: [],
+    order: ['dir', 'dist', 'decay', 'gate'],
+  },
   flowfield: {
     feedback: true,
     knobs: [
@@ -635,7 +646,7 @@ export const FX_PARAM_SCHEMAS = {
 };
 
 export const FX_SECTIONS = [
-  'drag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
+  'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
   'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
 ];
@@ -758,6 +769,7 @@ export const BLEND_MODES = {
   deepfield:    'source-over',
   decayflow:    'source-over',
   drag:         'source-over',
+  lumadrag:     'source-over',
   feedbackwarp: 'source-over',
   bloom:        'source-over',
   godrays:      'source-over',

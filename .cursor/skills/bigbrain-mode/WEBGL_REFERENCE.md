@@ -156,7 +156,7 @@ in the chain. Two kinds of effect live here, split by the schema's
   mechanics to COLOR effects, just racked after the color stage. Follow the
   stateless FX checklist in SKILL.md; nothing below about feedback applies.
 - **Feedback effects** (`feedback: true`): STATEFUL passes in `glFx.js` —
-  flowfield, drag, tunnel, burnin, wobbletape. The one place in the app
+  flowfield, drag, lumadrag, tunnel, burnin, wobbletape. The one place in the app
   where a shader may sample its own previous-frame output. `applyFxEffect`
   also auto-uploads `uTime` to feedback shaders that declare it
   (wobbletape's flutter waves use this). The rest of this section
@@ -205,7 +205,11 @@ To add a stateless FX effect: same steps, but the shader goes in
 Reference implementations: `flowfield` (luma-gradient advection trails),
 `drag` (directional smear whose vector is FM-wobbled per scanline by a
 time-traveling sine — `uTime` declared, Wobble knob; wobble 0 = clean linear
-drag), `tunnel` (zoom/rotate re-sampling of own output),
+drag), `lumadrag` (CLEAN luminance-gated drag — only content above the Gate
+threshold seeds a trail and gets fed back, so dark areas never smear;
+collinear multi-tap advection keeps streaks continuous and tight; built to
+pull bright line structure like FreqMod traces), `tunnel` (zoom/rotate
+re-sampling of own output),
 `burnin` (heat stored AS the visible phosphor color, recovered from feedback
 luma — the palette must stay luma-monotonic for that trick to work), and
 `wobbletape` (displacement that accumulates because each frame re-displaces

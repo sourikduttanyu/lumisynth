@@ -233,6 +233,59 @@ void main() {
   fragColor = vec4(clamp(mix(src, fb, hold), 0.0, 1.0), 1.0);
 }`;
 
+// LUMA DRAG — a CLEAN, luminance-gated directional drag, built to pull bright
+// line structure (e.g. FreqMod traces) without the all-over smear the regular
+// DRAG produces. Two things make it clean: (1) only bright current content
+// SEEDS the trail — gated by luminance, so the dark gaps between lines never
+// accumulate and stay black; (2) the existing trail advects strictly ALONG
+// the drag axis (collinear taps, no perpendicular soften), so trails stay as
+// crisp streaks instead of spreading into blobs. Seed strength follows luma,
+// so brighter lines throw longer, brighter trails — "drag based on luminance".
+// uParams: x=Dir, y=Dist, z=Decay (trail length), w=Gate (luma threshold)
+const FRAG_LUMADRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 texel = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 cur = texture(u_video, uv).rgb;
+  float curL = dot(cur, vec3(0.299, 0.587, 0.114));
+
+  float ang = uParams.x * 6.2831853;
+  vec2 dir = vec2(cos(ang), sin(ang));
+  float dragPx = mix(0.0, 24.0, uParams.y);
+  vec2 off = dir * dragPx * texel;
+
+  // Advect the trail along the drag axis only — several COLLINEAR taps
+  // spanning the full per-frame offset (no perpendicular spread). Taking the
+  // max over [uv-off, uv] fills the gap each frame so the streak stays a
+  // continuous clean line instead of a dotted stamp at high Dist.
+  vec3 fb = vec3(0.0);
+  for (int i = 1; i <= 5; i++) {
+    float f = float(i) / 5.0;
+    fb = max(fb, texture(u_feedback, clamp(uv - off * f, 0.0, 1.0)).rgb * (1.0 - 0.05 * float(i)));
+  }
+  fb *= clamp(uParams.z, 0.0, 0.999);   // decay sets trail length
+
+  // Gate by luminance: only content above the threshold survives. This is
+  // both the seed AND what gets fed back, so dim/dark content can never
+  // propagate a trail — the Gate knob is a true luminance floor. Bright
+  // lines show at full strength (seed = cur where gate = 1) and stream their
+  // trail in the drag direction; everything below the gate stays clean black.
+  float gate = smoothstep(uParams.w, uParams.w + 0.10, curL);
+  vec3 seed = cur * gate;
+
+  // Live gated content on top of the advected trail — line stays crisp, trail
+  // fans out behind it. The output IS the feedback, so only gated content
+  // persists; no all-over smear.
+  vec3 outc = max(seed, fb);
+  fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
+}`;
+
 // Passthrough copy: feedback write-buffer → chain output. Needed because the
 // new feedback state must land in a persistent texture AND in the chain, and
 // one draw can only target one framebuffer.
@@ -248,6 +301,7 @@ void main() {
 const FX_FRAGS = {
   flowfield:  FRAG_FLOWFIELD,
   drag:       FRAG_DRAG,
+  lumadrag:   FRAG_LUMADRAG,
   tunnel:     FRAG_TUNNEL,
   burnin:     FRAG_BURNIN,
   wobbletape: FRAG_WOBBLETAPE,

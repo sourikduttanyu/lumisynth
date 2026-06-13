@@ -1757,12 +1757,13 @@ const fxRackEl   = document.getElementById('fx-rack');
 const fxPickerEl = document.getElementById('fx-picker-popover');
 
 const FX_LABEL = {
-  drag: 'Drag', tunnel: 'Tunnel', burnin: 'BurnIn', wobbletape: 'WobbleTape',
+  drag: 'Drag', lumadrag: 'LumaDrag', tunnel: 'Tunnel', burnin: 'BurnIn', wobbletape: 'WobbleTape',
   flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
 };
 const FX_SWATCH_GRADIENTS = {
   drag:       'linear-gradient(90deg, #080006, #2a0060, #8000ff, #ff44cc, #ffaaff)',
+  lumadrag:   'linear-gradient(90deg, #050608 0 30%, #0a2a3a, #28c8e8 78%, #eafcff)',
   tunnel:     'repeating-radial-gradient(circle at 50% 50%, #0a0414 0 6px, #3a1a6e 6px 9px, #b04ad8 9px 10px)',
   burnin:     'linear-gradient(90deg, #020803, #0a3a12, #2fae3e, #b8ff7a, #fffbe8)',
   wobbletape: 'linear-gradient(100deg, #0a0a0c, #3a3a44 30%, #ff4444 44%, #44ddff 48%, #3a3a44 60%, #0a0a0c)',
@@ -1779,6 +1780,7 @@ const FX_SWATCH_GRADIENTS = {
 };
 const FX_CHIP_TIP = {
   drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Wobble knob FM-modulates the smear direction with a per-scanline analog wave — turn it up for a wavering, snaking, tape-unstable smear instead of a dead-straight one. Click to swap.',
+  lumadrag:   'Luminance drag — a CLEAN directional pull. Only bright content (e.g. FreqMod lines) streaks; dark gaps stay planted, so it drags the lines instead of smearing the whole frame. Gate knob sets how bright a pixel must be to drag. Pairs with FreqMod. Click to swap.',
   tunnel:     'Analog video feedback tunnel — camera pointed at its own TV. Echoes recede with zoom, twist, and per-generation hue drift. Click to swap.',
   burnin:     'CRT phosphor burn-in. Bright pixels sear into the screen and cool slowly through amber / green / cyan phosphor as they fade. Click to swap.',
   wobbletape: 'Tape transport gone bad. Horizontal wow/flutter accumulates frame over frame, stretching the image sideways until a tracking pulse snaps it clean. Click to swap.',
