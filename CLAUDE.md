@@ -82,7 +82,7 @@ Every effect vertex shader **must** call `gl.bindAttribLocation(prog, 0, 'a_pos'
 
 **`resolveActivePipeline()`** returns `{ structure: string|null, color: {type, params}|null, grade: {hue, sat}|null, fx: [{type, params, key}] }`. `color` is the single selected effect with its params from `colorParams` (fallback to factory, never mutating the look). `grade` is non-null whenever either grade knob is off neutral. `key` is the fx slot id; glFx.js keys per-slot feedback buffers on it. Called once per frame; drives the entire GL dispatch.
 
-**`runEffect(name, opts)`** dispatches STRUCTURE effects: `'ascii'` → `applyASCII`, `'erode'` → `applyGLFilter('erode', ...)`.
+**`runEffect(name, opts)`** dispatches STRUCTURE effects: `'ascii'` → `applyASCII`, `'erode'` → `applyGLFilter('erode', ...)`. STRUCTURE shaders share an `applyStructureOutput(structure, src, mode)` helper (copy-pasted into each FRAG) with four output modes — `mono` (0, grayscale on black), `source` (1, mask the source RGB), `ink` (2, black/cream poster via `uInkLow`/`uInkHigh`), `invert` (3, negative of mono). The string→number map is `STRUCTURE_OUTPUT_MODE_VALUE` in `main.js`; a new mode must be added to every copy of the helper.
 
 **`runColorEffect(type, params, opts)`** dispatches COLOR effects through `applyGLFilter(type, cw, ch, orderedParams, opts)` where `orderedParams` is built from `COLOR_PARAM_SCHEMAS[type].order` (padded to 4). For `chroma`, the 4 ramp-stop hex params additionally travel as vec3 uniforms via `opts.stops` (same out-of-band mechanism as the ink colors).
 
@@ -112,7 +112,7 @@ All fragment shaders have the same interface:
 Two OPTIONAL uniforms are auto-wired by the dispatchers (`applyGLFilter` AND `applyFxEffect`) — declare them and they work; omit them and they cost nothing (cached location is null, upload skipped):
 - `uniform float uTime` — seconds (`performance.now()/1000`), for animated effects (sequin, octopus, hologram, dreamstatic, freqmod, crtrolling, wobbletape)
 - `uniform sampler2D u_prev` — the video frame from ~4 frames back, bound on TEXTURE2 (glFilters only). Backed by the frame-history ring in glContext.js; `renderFrame` calls `captureFrameHistory()` only while a motion effect is active, so **new motion effects must be added to that condition in main.js** (currently `motionedge` / `predator`). Ring re-primes on source change via `resetMotionHistory()` in `resetAllState`.
-- `uniform float uParam4` — an optional 5th scalar for effects that genuinely need more than the 4 `uParams` slots (escape hatch from the 4-knob house pattern). `applyGLFilter` uploads `params[4]` when both the uniform exists and a 5th value is passed. Currently used by `freqmod` (line density / rows). Prefer keeping to 4 knobs; reach for this only when a 5th control is clearly warranted.
+- `uniform float uParam4` — an optional 5th scalar for effects that genuinely need more than the 4 `uParams` slots (escape hatch from the 4-knob house pattern). BOTH dispatchers (`applyGLFilter` and `applyFxEffect`) upload `params[4]` when the uniform exists and a 5th value is passed; pass a 5-element `order` array (runEffect/runFxEffect map the whole order and only pad to 4). Used by `freqmod` (line density, glFilters) and `lumadrag` (wobble, feedback FX in glFx). Prefer keeping to 4 knobs; reach for this only when a 5th control is clearly warranted. (Shader SOURCES are separate — they use a `uParams[8]` array, see below.)
 
 **Shaders by effect:**
 
@@ -238,8 +238,8 @@ it:
   stage. Adding one = shader + `FRAGS` entry + `FX_PARAM_SCHEMAS` +
   `FX_SECTIONS` + `FX_LABEL`/`FX_SWATCH_GRADIENTS`/`FX_CHIP_TIP` in
   `main.js` (the picker popover builds itself — no index.html edits).
-- **Feedback effects** (`feedback: true`): `flowfield`, `drag`, `tunnel`,
-  `burnin`, `wobbletape`. Live in `src/glFx.js`; each enabled slot owns a
+- **Feedback effects** (`feedback: true`): `flowfield`, `drag`, `lumadrag`,
+  `tunnel`, `burnin`, `wobbletape`. Live in `src/glFx.js`; each enabled slot owns a
   persistent ping-pong feedback FBO pair (keyed by slot id) so the shader
   can sample its own previous-frame output (`u_feedback`) — that's what
   makes trails accumulate. Two slots running the same effect trail
