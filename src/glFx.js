@@ -242,12 +242,16 @@ void main() {
 // crisp streaks instead of spreading into blobs. Seed strength follows luma,
 // so brighter lines throw longer, brighter trails — "drag based on luminance".
 // uParams: x=Dir, y=Dist, z=Decay (trail length), w=Gate (luma threshold)
+// uParam4: Wobble — FM-modulates the drag direction per scanline (same
+//          time-traveling analog wave as DRAG); 0 = clean straight pull.
 const FRAG_LUMADRAG = `#version 300 es
 precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform sampler2D u_feedback;
 uniform vec4 uParams;
+uniform float uParam4;   // Wobble
+uniform float uTime;
 out vec4 fragColor;
 void main() {
   vec2 uv = vUV;
@@ -256,6 +260,13 @@ void main() {
   float curL = dot(cur, vec3(0.299, 0.587, 0.114));
 
   float ang = uParams.x * 6.2831853;
+  // FM wobble: a sinusoid travelling up the frame bends the drag direction,
+  // so trails snake instead of pulling dead straight. 0 = clean.
+  float wob = uParam4;
+  float freq = mix(5.0, 40.0, wob);
+  float phase = uv.y * freq + uTime * 3.0;
+  float wave = sin(phase) + 0.35 * sin(phase * 2.3 + 1.7);
+  ang += wave * wob * 1.1;
   vec2 dir = vec2(cos(ang), sin(ang));
   float dragPx = mix(0.0, 24.0, uParams.y);
   vec2 off = dir * dragPx * texel;
@@ -351,6 +362,9 @@ function getProgram(name, fragSrc) {
     video:    gl.getUniformLocation(prog, 'u_video'),
     feedback: gl.getUniformLocation(prog, 'u_feedback'),
     params:   gl.getUniformLocation(prog, 'uParams'),
+    // Optional 5th scalar (uParams holds 4) — null for shaders that don't
+    // declare it, so the upload is skipped. lumadrag uses it for Wobble.
+    param4:   gl.getUniformLocation(prog, 'uParam4'),
     time:     gl.getUniformLocation(prog, 'uTime'),
   };
   return _programs[name];
@@ -451,6 +465,7 @@ export function applyFxEffect(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
   gl.bindTexture(gl.TEXTURE_2D, pair.read.tex);
   gl.uniform1i(entry.feedback, 1);
   gl.uniform4f(entry.params, params[0], params[1], params[2], params[3]);
+  if (entry.param4 != null && params[4] !== undefined) gl.uniform1f(entry.param4, params[4]);
   if (entry.time != null) gl.uniform1f(entry.time, performance.now() / 1000);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 

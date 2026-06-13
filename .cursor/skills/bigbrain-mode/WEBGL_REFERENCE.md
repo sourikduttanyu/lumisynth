@@ -71,11 +71,14 @@ uniform sampler2D u_prev;   // video frame from ~4 frames ago (glFilters only)
 uniform float uParam4;      // optional 5th scalar (glFilters only) — see below
 ```
 
-`uParam4` is the escape hatch from the 4-knob house pattern: `applyGLFilter`
-uploads `params[4]` when the uniform exists and a 5th value is passed (pass a
-5-element array from `runEffect`). Keep to 4 `uParams` slots by default;
-reach for `uParam4` only when a 5th control is clearly warranted. Reference:
-`freqmod`'s Density knob (scan-row count 120–300).
+`uParam4` is the escape hatch from the 4-knob house pattern: BOTH dispatchers
+(`applyGLFilter` and `applyFxEffect`) upload `params[4]` when the uniform
+exists and a 5th value is passed. Pass a 5-element `order` array — `runEffect`
+/ `runFxEffect` map the whole order and only pad to 4, so the 5th flows
+through. Keep to 4 `uParams` slots by default; reach for `uParam4` only when a
+5th control is clearly warranted. References: `freqmod`'s Density knob
+(scan-row count 120–300, glFilters) and `lumadrag`'s Wobble knob (feedback FX,
+glFx).
 
 `u_prev` is backed by the frame-history ring in `glContext.js` (4 GPU-side
 copies written by passthrough draws — no extra CPU uploads). `renderFrame`
@@ -207,8 +210,9 @@ Reference implementations: `flowfield` (luma-gradient advection trails),
 time-traveling sine — `uTime` declared, Wobble knob; wobble 0 = clean linear
 drag), `lumadrag` (CLEAN luminance-gated drag — only content above the Gate
 threshold seeds a trail and gets fed back, so dark areas never smear;
-collinear multi-tap advection keeps streaks continuous and tight; built to
-pull bright line structure like FreqMod traces), `tunnel` (zoom/rotate
+collinear multi-tap advection keeps streaks continuous and tight; Wobble knob
+FM-bends the pull direction per scanline via the optional `uParam4` 5th-param;
+built to pull bright line structure like FreqMod traces), `tunnel` (zoom/rotate
 re-sampling of own output),
 `burnin` (heat stored AS the visible phosphor color, recovered from feedback
 luma — the palette must stay luma-monotonic for that trick to work), and

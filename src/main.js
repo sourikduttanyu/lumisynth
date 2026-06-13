@@ -1780,7 +1780,7 @@ const FX_SWATCH_GRADIENTS = {
 };
 const FX_CHIP_TIP = {
   drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Wobble knob FM-modulates the smear direction with a per-scanline analog wave — turn it up for a wavering, snaking, tape-unstable smear instead of a dead-straight one. Click to swap.',
-  lumadrag:   'Luminance drag — a CLEAN directional pull. Only bright content (e.g. FreqMod lines) streaks; dark gaps stay planted, so it drags the lines instead of smearing the whole frame. Gate knob sets how bright a pixel must be to drag. Pairs with FreqMod. Click to swap.',
+  lumadrag:   'Luminance drag — a CLEAN directional pull. Only bright content (e.g. FreqMod lines) streaks; dark gaps stay planted, so it drags the lines instead of smearing the whole frame. Gate sets how bright a pixel must be to drag; Wobble FM-modulates the pull direction for a snaking analog feel. Pairs with FreqMod. Click to swap.',
   tunnel:     'Analog video feedback tunnel — camera pointed at its own TV. Echoes recede with zoom, twist, and per-generation hue drift. Click to swap.',
   burnin:     'CRT phosphor burn-in. Bright pixels sear into the screen and cool slowly through amber / green / cyan phosphor as they fade. Click to swap.',
   wobbletape: 'Tape transport gone bad. Horizontal wow/flutter accumulates frame over frame, stretching the image sideways until a tracking pulse snaps it clean. Click to swap.',

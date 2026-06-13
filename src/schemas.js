@@ -538,9 +538,10 @@ export const FX_PARAM_SCHEMAS = {
       { key: 'dist',  label: 'Dist',   min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Drag distance — how far the trail advances each frame. 0 = no pull. 1 = fast streaks.' },
       { key: 'decay', label: 'Decay',  min: 0, max: 1, step: 0.01, default: 0.9,  tip: 'Trail length. Near 1 = long clean streaks. Low = short stubs that die quickly.' },
       { key: 'gate',  label: 'Gate',   min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Luminance gate — the cleanliness knob. Only pixels brighter than this seed a trail, so dark areas never smear. Raise it to drag ONLY the brightest lines and keep everything else planted.' },
+      { key: 'wobble',label: 'Wobble', min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Analog FM wobble. Frequency-modulates the drag direction with a time-traveling sine that reads per scanline — trails snake and breathe instead of pulling dead straight. 0 = clean straight pull.' },
     ],
     toggles: [],
-    order: ['dir', 'dist', 'decay', 'gate'],
+    order: ['dir', 'dist', 'decay', 'gate', 'wobble'],
   },
   flowfield: {
     feedback: true,
