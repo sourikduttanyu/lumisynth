@@ -338,6 +338,11 @@ Reference implementations:
   `mainImage(out,in)` → `main()` reading `vUV * uRes` as fragCoord. Eight
   knobs (Speed, Fly, Arms, Morph, Glow, Hue, Pulse, Fade) — a good model for
   porting any Shadertoy `mainImage` shader and exposing its constants.
+- `starnest` — Pablo Roman Andrioli's volumetric fractal starfield (MIT).
+  Same port pattern, plus the standard `iMouse` substitution: there is no
+  pointer input in the library, so the mouse-driven rotation became an
+  auto-tumble Spin knob driven by `uTime`. Use this approach for any
+  iMouse-dependent Shadertoy shader.
 
 If a generator needs external textures or multiple inputs (beyond time,
 resolution, and up to 8 knobs), flag that before coding — the source

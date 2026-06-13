@@ -357,6 +357,12 @@ stack on top. Key points:
     (fold rate, uParams[2]), Glow (exposure, uParams[3]), Hue (Rodrigues
     rotation, uParams[4]), Pulse (ring accent, uParams[5]), Fade (depth
     falloff, uParams[6]).
+  - `starnest` — Pablo Roman Andrioli's volumetric fractal starfield (MIT;
+    Shadertoy XlfGRj). The iMouse rotation is replaced by an auto-tumble Spin
+    knob. 8 knobs: Speed, Zoom (uParams[0]), Warp (the "magic formula"
+    formuparam, uParams[1]), Tile (fold size, uParams[2]), Bright (uParams[3],
+    ×0.005), Dark (dark matter, uParams[4]), Sat (uParams[5]), Spin
+    (uParams[6]).
 
 ## Timeline UI (single transport bar)
 

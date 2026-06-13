@@ -256,9 +256,78 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+// STAR NEST — the canonical volumetric fractal starfield. A Kaleidoscopic-IFS
+// "magic formula" (abs(p)/dot(p,p) - formuparam) iterated inside a tiling fold
+// and accumulated over a volumetric march, drifting forever through nebula
+// clouds and star clusters. Ported from Pablo Roman Andrioli's "Star Nest"
+// (Shadertoy XlfGRj, MIT). iTime → uTime; the iMouse rotation is replaced by
+// an auto-tumble Spin knob (the library has no pointer input).
+const FRAG_STARNEST = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform float uTime;
+uniform vec2 uRes;
+uniform float uParams[8];
+out vec4 fragColor;
+// [0] Zoom [1] Warp [2] Tile [3] Bright [4] DarkMatter [5] Saturation [6] Spin
+
+#define iterations 17
+#define volsteps 20
+#define stepsize 0.1
+#define distfading 0.730
+
+void main() {
+  float zoom       = uParams[0];
+  float formuparam = uParams[1];
+  float tile       = uParams[2];
+  float brightness = uParams[3] * 0.005;   // knob 0..1 → original 0.0015 at 0.3
+  float darkmatter = uParams[4];
+  float saturation = uParams[5];
+  float spin       = uParams[6];
+
+  vec2 fragCoord = vUV * uRes;
+  vec2 uv = fragCoord.xy / uRes.xy - 0.5;
+  uv.y *= uRes.y / uRes.x;
+  vec3 dir = vec3(uv * zoom, 1.0);
+  float time = uTime * 0.03 + 0.25;
+
+  // Auto-tumble in place of the original mouse rotation.
+  float a1 = 0.5 + uTime * spin * 0.25;
+  float a2 = 0.8 + uTime * spin * 0.17;
+  mat2 rot1 = mat2(cos(a1), sin(a1), -sin(a1), cos(a1));
+  mat2 rot2 = mat2(cos(a2), sin(a2), -sin(a2), cos(a2));
+  dir.xz *= rot1; dir.xy *= rot2;
+  vec3 from = vec3(1.0, 0.5, 0.5);
+  from += vec3(time * 2.0, time, -2.0);
+  from.xz *= rot1; from.xy *= rot2;
+
+  float s = 0.1, fade = 1.0;
+  vec3 v = vec3(0.0);
+  for (int r = 0; r < volsteps; r++) {
+    vec3 p = from + s * dir * 0.5;
+    p = abs(vec3(tile) - mod(p, vec3(tile * 2.0)));   // tiling fold
+    float pa, a = pa = 0.0;
+    for (int i = 0; i < iterations; i++) {
+      p = abs(p) / dot(p, p) - formuparam;            // the magic formula
+      a += abs(length(p) - pa);
+      pa = length(p);
+    }
+    float dm = max(0.0, darkmatter - a * a * 0.001);  // dark matter
+    a *= a * a;                                        // contrast
+    if (r > 6) fade *= 1.0 - dm;
+    v += fade;
+    v += vec3(s, s * s, s * s * s * s) * a * brightness * fade;
+    fade *= distfading;
+    s += stepsize;
+  }
+  v = mix(vec3(length(v)), v, saturation);
+  fragColor = vec4(v * 0.01, 1.0);
+}`;
+
 const SHADER_FRAGS = {
   goldclouds:  FRAG_GOLDCLOUDS,
   phantomstar: FRAG_PHANTOMSTAR,
+  starnest:    FRAG_STARNEST,
 };
 
 // Library metadata — the source picker grid builds itself from this.
@@ -301,6 +370,30 @@ export const SHADER_SOURCES = [
         tip: 'Travelling brightness ring accent that washes outward through the structure. 0 = steady glow, high = strong pulsing bands.' },
       { key: 'fade',  label: 'Fade',  min: 0,   max: 2,   step: 0.01, default: 1,
         tip: 'Depth fade. How quickly the far end of the tunnel sinks to black. 0 = flat/even, high = deep inky vanishing point.' },
+    ],
+  },
+  {
+    slug: 'starnest',
+    label: 'Star Nest',
+    tip: 'The classic volumetric fractal starfield — drifting forever through nebula clouds and star clusters. Pablo Roman Andrioli (MIT).',
+    gradient: 'radial-gradient(circle at 50% 50%, #fff0d0, #ff8c3a 16%, #c83a8c 40%, #5a3aff 64%, #0a0420)',
+    knobs: [
+      { key: 'speed', label: 'Speed', min: 0,    max: 2.5,  step: 0.01,  default: 1,
+        tip: 'Master clock. Scales the drift through the starfield and the auto-tumble. 0 = frozen frame.' },
+      { key: 'zoom',  label: 'Zoom',  min: 0.3,  max: 2.0,  step: 0.01,  default: 0.8,
+        tip: 'Field of view. Low = wide cosmic vista. High = telephoto dive deep into the cluster.' },
+      { key: 'warp',  label: 'Warp',  min: 0.40, max: 0.62, step: 0.005, default: 0.53,
+        tip: 'The fractal "magic formula" constant — the heart of the look. Tiny moves completely restructure the nebula. Sensitive; sweep slowly.' },
+      { key: 'tile',  label: 'Tile',  min: 0.4,  max: 1.5,  step: 0.01,  default: 0.85,
+        tip: 'Tiling fold size. Sets how densely the fractal repeats through space. Low = tight busy clusters, high = sparse open fields.' },
+      { key: 'bright',label: 'Bright',min: 0,    max: 1,    step: 0.01,  default: 0.3,
+        tip: 'Star/nebula brightness. Low = dim distant glow, high = a blaze of close-packed stars.' },
+      { key: 'dark',  label: 'Dark',  min: 0,    max: 0.6,  step: 0.01,  default: 0.3,
+        tip: 'Dark matter. Carves shadowed voids into the cloud so bright clusters read against black. 0 = even haze, high = deep negative space.' },
+      { key: 'sat',   label: 'Sat',   min: 0,    max: 1,    step: 0.01,  default: 0.85,
+        tip: 'Color saturation. 0 = silvery monochrome starfield, 1 = full nebula color.' },
+      { key: 'spin',  label: 'Spin',  min: 0,    max: 1,    step: 0.01,  default: 0.2,
+        tip: 'Auto-tumble rate (replaces the original mouse look). 0 = fixed orientation, just drifting forward. High = slow rolling tumble through space.' },
     ],
   },
 ];
