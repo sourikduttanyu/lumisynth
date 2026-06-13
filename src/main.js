@@ -138,7 +138,7 @@ const KNOB_DRAG_PX = 150;
 // notch / one trackpad line). Threshold-based accumulation prevents trackpad
 // runaway; deltaMode normalization handles devices that report lines or pages.
 const WHEEL_TICK_PX = 40;
-const STRUCTURE_OUTPUT_MODE_VALUE = { mono: 0, source: 1, ink: 2 };
+const STRUCTURE_OUTPUT_MODE_VALUE = { mono: 0, source: 1, ink: 2, invert: 3 };
 
 function kebabToCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 function snapToStep(v, min, step) {

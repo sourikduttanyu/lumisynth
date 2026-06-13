@@ -68,7 +68,7 @@ uParams.z = ...
 uParams.w = ...
 ```
 
-For STRUCTURE, the prompt should say `Add this as a STRUCTURE effect` and include the desired output behavior for `mono`, `source`, and `ink`.
+For STRUCTURE, the prompt should say `Add this as a STRUCTURE effect` and include the desired output behavior for `mono`, `source`, `ink`, and `invert`.
 
 For FX, the prompt should say `Add this as an FX effect` and identify which TouchDesigner input is the feedback (`sTD2DInputs[1]` etc.).
 
@@ -130,7 +130,7 @@ Add the effect as the single STRUCTURE stage:
 4. `src/main.js`: add `runEffect` dispatch with the correct state-to-`uParams` order.
 5. `index.html`: add the structure picker button and a matching `<section id="<slug>-controls">`.
 6. If persisted state shape changes, bump `STORAGE_KEY` and explain why.
-7. Verify output modes `mono`, `source`, and `ink` if the shader emits a structure mask.
+7. Verify output modes `mono`, `source`, `ink`, and `invert` if the shader emits a structure mask.
 
 ## SOURCE Effect Checklist (shader library)
 

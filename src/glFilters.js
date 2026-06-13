@@ -34,8 +34,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 void main() {
@@ -86,8 +89,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 void main() {
@@ -150,8 +156,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 float lumC(vec2 uv) { return dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114)); }
@@ -399,8 +408,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 void main() {
@@ -452,8 +464,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 void main() {
@@ -501,8 +516,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
   if (mode < 1.5) return src * structure;
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
 }
 
 void main() {

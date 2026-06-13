@@ -42,7 +42,7 @@ export const DEFAULTS = Object.freeze({
 
   // SYNTH-mode pipeline.
   // - structure: 'none' | 'ascii' | 'erode' | 'watershed' | 'pixelsort' | 'melt'
-  // - structureOutputMode: 'mono' | 'source' | 'ink'
+  // - structureOutputMode: 'mono' | 'source' | 'ink' | 'invert'
   // - color: 'none' | any COLOR_SECTIONS name — the single selected COLOR
   //   stage (the 3-slot rack was retired in v8; layering happens on the
   //   timeline, one look per segment).

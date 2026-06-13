@@ -106,8 +106,9 @@
           </div>
           <div class="section-label" id="lbl-structure-output">Output</div>
           <div class="toggle-group" id="structure-output-group" role="radiogroup" aria-labelledby="lbl-structure-output">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="mono"   data-tip="Mono output. Current STRUCTURE behavior: grayscale geometry feeds the COLOR rack.">Mono</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="source" data-tip="Source output. The structure mask modulates the original source RGB before the COLOR rack.">Source</button>
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="mono"   data-tip="Mono output. Grayscale geometry on black feeds the COLOR rack.">Mono</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="invert" data-tip="Invert output. Negative of Mono — dark traces on a light field (inverts R/G/B).">Invert</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ink"    data-tip="Ink output. High-contrast black/cream hardware-poster rendering before the COLOR rack.">Ink</button>
           </div>
           <div class="color-picker-row ink-color-row" aria-label="Ink output colors">

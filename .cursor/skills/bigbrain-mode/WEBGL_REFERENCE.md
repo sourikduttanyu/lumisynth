@@ -59,7 +59,7 @@ STRUCTURE shaders that support output modes also use:
 uniform float uOutputMode;
 ```
 
-and map their scalar structure result through the existing `applyStructureOutput(structure, src, mode)` helper pattern.
+and map their scalar structure result through the existing `applyStructureOutput(structure, src, mode)` helper pattern. The four modes are `mono` (0, grayscale on black), `source` (1, mask the source RGB), `ink` (2, black/cream poster via uInkLow/uInkHigh), and `invert` (3, negative of mono — `1.0 - structure`). The string→value map lives in `STRUCTURE_OUTPUT_MODE_VALUE` in main.js; `applyStructureOutput` is copy-pasted into every STRUCTURE shader (glFilters.js + ascii.js), so a new mode must be added to ALL copies.
 
 Two OPTIONAL uniforms are auto-wired by the dispatchers (`applyGLFilter` in
 glFilters.js and `applyFxEffect` in glFx.js) — declare them and they work,
@@ -385,7 +385,7 @@ For STRUCTURE:
 - Selecting it reveals only its controls card.
 - Knobs/toggles update rendering.
 - The COLOR stage can process the STRUCTURE output.
-- `mono`, `source`, and `ink` output modes work if supported.
+- `mono`, `source`, `ink`, and `invert` output modes work if supported.
 - Build passes.
 
 For FX (stateless):

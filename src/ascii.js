@@ -38,8 +38,11 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
     float targetLum = mix(srcLum, structure, 0.55);
     return clamp(src * (targetLum / srcLum), 0.0, 1.0);
   }
-  float poster = smoothstep(0.42, 0.58, structure);
-  return mix(uInkLow, uInkHigh, poster);
+  if (mode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, structure);
+    return mix(uInkLow, uInkHigh, poster);
+  }
+  return vec3(1.0 - structure);   // invert: negative of mono (dark glyphs on light)
 }
 
 float hash12(vec2 p) {
