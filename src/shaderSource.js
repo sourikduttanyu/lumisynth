@@ -26,9 +26,10 @@
  * step, default }) drives the Source-section knob panel. The knob with key
  * 'speed' is special — it is consumed JS-side as a clock-rate multiplier on
  * an ACCUMULATED phase (uTime), so dragging Speed glides instead of
- * teleporting the camera. All other knobs pack into uParams.xyzw in
- * declaration order (max 4). Knob values are runtime state, kept per-slug,
- * not part of saved looks.
+ * teleporting the camera. All other knobs upload into the float array
+ * `uniform float uParams[8]` in declaration order (so a shader can expose up
+ * to 8 controls — no 4-knob ceiling). Knob values are runtime state, kept
+ * per-slug, not part of saved looks.
  *
  * Resolution presets (SHADER_RES) are 1080p-class: landscape 1920×1080,
  * square 1080×1080, vertical 1080×1920.
@@ -52,7 +53,7 @@ precision highp float;
 in vec2 vUV;
 uniform float uTime;
 uniform vec2 uRes;
-uniform vec4 uParams;   // x = zoom, y = sway, z = clouds (density)
+uniform float uParams[8];   // [0] zoom, [1] sway, [2] clouds (density)
 out vec4 fragColor;
 
 float hash(vec3 p) {
@@ -81,15 +82,15 @@ float fbm(vec3 p) {
 float fbm2(vec3 p) {  // cheaper variant for the shadow probe
   return 0.65 * noise3(p) + 0.35 * noise3(ROT3 * p * 2.3);
 }
-// Sway knob (uParams.y) scales the weave amplitude. Camera position and the
+// Sway knob (uParams[1]) scales the weave amplitude. Camera position and the
 // corridor carve share axisOff, so any sway value keeps the camera centered
 // in the clear bore.
-vec2 axisOff(float z) { return vec2(sin(z * 0.13) * 0.45, cos(z * 0.11) * 0.30) * uParams.y; }
+vec2 axisOff(float z) { return vec2(sin(z * 0.13) * 0.45, cos(z * 0.11) * 0.30) * uParams[1]; }
 // Cloud corridor: a WIDE clear bore with a gentle sway; the walls are big
 // noise-carved billows (density only where wall AND noise agree, so chunky
-// lumps with sky gaps between them). Clouds knob (uParams.z) slides the
+// lumps with sky gaps between them). Clouds knob (uParams[2]) slides the
 // noise threshold — at its 0.5 default this is the tuned 0.45..0.58 window.
-float cloudLo() { return 0.45 + (0.5 - uParams.z) * 0.26; }
+float cloudLo() { return 0.45 + (0.5 - uParams[2]) * 0.26; }
 float density(vec3 p) {
   float r = length(p.xy - axisOff(p.z));
   float wall = smoothstep(2.0, 3.8, r);
@@ -97,7 +98,7 @@ float density(vec3 p) {
   float lo = cloudLo();
   float d = wall * smoothstep(lo, lo + 0.13, n) * 1.9;
   d *= 0.8 + 0.45 * noise3(p * 2.6);               // crisp billow detail
-  d += max(0.0, n - 0.82) * 0.25 * (1.0 - wall) * (uParams.z * 2.0);  // rare interior wisps
+  d += max(0.0, n - 0.82) * 0.25 * (1.0 - wall) * (uParams[2] * 2.0);  // rare interior wisps
   return clamp(d, 0.0, 1.0);
 }
 float densityCheap(vec3 p) {
@@ -117,7 +118,7 @@ void main() {
   vec3 fwd = normalize(vec3(axisOff(t + 3.0) - ro.xy, 3.0));
   vec3 right = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(right, fwd);
-  float spread = 0.72 / max(uParams.x, 0.001);   // zoom knob: telephoto when high
+  float spread = 0.72 / max(uParams[0], 0.001);   // zoom knob: telephoto when high
   vec3 rd = normalize(fwd + (q.x * right + q.y * up) * spread);
   vec3 sunDir = normalize(vec3(axisOff(t + 14.0) - ro.xy, 14.0));
 
@@ -162,8 +163,102 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+// PHANTOM STAR — kaleidoscopic IFS-fractal flythrough. A folded box fractal
+// (abs-fold + rotations) is domain-repeated and mirrored into N-fold radial
+// symmetry, then volumetrically accumulated as a glowing neon star tunnel
+// with a travelling brightness pulse. Ported from aiekick's "Phantom Star"
+// (Shadertoy XtyXzW, building on Phantom Mode MtScWW). iTime → uTime
+// (accumulated phase clock), iResolution → uRes, knobs in uParams[].
+const FRAG_PHANTOMSTAR = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform float uTime;
+uniform vec2 uRes;
+uniform float uParams[8];
+out vec4 fragColor;
+// [0] Fly  [1] Symmetry  [2] Morph  [3] Glow  [4] Hue  [5] Pulse  [6] Fade
+
+const float pi  = acos(-1.0);
+const float pi2 = pi * 2.0;
+
+mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+
+vec2 pmod(vec2 p, float r) {
+  float a = atan(p.x, p.y) + pi / r;
+  float n = pi2 / r;
+  a = floor(a / n) * n;
+  return p * rot(-a);
+}
+float box(vec3 p, vec3 b) {
+  vec3 d = abs(p) - b;
+  return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+}
+float ifsBox(vec3 p, float morph) {
+  for (int i = 0; i < 5; i++) {
+    p = abs(p) - 1.0;
+    p.xy *= rot(uTime * 0.3 * morph);
+    p.xz *= rot(uTime * 0.1 * morph);
+  }
+  p.xz *= rot(uTime * morph);
+  return box(p, vec3(0.4, 0.8, 0.3));
+}
+float map(vec3 p, float sym, float morph) {
+  vec3 p1 = p;
+  p1.x = mod(p1.x - 5.0, 10.0) - 5.0;
+  p1.y = mod(p1.y - 5.0, 10.0) - 5.0;
+  p1.z = mod(p1.z, 16.0) - 8.0;
+  p1.xy = pmod(p1.xy, sym);
+  return ifsBox(p1, morph);
+}
+// Hue rotation about the grey axis (Rodrigues) — 0 keeps the original blue.
+vec3 hueShift(vec3 c, float h) {
+  const vec3 k = vec3(0.57735);
+  float a = h * pi2, ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+
+void main() {
+  float fly   = uParams[0];
+  float sym   = max(uParams[1], 2.0);
+  float morph = uParams[2];
+  float glow  = uParams[3];
+  float hue   = uParams[4];
+  float pulse = uParams[5];
+  float fade  = uParams[6];
+
+  vec2 fragCoord = vUV * uRes;
+  vec2 p = (fragCoord * 2.0 - uRes) / min(uRes.x, uRes.y);
+
+  vec3 cPos  = vec3(0.0, 0.0, -fly * uTime);
+  vec3 cDir  = normalize(vec3(0.0, 0.0, -1.0));
+  vec3 cUp   = vec3(sin(uTime), 1.0, 0.0);
+  vec3 cSide = cross(cDir, cUp);
+  vec3 ray   = normalize(cSide * p.x + cUp * p.y + cDir);
+
+  float acc = 0.0, acc2 = 0.0, t = 0.0;
+  for (int i = 0; i < 99; i++) {
+    vec3 pos = cPos + ray * t;
+    float dist = map(pos, sym, morph);
+    dist = max(abs(dist), 0.02);
+    float a = exp(-dist * 3.0);
+    if (mod(length(pos) + 24.0 * uTime, 30.0) < 3.0) { a *= 2.0; acc2 += a; }
+    acc += a;
+    t += dist * 0.5;
+  }
+
+  vec3 col = vec3(acc * 0.01,
+                  acc * 0.011 + acc2 * 0.002 * pulse,
+                  acc * 0.012 + acc2 * 0.005 * pulse);
+  col *= glow;
+  col = hueShift(col, hue);
+  // distance fade to deepen the tunnel mouth (knob: 0 = flat, high = inky far end)
+  col *= 1.0 - clamp(t * 0.03 * fade, 0.0, 1.0);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 const SHADER_FRAGS = {
-  goldclouds: FRAG_GOLDCLOUDS,
+  goldclouds:  FRAG_GOLDCLOUDS,
+  phantomstar: FRAG_PHANTOMSTAR,
 };
 
 // Library metadata — the source picker grid builds itself from this.
@@ -184,6 +279,30 @@ export const SHADER_SOURCES = [
         tip: 'Cloud density. Low = sparse wisps and open lavender sky. High = thick canyon walls closing in.' },
     ],
   },
+  {
+    slug: 'phantomstar',
+    label: 'Phantom Star',
+    tip: 'Kaleidoscopic IFS-fractal flythrough — a folded box fractal mirrored into radial symmetry, accumulated as a glowing neon star tunnel with a travelling pulse. After aiekick.',
+    gradient: 'radial-gradient(circle at 50% 45%, #dff0ff, #4aa6ff 22%, #2247c8 45%, #0d1640 70%, #03040c)',
+    knobs: [
+      { key: 'speed', label: 'Speed', min: 0,   max: 2.5, step: 0.01, default: 1,
+        tip: 'Master animation rate. Scales the whole clock — flight, fractal morph and pulse together. 0 = frozen frame.' },
+      { key: 'fly',   label: 'Fly',   min: 0,   max: 8,   step: 0.05, default: 3,
+        tip: 'Forward travel speed down the tunnel, independent of morph. 0 = hover in place while the fractal keeps folding around you.' },
+      { key: 'sym',   label: 'Arms',  min: 2,   max: 16,  step: 1,    default: 5,
+        tip: 'Kaleidoscope symmetry — number of radial arms the fractal is mirrored into. 5 = the classic star; high = dense mandala.' },
+      { key: 'morph', label: 'Morph', min: 0,   max: 3,   step: 0.01, default: 1,
+        tip: 'Fractal fold rate. How fast the box fractal rotates and reshapes as you fly. 0 = rigid frozen geometry, just flight.' },
+      { key: 'glow',  label: 'Glow',  min: 0.2, max: 4,   step: 0.01, default: 1,
+        tip: 'Exposure / neon intensity. Low = dim embers in the dark. High = blown-out blazing light tunnel.' },
+      { key: 'hue',   label: 'Hue',   min: 0,   max: 1,   step: 0.01, default: 0,
+        tip: 'Color rotation. 0 = the original electric blue/cyan. Sweep for violet, magenta, teal, gold star tunnels.' },
+      { key: 'pulse', label: 'Pulse', min: 0,   max: 3,   step: 0.01, default: 1,
+        tip: 'Travelling brightness ring accent that washes outward through the structure. 0 = steady glow, high = strong pulsing bands.' },
+      { key: 'fade',  label: 'Fade',  min: 0,   max: 2,   step: 0.01, default: 1,
+        tip: 'Depth fade. How quickly the far end of the tunnel sinks to black. 0 = flat/even, high = deep inky vanishing point.' },
+    ],
+  },
 ];
 
 export const SHADER_RES = {
@@ -198,6 +317,12 @@ let M = null; // { canvas, gl, vao, progs: {slug: {prog,time,res,params}}, slug,
 // Runtime state (like shaderSlug itself) — switching shaders and back keeps
 // each one's settings for the session, but they are not part of saved looks.
 const paramsBySlug = Object.create(null);
+
+// Reused upload buffer for the `uniform float uParams[8]` array (non-speed
+// knob values in declaration order). Matches the array size in every source
+// shader; cleared and refilled each frame.
+const PARAM_SLOTS = 8;
+const _paramBuf = new Float32Array(PARAM_SLOTS);
 
 /** Knob value store for a shader (registry defaults filled in). */
 export function getShaderSourceParams(slug) {
@@ -268,7 +393,8 @@ function getProgram(slug) {
     prog,
     time:   gl.getUniformLocation(prog, 'uTime'),
     res:    gl.getUniformLocation(prog, 'uRes'),
-    params: gl.getUniformLocation(prog, 'uParams'),
+    // Float-array uniform — queried at element [0]; uniform1fv uploads it all.
+    params: gl.getUniformLocation(prog, 'uParams[0]'),
   };
   return m.progs[slug];
 }
@@ -309,15 +435,15 @@ export function renderShaderSourceFrame() {
   if (entry.time != null) gl.uniform1f(entry.time, M.phase);
   if (entry.res != null) gl.uniform2f(entry.res, w, h);
   if (entry.params != null) {
-    // Non-speed knobs pack into uParams.xyzw in registry declaration order.
+    // Non-speed knobs upload into uParams[] in registry declaration order.
     const def = SHADER_SOURCES.find((s) => s.slug === M.slug);
-    const p = [0, 0, 0, 0];
+    _paramBuf.fill(0);
     let i = 0;
     for (const k of def?.knobs || []) {
       if (k.key === 'speed') continue;
-      if (i < 4) p[i++] = store[k.key] ?? k.default;
+      if (i < PARAM_SLOTS) _paramBuf[i++] = store[k.key] ?? k.default;
     }
-    gl.uniform4f(entry.params, p[0], p[1], p[2], p[3]);
+    gl.uniform1fv(entry.params, _paramBuf);
   }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

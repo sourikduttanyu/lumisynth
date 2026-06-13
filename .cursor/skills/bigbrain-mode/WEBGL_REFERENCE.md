@@ -290,9 +290,9 @@ Source shader interface (note: NO `u_video`):
 #version 300 es
 precision highp float;
 in vec2 vUV;
-uniform float uTime;     // accumulated phase (see Speed below), seconds-scaled
-uniform vec2  uRes;      // output resolution in px (for aspect correction)
-uniform vec4  uParams;   // optional knob values, xyzw in declaration order
+uniform float uTime;       // accumulated phase (see Speed below), seconds-scaled
+uniform vec2  uRes;        // output resolution in px (for aspect correction)
+uniform float uParams[8];  // knob values, indexed in declaration order
 out vec4 fragColor;
 ```
 
@@ -314,8 +314,11 @@ Knob convention:
   dragging Speed glides the animation rather than teleporting it (a plain
   `uTime * speed` would jump position on every change). Use `speed` for any
   flow/flight/time control.
-- Every other knob packs into `uParams.xyzw` in registry declaration order
-  (max 4 non-speed knobs).
+- Every other knob uploads into the float array `uniform float uParams[8]`
+  in registry declaration order (read `uParams[0]`, `uParams[1]`, …). Up to 8
+  non-speed knobs — there is no 4-knob ceiling for shader sources. The JS
+  uploads via `gl.uniform1fv` from a reused buffer; the GLSL array size (8)
+  is fixed across all source shaders.
 - Values live per-slug in shaderSource.js (`getShaderSourceParams` /
   `setShaderSourceParam`) — session runtime state like `shaderSlug` /
   `shaderRes`, NOT part of saved looks. Do not add them to `DEFAULTS`.
@@ -324,15 +327,21 @@ Knob convention:
 1080×1920) are picked via `#shader-res-group`; switching res while a shader
 is live reloads it at the new size.
 
-Reference implementation: `goldclouds` — a raymarched volumetric cloud-tunnel
-flight. FBM density uses an octave-rotation matrix (`ROT3`) to kill the
-axis-aligned lattice cross that value noise otherwise produces; knobs are
-Speed (phase clock), Zoom (FOV → uParams.x), Sway (path-weave amplitude →
-uParams.y, scaling the shared `axisOff` so camera and corridor stay aligned),
-Clouds (density threshold → uParams.z, 0.5 reproducing the tuned noise
-window). If a generator needs more than time + resolution + four knobs (e.g.
-multiple textures), flag that before coding — the source interface is
-deliberately minimal.
+Reference implementations:
+- `goldclouds` — raymarched volumetric cloud-tunnel flight. FBM density uses
+  an octave-rotation matrix (`ROT3`) to kill the axis-aligned lattice cross
+  that value noise otherwise produces; knobs Speed (phase clock), Zoom (FOV →
+  uParams[0]), Sway (path-weave → uParams[1], scaling the shared `axisOff`),
+  Clouds (density threshold → uParams[2]).
+- `phantomstar` — kaleidoscopic IFS-fractal star tunnel ported from a
+  Shadertoy (aiekick): `iTime`→`uTime`, `iResolution`→`uRes`,
+  `mainImage(out,in)` → `main()` reading `vUV * uRes` as fragCoord. Eight
+  knobs (Speed, Fly, Arms, Morph, Glow, Hue, Pulse, Fade) — a good model for
+  porting any Shadertoy `mainImage` shader and exposing its constants.
+
+If a generator needs external textures or multiple inputs (beyond time,
+resolution, and up to 8 knobs), flag that before coding — the source
+interface is otherwise deliberately minimal.
 
 ## Chain Behavior
 

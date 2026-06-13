@@ -332,23 +332,31 @@ stack on top. Key points:
   max,step,default}) drives the panel. The knob keyed `speed` is special —
   consumed JS-side as a rate multiplier on an ACCUMULATED phase clock
   (uploaded as `uTime`), so dragging Speed glides instead of teleporting the
-  camera. All other knobs pack into `uParams.xyzw` in declaration order (max
-  4). Values live per-slug in shaderSource.js (`getShaderSourceParams` /
-  `setShaderSourceParam`) — runtime state like shaderSlug/shaderRes, NOT part
-  of saved looks.
+  camera. All other knobs upload into the float array
+  `uniform float uParams[8]` in declaration order (so a shader can expose up
+  to 8 controls — no 4-knob ceiling; goldclouds reads uParams[0..2],
+  phantomstar uParams[0..6]). Values live per-slug in shaderSource.js
+  (`getShaderSourceParams` / `setShaderSourceParam`) — runtime state like
+  shaderSlug/shaderRes, NOT part of saved looks.
 - `SHADER_RES` presets: landscape 1920×1080 / square 1080×1080 / vertical
   1080×1920, picked via `#shader-res-group` (state.shaderRes, not part of
   looks). Switching res while live reloads the shader at the new size.
 - renderFrame calls `renderShaderSourceFrame()` once per tick when active;
   `activeSource*` helpers in main.js handle the kind (always "playing", so
   motion detection and motion effects work against it).
-- First entry: `goldclouds` — raymarched volumetric cloud-tunnel flight
-  (FBM with octave rotation via ROT3 to avoid lattice artifacts, wall-carved
-  corridor density, sun-probe lighting, pastel grade). Knobs: Speed (flight
-  clock), Zoom (FOV, uParams.x), Sway (path weave amplitude, uParams.y —
-  scales axisOff so camera and corridor carve stay aligned at any value),
-  Clouds (density threshold, uParams.z — 0.5 default reproduces the tuned
-  0.45..0.58 noise window exactly).
+- Library entries:
+  - `goldclouds` — raymarched volumetric cloud-tunnel flight (FBM with octave
+    rotation via ROT3 to avoid lattice artifacts, wall-carved corridor
+    density, sun-probe lighting, pastel grade). Knobs: Speed (flight clock),
+    Zoom (FOV, uParams[0]), Sway (path weave, uParams[1] — scales axisOff so
+    camera and corridor stay aligned), Clouds (density threshold, uParams[2]).
+  - `phantomstar` — kaleidoscopic IFS-fractal star tunnel (folded box fractal
+    → N-fold radial pmod symmetry → volumetric neon accumulation with a
+    travelling pulse; after aiekick's Phantom Star). 8 knobs: Speed, Fly
+    (forward travel, uParams[0]), Arms (radial symmetry, uParams[1]), Morph
+    (fold rate, uParams[2]), Glow (exposure, uParams[3]), Hue (Rodrigues
+    rotation, uParams[4]), Pulse (ring accent, uParams[5]), Fade (depth
+    falloff, uParams[6]).
 
 ## Timeline UI (single transport bar)
 

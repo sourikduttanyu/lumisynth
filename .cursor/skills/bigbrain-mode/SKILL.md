@@ -143,7 +143,7 @@ NO `index.html` edits, NO `main.js` plumbing — just the two registrations.
 
 1. `src/shaderSource.js`: write the fragment shader against the source
    interface (`in vec2 vUV`, `uniform float uTime`, `uniform vec2 uRes`,
-   optional `uniform vec4 uParams`, `out vec4 fragColor` — NO `u_video`).
+   optional `uniform float uParams[8]`, `out vec4 fragColor` — NO `u_video`).
    Register it in `SHADER_FRAGS` under its slug.
 2. `src/shaderSource.js`: add a `SHADER_SOURCES` entry
    `{ slug, label, tip, gradient, knobs }`. The `gradient` is the picker
@@ -154,7 +154,9 @@ NO `index.html` edits, NO `main.js` plumbing — just the two registrations.
      on an ACCUMULATED phase clock (uploaded as `uTime`), so dragging it
      glides the animation instead of teleporting it. Use `speed` for any
      "flow/flight/time" control.
-   - All other knobs pack into `uParams.xyzw` in declaration order (max 4).
+   - All other knobs upload into `uniform float uParams[8]` in declaration
+     order (read `uParams[0]`, `uParams[1]`, …) — up to 8, no 4-knob ceiling
+     for shader sources.
    - Knob values live per-slug in shaderSource.js
      (`getShaderSourceParams` / `setShaderSourceParam`) — runtime state like
      `shaderSlug` / `shaderRes`, NOT part of saved looks. Do not add them to
