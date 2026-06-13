@@ -1778,7 +1778,7 @@ const FX_SWATCH_GRADIENTS = {
   noise:      'linear-gradient(90deg, #111, #777, #222, #bbb, #333)',
 };
 const FX_CHIP_TIP = {
-  drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Chroma knob adds RGB dispersion to the smear. Click to swap.',
+  drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Wobble knob FM-modulates the smear direction with a per-scanline analog wave — turn it up for a wavering, snaking, tape-unstable smear instead of a dead-straight one. Click to swap.',
   tunnel:     'Analog video feedback tunnel — camera pointed at its own TV. Echoes recede with zoom, twist, and per-generation hue drift. Click to swap.',
   burnin:     'CRT phosphor burn-in. Bright pixels sear into the screen and cool slowly through amber / green / cyan phosphor as they fade. Click to swap.',
   wobbletape: 'Tape transport gone bad. Horizontal wow/flutter accumulates frame over frame, stretching the image sideways until a tracking pulse snaps it clean. Click to swap.',

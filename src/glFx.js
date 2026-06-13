@@ -73,12 +73,23 @@ void main() {
 // uParams: x=Direction(0→1 = 0→360°), y=Distance(drag spread),
 //          z=Decay(trail persistence), w=Chroma(0=mono trail, 1=rainbow smear)
 // Baked: spread≈0.3 (trail softening), threshold≈0.2, sourceMix≈0.55
+// DRAG — directional feedback smear. The base smear is a constant vector
+// (Dir + Dist), but the WOBBLE knob frequency-modulates that vector with a
+// time-traveling sinusoid that reads per scanline — an analog "time-base
+// instability" wobble. The smear direction snakes and its length breathes
+// scanline-by-scanline, and the wave phase crawls vertically over time, so
+// trails waver like an unstable tape/video head instead of dragging dead
+// straight. Wobble also fringes the trail chromatically at its tips (R/B
+// drag at slightly different distances). At Wobble = 0 this is identical to
+// the original linear drag.
+// uParams: x=Dir, y=Dist, z=Decay, w=Wobble
 const FRAG_DRAG = `#version 300 es
 precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform sampler2D u_feedback;
 uniform vec4 uParams;
+uniform float uTime;
 out vec4 fragColor;
 void main() {
   vec2 uv = vUV;
@@ -87,12 +98,21 @@ void main() {
   float curL = dot(cur, vec3(0.299, 0.587, 0.114));
 
   float ang = uParams.x * 6.2831853;
-  vec2 dir = vec2(cos(ang), sin(ang));
   float dragPx = mix(0.0, 24.0, uParams.y);
-  vec2 off = dir * dragPx * texel;
 
-  // Chroma: R/G/B sample at different distances for rainbow smear
-  float c = uParams.w;
+  // FM wobble: a sinusoid travelling up the frame, tighter and deeper as the
+  // knob rises. It bends the smear ANGLE (FM) and breathes its LENGTH (AM).
+  float wob = uParams.w;
+  float freq = mix(5.0, 40.0, wob);
+  float phase = uv.y * freq + uTime * 3.0;
+  float wave = sin(phase) + 0.35 * sin(phase * 2.3 + 1.7);   // harmonic = analog grit
+  float angW = ang + wave * wob * 1.1;
+  float magW = dragPx * (1.0 + 0.4 * wave * wob);
+  vec2 dir = vec2(cos(angW), sin(angW));
+  vec2 off = dir * magW * texel;
+
+  // Chroma fringing scales with wobble: R/G/B sample at different distances.
+  float c = wob * 0.7;
   vec3 prev;
   prev.r = texture(u_feedback, clamp(uv - off * (1.0 + 0.4 * c), 0.0, 1.0)).r;
   prev.g = texture(u_feedback, clamp(uv - off,                    0.0, 1.0)).g;

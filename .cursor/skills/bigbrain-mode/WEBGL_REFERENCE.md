@@ -196,7 +196,9 @@ To add a stateless FX effect: same steps, but the shader goes in
 `src/glFilters.js` `FRAGS` and the schema has NO `feedback` flag.
 
 Reference implementations: `flowfield` (luma-gradient advection trails),
-`drag` (directional smear), `tunnel` (zoom/rotate re-sampling of own output),
+`drag` (directional smear whose vector is FM-wobbled per scanline by a
+time-traveling sine — `uTime` declared, Wobble knob; wobble 0 = clean linear
+drag), `tunnel` (zoom/rotate re-sampling of own output),
 `burnin` (heat stored AS the visible phosphor color, recovered from feedback
 luma — the palette must stay luma-monotonic for that trick to work), and
 `wobbletape` (displacement that accumulates because each frame re-displaces

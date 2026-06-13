@@ -526,10 +526,10 @@ export const FX_PARAM_SCHEMAS = {
       { key: 'dir',    label: 'Dir',     min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Drag direction. 0 = right, 0.25 = up, 0.5 = left, 0.75 = down. Full 360° sweep.' },
       { key: 'dist',   label: 'Dist',    min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Drag distance — how far the smear extends each frame. 0 = no movement. 1 = 24-pixel offset per frame.' },
       { key: 'decay',  label: 'Decay',   min: 0, max: 1, step: 0.01, default: 0.88, tip: 'Trail persistence. Near 1 = long comet tails. Low = trails die in a few frames.' },
-      { key: 'chroma', label: 'Chroma',  min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'RGB separation in the trail. 0 = single-color smear. 1 = rainbow dispersion — R, G, B channels drag at slightly different distances.' },
+      { key: 'wobble', label: 'Wobble',  min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Analog FM wobble. Frequency-modulates the smear direction with a time-traveling sine wave that reads per scanline — the smear snakes and breathes instead of dragging dead straight. Higher = deeper and tighter wobble (plus chroma fringing at the tips). 0 = clean linear drag.' },
     ],
     toggles: [],
-    order: ['dir', 'dist', 'decay', 'chroma'],
+    order: ['dir', 'dist', 'decay', 'wobble'],
   },
   flowfield: {
     feedback: true,
