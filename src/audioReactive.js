@@ -36,15 +36,14 @@ let videoWasMuted = true;
 const sig = { bass: 0, mid: 0, high: 0, level: 0, beat: 0 };
 
 // Per-band auto-normalization: each band tracks its OWN recent peak so bass
-// (naturally hot) and highs (naturally quiet) each use the full 0–1 range.
-// A single global gain can't do this — it pins bass and starves highs.
-const peak = { bass: 0.06, mid: 0.06, high: 0.06, level: 0.06 };
-const PEAK_DECAY = 0.995;   // ~2s half-life so it adapts down after loud parts
-const PEAK_FLOOR = 0.06;    // never divide by ~0 (would amplify silence to noise)
-const beatState = { armed: false, last: -1e9, env: 0 };
+// Bands are used RAW (FFT magnitude / 255) with a per-band Gain trim — the raw
+// level already bounces nicely. (An earlier per-band auto-normalize pushed every
+// band toward its own peak and read as "flat-maxed" — removed.)
+const beatState = { prev: 0, avg: 0, last: -1e9, env: 0 };
 
 // User calibration (transient): a Gain trim per band + Beat onset sensitivity.
-const cfg = { gainBass: 1, gainMid: 1, gainHigh: 1, gainLevel: 1, beatSens: 0.5 };
+// Highs/mids default higher because they are naturally quieter than bass.
+const cfg = { gainBass: 1, gainMid: 1.4, gainHigh: 2, gainLevel: 1.3, beatSens: 0.5 };
 export function getConfig() { return { ...cfg }; }
 export function setConfig(key, value) { if (key in cfg) cfg[key] = value; }
 
@@ -52,29 +51,23 @@ export function isActive() { return !!inputNode; }
 export function currentInput() { return inputLabel; }
 export function getSignals() { return sig; }
 
-/** Per-band normalize against a decaying peak. Pure — exported for testing. */
-export function normBand(raw, prevPeak) {
-  const p = Math.max(prevPeak * PEAK_DECAY, raw, PEAK_FLOOR);
-  return { peak: p, value: Math.min(1, raw / p) };
-}
-
-/** Onset threshold from the Beat sensitivity knob (0 = hard, 1 = hair-trigger). */
-export function beatThreshold(beatSens) { return 0.62 - beatSens * 0.42; }
-
 /**
- * Hysteresis beat detector on the normalized bass. Fires on a rising edge over
- * the threshold after dropping below (threshold − gap), with a refractory gap —
- * robust on sustained basslines where a "vs. rolling average" test never fires.
- * Mutates `s = {armed, last, env}`; returns true on a fresh hit. Pure-ish for
+ * Flux (spectral-onset) beat detector on the bass level. A kick is a RISE, not
+ * an absolute level, so we fire when the positive frame-to-frame rise exceeds a
+ * rolling average of recent rises plus a threshold (with a refractory gap). This
+ * is robust on sustained basslines where a level/hysteresis test never re-fires.
+ * Mutates `s = {prev, avg, last, env}`; returns true on a fresh hit. Pure for
  * testing (no module globals).
  */
-export function beatStep(s, normBass, t, beatSens) {
-  const thr = beatThreshold(beatSens);
+export function beatStep(s, bass, t, beatSens) {
+  const flux = Math.max(0, bass - s.prev);
+  s.prev = bass;
+  const trig = 0.16 - beatSens * 0.10;   // 0.16 (hard) → 0.06 (hair-trigger)
   let fired = false;
-  if (!s.armed && normBass > thr && (t - s.last) > 160) {
-    s.env = 1; s.last = t; s.armed = true; fired = true;
+  if (flux > s.avg + trig && flux > 0.04 && (t - s.last) > 150) {
+    s.env = 1; s.last = t; fired = true;
   }
-  if (normBass < thr - 0.12) s.armed = false;
+  s.avg = s.avg * 0.9 + flux * 0.1;
   s.env *= 0.86;
   return fired;
 }
@@ -86,7 +79,7 @@ function ensureCtx() {
     ctx = new AC();
     analyser = ctx.createAnalyser();
     analyser.fftSize = FFT_SIZE;
-    analyser.smoothingTimeConstant = 0.6;
+    analyser.smoothingTimeConstant = 0.3;
     freqData = new Uint8Array(analyser.frequencyBinCount);
   }
   if (ctx.state === 'suspended') ctx.resume();
@@ -94,8 +87,7 @@ function ensureCtx() {
 }
 
 function resetDynamics() {
-  peak.bass = peak.mid = peak.high = peak.level = PEAK_FLOOR;
-  beatState.armed = false; beatState.last = -1e9; beatState.env = 0;
+  beatState.prev = 0; beatState.avg = 0; beatState.last = -1e9; beatState.env = 0;
 }
 
 function detachAll() {
@@ -172,8 +164,8 @@ export function computeBands(freq, binHz) {
 }
 
 function env(prev, target) {
-  return target > prev ? prev + (target - prev) * 0.55   // fast attack
-                       : prev + (target - prev) * 0.14;  // slow release
+  return target > prev ? prev + (target - prev) * 0.6    // fast attack
+                       : prev + (target - prev) * 0.2;   // medium release
 }
 
 /** Read the FFT and update the signal bus. Call once per frame while active. */
@@ -183,27 +175,16 @@ export function update(now) {
   const binHz = ctx.sampleRate / analyser.fftSize;
   const b = computeBands(freqData, binHz);
 
-  // Per-band normalize against each band's own decaying peak, then apply the
-  // user Gain trim, a tiny noise floor, and the attack/release envelope.
-  const shape = (raw, bandKey, gain) => {
-    const n = normBand(raw, peak[bandKey]);
-    peak[bandKey] = n.peak;
-    let v = n.value * gain;
-    if (v < 0.04) v = 0;
-    return Math.min(1, v);
-  };
-  // normalized bass (pre-gain) drives the beat detector, so compute it directly
-  const nb = normBand(b.bass, peak.bass);
-  peak.bass = nb.peak;
-  let vb = nb.value * cfg.gainBass;
-  if (vb < 0.04) vb = 0;
-  sig.bass = env(sig.bass, Math.min(1, vb));
-  sig.mid = env(sig.mid, shape(b.mid, 'mid', cfg.gainMid));
-  sig.high = env(sig.high, shape(b.high, 'high', cfg.gainHigh));
-  sig.level = env(sig.level, shape(b.level, 'level', cfg.gainLevel));
+  // Raw band level × user Gain trim, clamped, then enveloped for a clean bounce.
+  const shape = (raw, gain) => Math.min(1, raw * gain);
+  sig.bass = env(sig.bass, shape(b.bass, cfg.gainBass));
+  sig.mid = env(sig.mid, shape(b.mid, cfg.gainMid));
+  sig.high = env(sig.high, shape(b.high, cfg.gainHigh));
+  sig.level = env(sig.level, shape(b.level, cfg.gainLevel));
 
+  // beat: flux onset on the raw bass level
   const t = now || performance.now();
-  beatStep(beatState, nb.value, t, cfg.beatSens);
+  beatStep(beatState, b.bass, t, cfg.beatSens);
   sig.beat = beatState.env;
   return sig;
 }

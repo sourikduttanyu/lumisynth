@@ -75,10 +75,10 @@
             <div class="live-beat"><span class="live-meter-label">Beat</span><span class="live-beat-dot" id="lm-beat"></span></div>
           </div>
           <div class="live-controls">
-            <label class="live-ctl"><span>Bass</span><input type="range" id="live-gain-bass" min="0" max="2" step="0.05" value="1" data-tip="Bass gain trim. Each band self-normalizes to its own peak; lower this if bass still rides too hot, raise to emphasize it."></label>
-            <label class="live-ctl"><span>Mid</span><input type="range" id="live-gain-mid" min="0" max="2" step="0.05" value="1" data-tip="Mid gain trim."></label>
-            <label class="live-ctl"><span>High</span><input type="range" id="live-gain-high" min="0" max="2" step="0.05" value="1" data-tip="High gain trim. Raise to make hats/cymbals pop."></label>
-            <label class="live-ctl"><span>Level</span><input type="range" id="live-gain-level" min="0" max="2" step="0.05" value="1" data-tip="Overall level gain trim."></label>
+            <label class="live-ctl"><span>Bass</span><input type="range" id="live-gain-bass" min="0" max="4" step="0.05" value="1" data-tip="Bass gain. Raw band level × this. Lower if bass pins at the top, raise to emphasize it."></label>
+            <label class="live-ctl"><span>Mid</span><input type="range" id="live-gain-mid" min="0" max="4" step="0.05" value="1.4" data-tip="Mid gain (vocals / snare). Defaults higher since mids are quieter than bass."></label>
+            <label class="live-ctl"><span>High</span><input type="range" id="live-gain-high" min="0" max="4" step="0.05" value="2" data-tip="High gain (hats / cymbals). Defaults highest since highs are the quietest band."></label>
+            <label class="live-ctl"><span>Level</span><input type="range" id="live-gain-level" min="0" max="4" step="0.05" value="1.3" data-tip="Overall level gain."></label>
             <label class="live-ctl"><span>Beat</span><input type="range" id="live-beat-sens" min="0" max="1" step="0.05" value="0.5" data-tip="Beat trigger sensitivity. Low = only big kicks fire; high = hair-trigger onsets."></label>
           </div>
           <div class="file-status" id="live-status" aria-live="polite">Pick an audio input</div>

@@ -150,12 +150,13 @@ The same chain works whether a signal comes from a kick drum or a dancer's hand.
 1. **Foundation** — `Live` button + audio engine + signal bus + a live band meter.
    Nothing reactive yet; just prove the signals. **[BUILT]** — `src/audioReactive.js`
    (mic / file / source inputs, FFT → {bass,mid,high,level,beat}); topbar `Live`
-   toggle reveals the sidebar meter panel driven by its own RAF loop. Each band
-   auto-normalizes to its OWN decaying peak (`normBand()`) so bass and highs each
-   use the full range — a single global gain pinned bass and starved highs.
-   Calibration sliders are per-band Gain trims (bass/mid/high/level) + Beat onset
-   sensitivity; beat uses a hysteresis detector (`beatStep()`) on the normalized
-   bass, robust on sustained basslines. Signals + calibration transient.
+   toggle reveals the sidebar meter panel driven by its own RAF loop. Bands are
+   raw FFT level × a per-band Gain trim (bass/mid/high/level) — the raw level
+   already bounces; an auto-normalize attempt read as flat-maxed and was removed.
+   Beat uses a FLUX onset detector (`beatStep()`) — fires on the positive rise
+   vs. a rolling average, robust where level/hysteresis tests never re-fire on
+   sustained bass. analyser smoothing 0.3 for crisp attacks. Signals +
+   calibration transient.
 2. **Mod matrix** — drag-signal-onto-knob + mod-rings. Ship-worthy on its own.
 3. **Step sequencer** — pool (multi-select toggles) + rate + order + tap-tempo.
 4. **Polish / power** — casual reactive presets, multi-lane, crossfade transitions.
