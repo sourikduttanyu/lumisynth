@@ -1,7 +1,7 @@
 # Reactivity Plan — Live / audio-reactive mode
 
-Status: **proposed** (planning, not built). This doc is the build spec for turning
-LumiSynth into a live, audio-reactive instrument. Author it now, build in phases.
+Status: **Phase 1 built** (signal bus + meter). Phases 2–4 proposed. This doc is the
+build spec for turning LumiSynth into a live, audio-reactive instrument.
 
 ## One-liner
 
@@ -148,7 +148,10 @@ The same chain works whether a signal comes from a kick drum or a dancer's hand.
 ## Build phases (each independently shippable)
 
 1. **Foundation** — `Live` button + audio engine + signal bus + a live band meter.
-   Nothing reactive yet; just prove the signals.
+   Nothing reactive yet; just prove the signals. **[BUILT]** — `src/audioReactive.js`
+   (mic / file / source inputs, FFT → {bass,mid,high,level,beat}, auto-gain +
+   envelopes + onset beat); topbar `Live` toggle reveals the sidebar meter panel
+   driven by its own RAF loop. Signals transient, nothing persisted.
 2. **Mod matrix** — drag-signal-onto-knob + mod-rings. Ship-worthy on its own.
 3. **Step sequencer** — pool (multi-select toggles) + rate + order + tap-tempo.
 4. **Polish / power** — casual reactive presets, multi-lane, crossfade transitions.

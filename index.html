@@ -59,6 +59,24 @@
           <div class="knob-grid shader-knob-grid hidden" id="shader-knob-grid"></div>
         </section>
 
+        <section class="control-section live-section hidden" id="live-section" aria-label="Live audio reactivity">
+          <div class="section-label">Live · audio reactivity</div>
+          <div class="toggle-group" id="live-input-group" role="radiogroup" aria-label="Audio input">
+            <button class="toggle-btn" type="button" role="radio" aria-checked="false" data-value="source" data-tip="React to the loaded source's own audio track (uploaded clips with sound).">Source</button>
+            <button class="toggle-btn" type="button" role="radio" aria-checked="false" data-value="mic"    data-tip="React to the microphone / room audio.">Mic</button>
+            <button class="toggle-btn" type="button" role="radio" aria-checked="false" data-value="file"   data-tip="React to an uploaded audio track.">File</button>
+          </div>
+          <input type="file" id="live-file-input" accept="audio/*" class="hidden" />
+          <div class="live-meters" aria-hidden="true">
+            <div class="live-meter"><span class="live-meter-label">Bass</span><div class="live-meter-track"><div class="live-meter-fill" id="lm-bass"></div></div></div>
+            <div class="live-meter"><span class="live-meter-label">Mid</span><div class="live-meter-track"><div class="live-meter-fill" id="lm-mid"></div></div></div>
+            <div class="live-meter"><span class="live-meter-label">High</span><div class="live-meter-track"><div class="live-meter-fill" id="lm-high"></div></div></div>
+            <div class="live-meter"><span class="live-meter-label">Level</span><div class="live-meter-track"><div class="live-meter-fill" id="lm-level"></div></div></div>
+            <div class="live-beat"><span class="live-meter-label">Beat</span><span class="live-beat-dot" id="lm-beat"></span></div>
+          </div>
+          <div class="file-status" id="live-status" aria-live="polite">Pick an audio input</div>
+        </section>
+
         <section class="control-section account-section" aria-label="Account and cloud presets">
           <div class="section-label">Account</div>
           <div class="account-card" id="account-card">
@@ -447,6 +465,7 @@
           </div>
 
           <div class="topbar-actions">
+            <button id="btn-live"     class="icon-btn" type="button" title="Live audio-reactive mode" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span>Live</button>
             <button id="btn-fps"      class="icon-btn" type="button" title="Toggle FPS overlay">FPS</button>
             <button id="btn-help"     class="icon-btn" type="button" title="Keyboard shortcuts (?)">?</button>
             <button id="btn-snapshot" class="icon-btn" type="button" title="Save current frame as PNG" disabled>Snap</button>

@@ -8,6 +8,7 @@ import { applyGLFilter } from './glFilters.js';
 import { applyFxEffect, resetFxFeedback } from './glFx.js';
 import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs, captureFrameHistory, resetMotionHistory } from './glContext.js';
 import { SHADER_SOURCES, SHADER_RES, setShaderSource, renderShaderSourceFrame, getShaderSourceCanvas, getShaderSourceParams, setShaderSourceParam } from './shaderSource.js';
+import * as audioReactive from './audioReactive.js';
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
 import {
@@ -2857,6 +2858,118 @@ if (btnRecord) {
   btnRecord.addEventListener('click', () => {
     if (_recorder) stopRecording();
     else           startRecording();
+  });
+}
+
+// ---- Live / audio reactivity (Phase 1: signal bus + meter) ----
+// state.live is transient runtime state (like shaderSlug) — never persisted.
+state.live = false;
+const btnLive       = document.getElementById('btn-live');
+const liveSection   = document.getElementById('live-section');
+const liveInputGroup= document.getElementById('live-input-group');
+const liveFileInput = document.getElementById('live-file-input');
+const liveStatus    = document.getElementById('live-status');
+const liveMeterEls  = {
+  bass:  document.getElementById('lm-bass'),
+  mid:   document.getElementById('lm-mid'),
+  high:  document.getElementById('lm-high'),
+  level: document.getElementById('lm-level'),
+  beat:  document.getElementById('lm-beat'),
+};
+let _liveRaf = 0;
+
+function setLiveInputActive(value) {
+  if (!liveInputGroup) return;
+  liveInputGroup.querySelectorAll('.toggle-btn').forEach((b) => {
+    const on = b.dataset.value === value;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+}
+
+function liveMeterLoop(now) {
+  if (!state.live) { _liveRaf = 0; return; }
+  _liveRaf = requestAnimationFrame(liveMeterLoop);
+  const s = audioReactive.update(now);
+  if (liveMeterEls.bass)  liveMeterEls.bass.style.width  = Math.round(s.bass * 100) + '%';
+  if (liveMeterEls.mid)   liveMeterEls.mid.style.width   = Math.round(s.mid * 100) + '%';
+  if (liveMeterEls.high)  liveMeterEls.high.style.width  = Math.round(s.high * 100) + '%';
+  if (liveMeterEls.level) liveMeterEls.level.style.width = Math.round(s.level * 100) + '%';
+  if (liveMeterEls.beat) {
+    liveMeterEls.beat.style.opacity = (0.3 + s.beat * 0.7).toFixed(2);
+    liveMeterEls.beat.style.transform = 'scale(' + (1 + s.beat * 0.5).toFixed(2) + ')';
+  }
+}
+
+function startLiveMeter() {
+  if (!_liveRaf) _liveRaf = requestAnimationFrame(liveMeterLoop);
+}
+
+async function pickLiveInput(value) {
+  try {
+    if (value === 'mic') {
+      liveStatus.textContent = 'Requesting microphone…';
+      await audioReactive.startMic();
+      liveStatus.textContent = 'Reacting to mic';
+    } else if (value === 'source') {
+      if (state.sourceKind !== 'video') {
+        liveStatus.textContent = 'Load an uploaded video with audio first';
+        showToast('Source audio needs an uploaded video with a soundtrack', 'info', 3500);
+        return;
+      }
+      audioReactive.startElement(video);
+      liveStatus.textContent = 'Reacting to source audio';
+    } else if (value === 'file') {
+      liveFileInput.click();
+      return; // status + start happen in the file-input handler
+    }
+    setLiveInputActive(value);
+    startLiveMeter();
+  } catch (err) {
+    liveStatus.textContent = 'Audio input failed';
+    showToast(`Audio input failed: ${err.message || err}`, 'error', 5000);
+  }
+}
+
+function setLive(on) {
+  state.live = on;
+  if (btnLive) {
+    btnLive.classList.toggle('active', on);
+    btnLive.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  if (liveSection) liveSection.classList.toggle('hidden', !on);
+  if (on) {
+    liveStatus.textContent = 'Pick an audio input';
+  } else {
+    audioReactive.stop();
+    if (_liveRaf) { cancelAnimationFrame(_liveRaf); _liveRaf = 0; }
+    setLiveInputActive(null);
+    for (const k of ['bass', 'mid', 'high', 'level']) {
+      if (liveMeterEls[k]) liveMeterEls[k].style.width = '0%';
+    }
+    if (liveMeterEls.beat) { liveMeterEls.beat.style.opacity = '0.3'; liveMeterEls.beat.style.transform = 'scale(1)'; }
+  }
+}
+
+if (btnLive) btnLive.addEventListener('click', () => setLive(!state.live));
+if (liveInputGroup) {
+  liveInputGroup.querySelectorAll('.toggle-btn').forEach((b) => {
+    b.addEventListener('click', () => pickLiveInput(b.dataset.value));
+  });
+}
+if (liveFileInput) {
+  liveFileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      audioReactive.startFile(file);
+      liveStatus.textContent = `Reacting to ${file.name}`;
+      setLiveInputActive('file');
+      startLiveMeter();
+    } catch (err) {
+      showToast(`Audio file failed: ${err.message || err}`, 'error', 5000);
+    }
+    e.target.value = '';
   });
 }
 
