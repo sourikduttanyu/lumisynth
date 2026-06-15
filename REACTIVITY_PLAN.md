@@ -157,7 +157,15 @@ The same chain works whether a signal comes from a kick drum or a dancer's hand.
    vs. a rolling average, robust where level/hysteresis tests never re-fire on
    sustained bass. analyser smoothing 0.3 for crisp attacks. Signals +
    calibration transient.
-2. **Mod matrix** — drag-signal-onto-knob + mod-rings. Ship-worthy on its own.
+2. **Mod matrix** — **[BUILT, list UI]** `state.modRoutes` (transient) — each route
+   `{ signal, target(knobId), depth }`. `applyModulation()` folds the signals onto a
+   transient clone of the render look in `renderFrame` (eff = base + signal·depth·range,
+   clamped); base state is never mutated, so stop-Live restores instantly. UI is a
+   "Modulations" list in the Reactivity panel (Add row → signal select · target select ·
+   depth · remove). Targets = `knobRegistry` entries (GRADE + STRUCTURE knobs, ~47);
+   COLOR/FX/shader slot knobs aren't registered → not modulatable yet. Still TODO: the
+   drag-signal-onto-knob + mod-ring UX (nicer front-end to the same engine), modulating
+   slot knobs, and persisting routes.
 3. **Step sequencer** — pool (multi-select toggles) + rate + order + tap-tempo.
 4. **Polish / power** — casual reactive presets, multi-lane, crossfade transitions.
 

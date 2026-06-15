@@ -429,6 +429,38 @@ html, body {
   #btn-export-toggle.recording .rec-dot { animation: none; }
 }
 
+/* ---- Mod matrix rows (Reactivity panel) ---- */
+.mod-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+.mod-select {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.72rem;
+  padding: 3px 4px;
+  background: var(--surface-card);
+  color: var(--text-body);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+}
+.mod-select.mod-target { flex: 1.3 1 0; }
+.mod-depth { flex: 1 1 0; min-width: 40px; accent-color: var(--orange-signal); height: 4px; }
+.mod-remove {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  line-height: 1;
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.mod-remove:hover { color: var(--state-danger); border-color: var(--state-danger); }
+
 /* ============================================================
    STAGE DIVIDERS — signal-flow color coding (warm → cool).
    Label tints by stage (LOW chroma so it never competes with orange);

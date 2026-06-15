@@ -3091,6 +3091,108 @@ if (btnExportToggle) {
   btnExportToggle.addEventListener('click', () => { _exportRec ? stopExport() : startExport(); });
 }
 
+// ---- Mod matrix (Phase 2): audio signals → knob modulation ----
+// Routes are transient runtime state (not persisted yet — like the rest of
+// Live). Each route maps a signal onto a registered global-state knob. Per
+// frame renderFrame builds a MODULATED CLONE of the render look; base values
+// are never mutated, so the user's knob settings + persistence are untouched
+// (stop Live → straight back to base). Targets are knobRegistry entries
+// (GRADE + STRUCTURE knobs); COLOR/FX/shader slot knobs aren't registered, so
+// they're not modulatable yet — a noted follow-up.
+state.modRoutes = [];          // [{ id, signal, target(knobId), depth }]
+let _modSeq = 0;
+const MOD_SIGNALS = ['bass', 'mid', 'high', 'level', 'beat'];
+const modRowsEl = document.getElementById('mod-rows');
+const modAddBtn = document.getElementById('mod-add');
+
+function modTargetOptions() {
+  const opts = [];
+  for (const [id, meta] of knobRegistry) {
+    const label = (meta.el && meta.el.getAttribute('aria-label')) || id;
+    opts.push({ id, label });
+  }
+  opts.sort((a, b) => a.label.localeCompare(b.label));
+  return opts;
+}
+
+// Build a modulated clone of the look. eff = base + signal·depth·range, clamped.
+function applyModulation(baseLook, signals) {
+  const routes = state.modRoutes;
+  if (!routes || !routes.length) return baseLook;
+  let clone = null;
+  for (const r of routes) {
+    const meta = knobRegistry.get(r.target);
+    if (!meta) continue;
+    const base = baseLook[meta.stateKey];
+    if (typeof base !== 'number') continue;
+    const s = signals[r.signal] || 0;
+    const eff = clamp(base + s * r.depth * (meta.max - meta.min), meta.min, meta.max);
+    if (!clone) clone = { ...baseLook };
+    clone[meta.stateKey] = eff;
+  }
+  return clone || baseLook;
+}
+
+function renderModRows() {
+  if (!modRowsEl) return;
+  modRowsEl.innerHTML = '';
+  const targets = modTargetOptions();
+  for (const r of state.modRoutes) {
+    const row = document.createElement('div');
+    row.className = 'mod-row';
+
+    const sigSel = document.createElement('select');
+    sigSel.className = 'mod-select';
+    sigSel.setAttribute('aria-label', 'Signal');
+    for (const s of MOD_SIGNALS) {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s[0].toUpperCase() + s.slice(1);
+      if (s === r.signal) o.selected = true;
+      sigSel.appendChild(o);
+    }
+    sigSel.addEventListener('change', () => { r.signal = sigSel.value; });
+
+    const tgtSel = document.createElement('select');
+    tgtSel.className = 'mod-select mod-target';
+    tgtSel.setAttribute('aria-label', 'Target knob');
+    for (const t of targets) {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.label;
+      if (t.id === r.target) o.selected = true;
+      tgtSel.appendChild(o);
+    }
+    tgtSel.addEventListener('change', () => { r.target = tgtSel.value; });
+
+    const depth = document.createElement('input');
+    depth.type = 'range'; depth.className = 'mod-depth';
+    depth.min = '-1'; depth.max = '1'; depth.step = '0.05'; depth.value = String(r.depth);
+    depth.title = 'Depth — how far the signal pushes the knob (negative inverts)';
+    depth.addEventListener('input', () => { r.depth = parseFloat(depth.value); });
+
+    const rm = document.createElement('button');
+    rm.type = 'button'; rm.className = 'mod-remove'; rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove modulation');
+    rm.addEventListener('click', () => {
+      state.modRoutes = state.modRoutes.filter((x) => x !== r);
+      renderModRows();
+    });
+
+    row.append(sigSel, tgtSel, depth, rm);
+    modRowsEl.appendChild(row);
+  }
+}
+
+function addModRoute() {
+  const targets = modTargetOptions();
+  if (!targets.length) { showToast('No modulatable knobs found', 'error'); return; }
+  // default to a GRADE Hue target if present (a satisfying first mod), else first
+  const pref = targets.find((t) => t.id === 'color-hue') || targets[0];
+  state.modRoutes.push({ id: `mod-${++_modSeq}`, signal: 'bass', target: pref.id, depth: 0.5 });
+  renderModRows();
+}
+
+if (modAddBtn) modAddBtn.addEventListener('click', addModRoute);
+
 // Auto-stop if the user yanks the source mid-recording (e.g. switches
 // from camera to video file). The captureStream keeps "running" but
 // produces black frames once the canvas isn't being redrawn, which
@@ -4124,6 +4226,11 @@ function renderFrame(nowDOMHi) {
     _lastResolvedTimelineRuntimeSig = runtimeSig;
   }
   _renderLook = timelineResolved.look;
+  // Mod matrix: while Live, fold the audio signals onto routed knobs into a
+  // transient clone so the pipeline reacts without mutating saved state.
+  if (state.live && state.modRoutes.length) {
+    _renderLook = applyModulation(_renderLook, audioReactive.getSignals());
+  }
   const look = currentLook();
   updateTimelinePlayhead(video.currentTime || 0, timelineResolved.id);
 
