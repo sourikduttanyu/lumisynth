@@ -2902,6 +2902,7 @@ function liveMeterLoop(now) {
   }
   paintModulatedKnobs();      // dance the routed look-knobs (pointer only)
   applyShaderModulation();    // drive routed shader-source knobs (writes param store)
+  updateModHint();
 }
 
 function startLiveMeter() {
@@ -2954,6 +2955,7 @@ function setLive(on) {
     repaintRoutedKnobsToBase();   // snap modulated knob visuals back to their set value
     restoreShaderModBase();       // restore any modulated shader-source params
   }
+  updateModHint();
 }
 
 if (btnLive) btnLive.addEventListener('click', () => setLive(!state.live));
@@ -3217,6 +3219,7 @@ function renderModRows() {
     rm.addEventListener('click', () => {
       state.modRoutes = state.modRoutes.filter((x) => x !== r);
       renderModRows();
+      updateModHint();
     });
 
     row.append(sigSel, tgtSel, depth, rm);
@@ -3234,6 +3237,24 @@ function addModRoute() {
     || targets[0];
   state.modRoutes.push({ id: `mod-${++_modSeq}`, signal: 'bass', target: pref.id, depth: 0.5 });
   renderModRows();
+  updateModHint();
+}
+
+// Live guidance — the #1 confusion is "modulation does nothing" when no audio
+// is actually flowing (e.g. a shader has no audio, so "Source" is silent → must
+// use Mic/File). Spell that out instead of leaving it a mystery.
+function updateModHint() {
+  const el = document.getElementById('mod-hint');
+  if (!el) return;
+  let msg;
+  if (!audioReactive.isActive()) {
+    msg = 'No audio yet — pick Mic or File above so the meters move. (Source needs a video with sound.)';
+  } else if (!state.modRoutes.length) {
+    msg = 'Route a signal to a knob — it will follow the audio.';
+  } else {
+    msg = `${state.modRoutes.length} modulation${state.modRoutes.length > 1 ? 's' : ''} live — knobs follow the audio.`;
+  }
+  if (el.textContent !== msg) el.textContent = msg;
 }
 
 if (modAddBtn) modAddBtn.addEventListener('click', addModRoute);
