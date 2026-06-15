@@ -4503,8 +4503,8 @@ function updateLagCursor(e) {
 document.addEventListener('pointermove', updateLagCursor, { passive: true });
 document.addEventListener('pointerleave', () => lagCursor.classList.remove('visible'));
 window.addEventListener('blur', () => lagCursor.classList.remove('visible'));
-setLagCursorEnabled(lagCursorMedia.matches);
-lagCursorMedia.addEventListener('change', (e) => setLagCursorEnabled(e.matches));
+// Custom lag cursor removed — use the OS-native pointer everywhere.
+setLagCursorEnabled(false);
 
 // Convention guard: future filter buttons (in any of the structure / color /
 // per-blob groups) and future effect-card controls (knobs + toggles inside
