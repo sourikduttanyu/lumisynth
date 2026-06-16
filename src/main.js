@@ -2922,6 +2922,11 @@ async function pickLiveInput(value) {
         return;
       }
       audioReactive.startElement(video);
+      // Auto-unmute so you hear the track you're reacting to (the monitor gain
+      // is the same one the mute button drives).
+      state.videoMuted = false;
+      audioReactive.setVideoMuted(false, video);
+      updateMuteBtn();
       liveStatus.textContent = 'Reacting to source audio';
     } else if (value === 'file') {
       liveFileInput.click();
@@ -2961,6 +2966,35 @@ function setLive(on) {
 if (btnLive) btnLive.addEventListener('click', () => setLive(!state.live));
 const reactivityClose = document.getElementById('reactivity-close');
 if (reactivityClose) reactivityClose.addEventListener('click', () => setLive(false));
+
+// ---- Source video audio: mute / unmute toggle ----
+// The <video> ships muted. This toggle hears it while editing. Audio routes
+// through audioReactive's monitor gain (shared with Live "Source"), so it
+// coexists with reactivity and survives Live start/stop.
+state.videoMuted = true;
+const btnMute = document.getElementById('btn-mute');
+function updateMuteBtn() {
+  if (!btnMute) return;
+  const isVideo = state.sourceKind === 'video';
+  btnMute.disabled = !isVideo;
+  btnMute.textContent = state.videoMuted ? 'Unmute' : 'Mute';
+  btnMute.classList.toggle('active', isVideo && !state.videoMuted);
+}
+function applyVideoMute() {
+  // Reflect the current mute state without forcing a WebAudio context: only
+  // touch the monitor if it already exists, else use the element's own muted.
+  if (audioReactive.hasElementSource()) audioReactive.setVideoMuted(state.videoMuted, video);
+  else video.muted = state.videoMuted;
+  updateMuteBtn();
+}
+function toggleVideoMute() {
+  if (state.sourceKind !== 'video') return;
+  state.videoMuted = !state.videoMuted;
+  // The click is a user gesture, so it's safe to spin up WebAudio + the monitor.
+  audioReactive.setVideoMuted(state.videoMuted, video);
+  updateMuteBtn();
+}
+if (btnMute) btnMute.addEventListener('click', toggleVideoMute);
 if (liveInputGroup) {
   liveInputGroup.querySelectorAll('.toggle-btn').forEach((b) => {
     b.addEventListener('click', () => pickLiveInput(b.dataset.value));
@@ -3641,6 +3675,7 @@ function setHasSource(val, label) {
   if (btnRecord) btnRecord.disabled = !val;
   const _be = document.getElementById('btn-export');
   if (_be) _be.disabled = !val || !exporter.isSupported();
+  applyVideoMute();   // sync the working video's audio to the current mute state + source kind
   if (val) {
     const w = activeSourceWidth();
     const h = activeSourceHeight();
@@ -4844,3 +4879,4 @@ canvas.height = canvasArea.clientHeight;
 btnSnapshot.disabled = !state.hasSource;
 if (btnRecord) btnRecord.disabled = !state.hasSource;
 if (btnExport) btnExport.disabled = !state.hasSource || !exporter.isSupported();
+updateMuteBtn();

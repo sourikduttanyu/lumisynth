@@ -319,7 +319,8 @@ html, body {
   background: var(--text-faint);
   transition: background var(--duration-base) var(--ease-out);
 }
-#btn-live.active {
+#btn-live.active,
+#btn-mute.active {
   background: var(--orange-signal);
   border-color: var(--orange-signal);
   color: var(--knob-cap-black);

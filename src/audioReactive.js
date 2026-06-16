@@ -29,9 +29,9 @@ let inputNode = null;    // the source node currently feeding the analyser
 let inputLabel = null;   // 'mic' | 'file' | 'source' | null
 let micStream = null;
 let fileEl = null;       // dedicated <audio> for file playback
-let elSourceNode = null; // cached MediaElementSource for the shared <video>
-let videoEl = null;      // shared video ref (to restore mute on stop)
-let videoWasMuted = true;
+let elSourceNode = null; // cached MediaElementSource for the shared <video> (once-only)
+let monitorGain = null;  // elSourceNode → monitorGain → destination; gain = the mute control
+let monitorEl = null;    // the <video> the monitor is bound to
 
 const sig = { bass: 0, mid: 0, high: 0, level: 0, beat: 0 };
 
@@ -91,12 +91,19 @@ function resetDynamics() {
 }
 
 function detachAll() {
-  if (inputNode) { try { inputNode.disconnect(); } catch (_) {} }
+  if (inputNode) {
+    // For the shared video, drop only the analyser tap so the monitor chain
+    // (elSourceNode → monitorGain → destination) survives. Mic/file nodes are
+    // throwaway, so disconnect them fully.
+    try { inputNode === elSourceNode ? inputNode.disconnect(analyser) : inputNode.disconnect(); } catch (_) {}
+  }
   inputNode = null;
   if (analyser) { try { analyser.disconnect(); } catch (_) {} }
   if (micStream) { micStream.getTracks().forEach((t) => t.stop()); micStream = null; }
   if (fileEl) { try { fileEl.pause(); URL.revokeObjectURL(fileEl.src); } catch (_) {} fileEl = null; }
-  if (videoEl) { videoEl.muted = videoWasMuted; videoEl = null; }
+  // NOTE: the elSourceNode → monitorGain → destination chain is intentionally
+  // preserved here — it is owned by the mute toggle, not the Live lifecycle, so
+  // the working video keeps playing audio at its set volume after Live stops.
 }
 
 export async function startMic() {
@@ -125,16 +132,40 @@ export function startFile(file) {
   resetDynamics();
 }
 
+// Lazily create the once-only MediaElementSource for the shared <video> plus a
+// persistent monitor chain (elSourceNode → monitorGain → destination). The gain
+// is the speaker volume; muting = gain 0. Created on first unmute OR first Live
+// "source" use — whichever comes first. Returns false if Web Audio is missing.
+function ensureVideoMonitor(v) {
+  if (!ensureCtx()) return false;
+  if (!elSourceNode) {
+    try { elSourceNode = ctx.createMediaElementSource(v); } catch (_) { return false; }
+    monitorGain = ctx.createGain();
+    monitorGain.gain.value = 0;          // start silent; the mute toggle opens it
+    elSourceNode.connect(monitorGain);
+    monitorGain.connect(ctx.destination);
+    monitorEl = v;
+    v.muted = false;                     // audio is routed via WebAudio now; gain controls it
+  }
+  return true;
+}
+
+export function hasElementSource() { return !!elSourceNode; }
+
+/** Mute/unmute the working video's audio (monitor gain). Returns false if it
+ *  fell back to the element's own `muted` (no Web Audio). */
+export function setVideoMuted(muted, v) {
+  if (!ensureVideoMonitor(v)) { v.muted = muted; return false; }
+  monitorGain.gain.value = muted ? 0 : 1;
+  return true;
+}
+
 export function startElement(v) {
   if (!ensureCtx()) throw new Error('Web Audio not supported');
   detachAll();
-  videoEl = v;
-  videoWasMuted = v.muted;
-  v.muted = false;                      // react to (and hear) the source track
-  if (!elSourceNode) elSourceNode = ctx.createMediaElementSource(v);  // once-only
+  ensureVideoMonitor(v);                 // share the cached element source + monitor
   inputNode = elSourceNode;
-  inputNode.connect(analyser);
-  analyser.connect(ctx.destination);
+  inputNode.connect(analyser);           // analysis tap; hearing is via the monitor gain
   inputLabel = 'source';
   resetDynamics();
 }
