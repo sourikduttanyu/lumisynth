@@ -1053,7 +1053,6 @@ label.section-label { cursor: pointer; }
   color: var(--knob-cap-black);
   border-color: var(--orange-signal);
   font-weight: 700;
-  border-bottom: 2px solid var(--knob-cap-black);
 }
 
 /* ============================================================
