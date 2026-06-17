@@ -35,17 +35,16 @@
    + "The Display-Is-The-Canvas Rule" + "The Two-Color Rule".
    ============================================================ */
 :root {
-  /* Chassis ladder (hue 85, warm cream/bone — the Teenage Engineering K.O.II /
-     OP-1 read: light plastic chassis, dark legends, dark LCD screens).
-     On a LIGHT chassis "raised" reads as LIGHTER-than-room (white plastic keys)
-     and hover DARKENS one step (key being pressed). */
-  --bg-stage:        oklch(55% 0.024 85);
-  --bg-room:         oklch(62% 0.022 85);
-  --surface-card:    oklch(66% 0.020 85);
-  --surface-raised:  oklch(70% 0.018 85);
-  --surface-hover:   oklch(58% 0.026 85);
-  --border-hairline: oklch(46% 0.026 85);
-  --border-strong:   oklch(36% 0.024 85);   /* one step up from hairline; used for expanded/active container chrome (e.g. expanded color rack slot) */
+  /* Chassis ladder (hue 70, warm dark graphite — Octatrack / Push / Eurorack
+     dark variant read). On a DARK chassis "raised" reads as LIGHTER-than-room
+     (dark-mode convention) and hover lightens one more step. */
+  --bg-stage:        oklch(13% 0.008 70);
+  --bg-room:         oklch(18% 0.010 70);
+  --surface-card:    oklch(22% 0.012 70);
+  --surface-raised:  oklch(27% 0.012 70);
+  --surface-hover:   oklch(33% 0.014 70);
+  --border-hairline: oklch(36% 0.010 70);
+  --border-strong:   oklch(46% 0.014 70);   /* one step up from hairline; used for expanded/active container chrome (e.g. expanded color rack slot) */
 
   /* Display surfaces (deep, embedded screen — the dark LCD set into the cream
      chassis, exactly like TE hardware). Unchanged across the palette flip. */
@@ -53,36 +52,36 @@
   --display-screen:   oklch(5%  0.005 70);
   --display-hairline: oklch(24% 0.005 70);   /* subtle separators on display surfaces */
 
-  /* Text on chassis (dark legends on warm-beige — TE silkscreen) */
-  --text-key:    oklch(10% 0.010 85);
-  --text-body:   oklch(16% 0.010 85);
-  --text-muted:  oklch(28% 0.012 85);
-  --text-faint:  oklch(30% 0.012 85);
+  /* Text on chassis (light legends on dark graphite — Octatrack/Push silkscreen) */
+  --text-key:    oklch(95% 0.005 70);
+  --text-body:   oklch(82% 0.008 70);
+  --text-muted:  oklch(62% 0.012 70);
+  --text-faint:  oklch(46% 0.014 70);
 
   /* Text on display */
   --text-on-display: oklch(92% 0.005 70);
 
   /* Signal — orange is the only saturated chrome accent (hex canonical).
      red-accent is reserved for danger and rare typographic emphasis. */
-  --orange-signal: #d94d1b;
+  --orange-signal: #ff5722;
   --red-accent:    #e63946;
 
   /* Hardware caps for the SVG knob — a white plastic cap with a dark notch,
      the TE volume-knob read. The 1px dark stroke keeps it legible on cream. */
-  --knob-cap-white: oklch(97% 0.005 85);
-  --knob-cap-black: oklch(14% 0.010 85);
+  --knob-cap-white: oklch(97% 0.005 70);
+  --knob-cap-black: oklch(12% 0.008 70);
 
   /* State (semantic) — all LOW chroma so they don't compete with --orange-signal.
-     Darkened for legibility against the light chassis. */
-  --state-ok:     oklch(50% 0.11 145);   /* muted forest, confirm/done */
-  --state-danger: oklch(50% 0.18 25);    /* grounded red, destructive — distinct from --red-accent */
-  --state-info:   oklch(46% 0.10 235);   /* muted slate blue, informational status (e.g. modified-from-default) */
+     Lifted for legibility against the dark chassis. */
+  --state-ok:     oklch(65% 0.10 145);   /* muted forest, confirm/done */
+  --state-danger: oklch(60% 0.18 25);    /* grounded red, destructive — distinct from --red-accent */
+  --state-info:   oklch(60% 0.10 235);   /* muted slate blue, informational status (e.g. modified-from-default) */
 
   /* Stage flow (signal-flow direction across OSC → FILTER → FX) — LOW chroma,
-     darkened so the labels read as silkscreen print on the cream chassis. */
-  --stage-osc:    oklch(44% 0.11 65);    /* muted amber: input, source */
-  --stage-filter: oklch(46% 0.14 5);     /* muted plum: transformation */
-  --stage-fx:     oklch(42% 0.09 220);   /* muted slate-teal: output */
+     lifted so the labels read as silkscreen print on the dark chassis. */
+  --stage-osc:    oklch(68% 0.09 65);    /* muted amber: input, source */
+  --stage-filter: oklch(60% 0.13 5);     /* muted plum: transformation */
+  --stage-fx:     oklch(64% 0.08 220);   /* muted slate-teal: output */
 
   /* Motion */
   --ease-out:       cubic-bezier(0.25, 1, 0.5, 1);
