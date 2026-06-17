@@ -56,8 +56,8 @@
   /* Text on chassis (dark legends on cream — TE silkscreen) */
   --text-key:    oklch(18% 0.012 85);
   --text-body:   oklch(30% 0.012 85);
-  --text-muted:  oklch(46% 0.014 85);
-  --text-faint:  oklch(60% 0.014 85);
+  --text-muted:  oklch(43% 0.014 85);
+  --text-faint:  oklch(44% 0.014 85);
 
   /* Text on display */
   --text-on-display: oklch(92% 0.005 70);
@@ -80,9 +80,9 @@
 
   /* Stage flow (signal-flow direction across OSC → FILTER → FX) — LOW chroma,
      darkened so the labels read as silkscreen print on the cream chassis. */
-  --stage-osc:    oklch(52% 0.11 65);    /* muted amber: input, source */
+  --stage-osc:    oklch(44% 0.11 65);    /* muted amber: input, source */
   --stage-filter: oklch(46% 0.14 5);     /* muted plum: transformation */
-  --stage-fx:     oklch(48% 0.09 220);   /* muted slate-teal: output */
+  --stage-fx:     oklch(42% 0.09 220);   /* muted slate-teal: output */
 
   /* Motion */
   --ease-out:       cubic-bezier(0.25, 1, 0.5, 1);
@@ -132,6 +132,7 @@ html, body {
   outline: 2px solid var(--orange-signal);
   outline-offset: 2px;
   border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.45);
 }
 
 .hidden { display: none !important; }
@@ -209,7 +210,7 @@ html, body {
   text-transform: uppercase;
   padding: var(--space-sm) var(--space-lg);
   cursor: pointer;
-  min-height: 26px;
+  min-height: 44px;
   border-radius: 3px;
   transition:
     background  var(--duration-base) var(--ease-out),
@@ -402,6 +403,7 @@ label.section-label { cursor: pointer; }
   color: var(--text-faint);
   font-size: 12px;
   cursor: pointer;
+  position: relative;
   width: 18px;
   height: 18px;
   display: flex;
@@ -411,6 +413,11 @@ label.section-label { cursor: pointer; }
   line-height: 1;
   transition:
     color  var(--duration-base) var(--ease-out);
+}
+.card-reset-btn::before {
+  content: '';
+  position: absolute;
+  inset: -13px;
 }
 .card-reset-btn:hover {
   color: var(--orange-signal);
@@ -551,6 +558,7 @@ label.section-label { cursor: pointer; }
   background: transparent;
   border: 1px solid var(--border-hairline);
   color: var(--text-muted);
+  position: relative;
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -564,6 +572,11 @@ label.section-label { cursor: pointer; }
     background   var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
     color        var(--duration-base) var(--ease-out);
+}
+.color-rack-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
 }
 .color-rack-toggle[aria-pressed="true"] {
   background: oklch(70% 0.21 45 / 0.20);
@@ -730,6 +743,7 @@ label.section-label { cursor: pointer; }
   font-weight: 500;
   letter-spacing: 0.05em;
   padding: 3px 8px;
+  min-height: 44px;
   border-radius: 3px;
   transition:
     background   var(--duration-base) var(--ease-out),
@@ -1041,6 +1055,7 @@ label.section-label { cursor: pointer; }
   color: var(--knob-cap-black);
   border-color: var(--orange-signal);
   font-weight: 700;
+  border-bottom: 2px solid var(--knob-cap-black);
 }
 
 /* ============================================================
@@ -1097,12 +1112,12 @@ label.section-label { cursor: pointer; }
 .filter-swatch-group .toggle-btn[data-value="freqmod"]    { background: repeating-linear-gradient(180deg, #05050a 0 5px, #e8e4d8 5px 6px, #05050a 6px 8px, #b8c4e8 8px 9px); }
 .filter-swatch-group .toggle-btn[data-value="motionedge"] { background: linear-gradient(135deg, #04040a, #0a2a3a 40%, #2fdfff 50%, #0a2a3a 60%, #04040a), linear-gradient(45deg, #000, #fff); }
 
-/* Active = 2px orange border. No glow. */
+/* Active = 2px orange border + white inner ring (shape affordance). */
 .filter-swatch-group .toggle-btn.active,
 .filter-swatch-group .toggle-btn[aria-checked="true"] {
   border: 2px solid var(--orange-signal);
   font-weight: 700;
-  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
 }
 .filter-swatch-group .toggle-btn.active::before,
 .filter-swatch-group .toggle-btn[aria-checked="true"]::before {
@@ -1165,6 +1180,8 @@ label.section-label { cursor: pointer; }
   -webkit-user-select: none;
   outline: none;
   padding: var(--space-2xs) 0;
+  min-height: 44px;
+  min-width: 44px;
   border-radius: 5px;
   transition: background var(--duration-base) var(--ease-out);
 }
@@ -1388,8 +1405,8 @@ label.section-label { cursor: pointer; }
 input[type="color"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 28px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border-hairline);
   border-radius: 3px;
   background: none;
@@ -1592,7 +1609,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   color: var(--text-key);
-  width: 28px; height: 28px;
+  width: 44px; height: 44px;
   border-radius: 3px;
   cursor: pointer;
   font-size: 12px;
@@ -1625,7 +1642,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.10em;
-  min-height: 22px;
+  min-height: 44px;
   padding: var(--space-xs) var(--space-sm);
   text-transform: uppercase;
 }
@@ -2108,11 +2125,11 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   .section-label { font-size: 10px; }
   .stage-divider .stage-sub { font-size: 9px; }
 
-  .icon-btn { font-size: 10px; min-height: 30px; }
-  .action-btn { font-size: 12px; min-height: 34px; }
+  .icon-btn { font-size: 10px; min-height: 44px; }
+  .action-btn { font-size: 12px; min-height: 44px; }
   .toggle-btn {
     font-size: 11px;
-    min-height: 32px;
+    min-height: 44px;
   }
   #track-lines-group .toggle-btn { font-size: 10px; }
   .filter-swatch-group .toggle-btn { min-height: 48px; }
@@ -2124,7 +2141,7 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   .color-rack-chip,
   .color-pick { font-size: 11px; }
   #canvas-topbar { font-size: 11px; }
-  .topbar-mode .toggle-btn { font-size: 10px; min-height: 26px; }
+  .topbar-mode .toggle-btn { font-size: 10px; min-height: 44px; }
 }
 
 @media (min-width: 2400px) {
@@ -2137,11 +2154,11 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   .section-label { font-size: 11px; }
   .stage-divider .stage-sub { font-size: 10px; }
 
-  .icon-btn { font-size: 11px; min-height: 32px; }
-  .action-btn { font-size: 13px; min-height: 36px; }
+  .icon-btn { font-size: 11px; min-height: 44px; }
+  .action-btn { font-size: 13px; min-height: 44px; }
   .toggle-btn {
     font-size: 12px;
-    min-height: 34px;
+    min-height: 44px;
   }
   #track-lines-group .toggle-btn { font-size: 11px; }
   .filter-swatch-group .toggle-btn { min-height: 54px; }
@@ -2153,7 +2170,7 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   .color-rack-chip,
   .color-pick { font-size: 12px; }
   #canvas-topbar { font-size: 12px; }
-  .topbar-mode .toggle-btn { font-size: 11px; min-height: 28px; }
+  .topbar-mode .toggle-btn { font-size: 11px; min-height: 44px; }
 }
 
 @media (min-width: 3200px) {
@@ -2161,11 +2178,11 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
 
   html, body { font-size: 15px; }
   .logo { font-size: 16px; }
-  .icon-btn { font-size: 12px; min-height: 34px; }
-  .action-btn { font-size: 14px; min-height: 38px; }
+  .icon-btn { font-size: 12px; min-height: 44px; }
+  .action-btn { font-size: 14px; min-height: 44px; }
   .toggle-btn {
     font-size: 13px;
-    min-height: 36px;
+    min-height: 44px;
   }
   .filter-swatch-group .toggle-btn { min-height: 60px; }
 
@@ -2192,3 +2209,24 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   #canvas-topbar .topbar-title { display: none; }
   #help-panel { padding: var(--space-xl); }
 }
+
+/* ============================================================
+   SKIP LINKS — keyboard navigation shortcut to main regions.
+   Visually hidden until focused; slide into view on Tab.
+   ============================================================ */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 6px 14px;
+  background: var(--bg-raised);
+  color: var(--text-key);
+  border: 2px solid var(--orange-signal);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.skip-link:focus { top: 0.5rem; }

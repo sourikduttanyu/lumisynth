@@ -1944,6 +1944,7 @@ function compileShader(gl, type, src) {
   gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
     console.error('[glFilters] shader:', gl.getShaderInfoLog(s));
+    if (window.__lumiGLError) window.__lumiGLError('Effect failed to load');
     return null;
   }
   return s;

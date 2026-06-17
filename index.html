@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body data-mode="synth">
+    <a href="#sidebar" class="skip-link">Skip to controls</a>
+    <a href="#canvas-area" class="skip-link">Skip to canvas</a>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
       <defs>
         <linearGradient id="knobGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -35,7 +37,7 @@
         </div>
 
         <!-- ============ OSC ============ -->
-        <div class="stage-divider" data-stage="osc">OSC <span class="stage-sub">source</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="osc">OSC <span class="stage-sub">source</span></div>
 
         <section class="control-section" aria-label="Source input">
           <div class="section-label">Source</div>
@@ -90,7 +92,7 @@
              ============================================================ -->
 
         <!-- ============ STRUCTURE ============ -->
-        <div class="stage-divider" data-stage="structure" data-mode-section="synth">STRUCTURE <span class="stage-sub">geometry · pattern</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="structure" data-mode-section="synth">STRUCTURE <span class="stage-sub">geometry · pattern</span></div>
 
         <section class="control-section" data-mode-section="synth">
           <div class="section-label" id="lbl-structure">Pick one</div>
@@ -211,19 +213,19 @@
         </section>
 
         <!-- ============ COLOR (single stage, v8) ============ -->
-        <div class="stage-divider" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">one stage · graded</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="color" data-mode-section="synth">COLOR <span class="stage-sub">one stage · graded</span></div>
 
         <section class="control-section" data-mode-section="synth">
           <div class="toggle-group" id="color-tab-group" role="tablist" aria-label="Color source tabs">
-            <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   data-tip="The map library — pure per-pixel color shaders, one click each.">Maps</button>
-            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" data-tip="Unique effects — shaders that build something: atmosphere, light phenomena, depth. Grouped by category.">Unique</button>
-            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" data-tip="ChromaEngine — build your own 4-stop color ramp and pick what drives it.">Custom</button>
+            <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   id="tab-btn-maps"   aria-controls="color-tab-maps"   data-tip="The map library — pure per-pixel color shaders, one click each.">Maps</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" id="tab-btn-unique" aria-controls="color-tab-unique" data-tip="Unique effects — shaders that build something: atmosphere, light phenomena, depth. Grouped by category.">Unique</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" id="tab-btn-custom" aria-controls="color-tab-custom" data-tip="ChromaEngine — build your own 4-stop color ramp and pick what drives it.">Custom</button>
           </div>
 
           <!-- MAPS tab: swatch grid + knobs for the selected map. Grid is
                built at startup from COLOR_MAP_SECTIONS in main.js — adding a
                map needs no markup here. -->
-          <div id="color-tab-maps">
+          <div id="color-tab-maps" role="tabpanel" aria-labelledby="tab-btn-maps" tabindex="0">
             <div class="toggle-group filter-swatch-group color-maps-grid" id="color-maps-grid" role="radiogroup" aria-label="Color map library"></div>
             <div id="color-maps-knob-panel"></div>
           </div>
@@ -231,14 +233,14 @@
           <!-- UNIQUE tab: categorized swatch grid built at startup from
                COLOR_UNIQUE_SECTIONS in schemas.js — categories render as
                in-grid headers; adding an effect needs no markup here. -->
-          <div id="color-tab-unique" class="hidden color-source-tab">
-            <div id="color-unique-grid" aria-label="Unique color effects"></div>
+          <div id="color-tab-unique" class="hidden color-source-tab" role="tabpanel" aria-labelledby="tab-btn-unique" tabindex="0">
+            <div id="color-unique-grid" role="radiogroup" aria-label="Unique color effects"></div>
             <div id="color-unique-knob-panel"></div>
           </div>
 
           <!-- CUSTOM tab: the ChromaEngine. Driver select + 4 ramp stops +
                shaping knobs, all built from the chroma schema in main.js. -->
-          <div id="color-tab-custom" class="hidden color-source-tab">
+          <div id="color-tab-custom" class="hidden color-source-tab" role="tabpanel" aria-labelledby="tab-btn-custom" tabindex="0">
             <div class="section-label" id="lbl-chroma-driver">Driver</div>
             <div class="toggle-group" id="chroma-driver-group" role="radiogroup" aria-labelledby="lbl-chroma-driver"></div>
             <div class="section-label" id="lbl-chroma-stops">Ramp stops</div>
@@ -256,7 +258,7 @@
         </section>
 
         <!-- ============ FX RACK ============ -->
-        <div class="stage-divider" data-stage="fx-rack" data-mode-section="synth">FX RACK <span class="stage-sub">chain · 0–3 slots</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx-rack" data-mode-section="synth">FX RACK <span class="stage-sub">chain · 0–3 slots</span></div>
 
         <section class="control-section" data-mode-section="synth">
           <div class="section-label" id="lbl-fx">Slots</div>
@@ -267,10 +269,10 @@
 
         <!-- FX picker buttons are built at startup from FX_SECTIONS in
              main.js (buildFxPicker) — adding an FX effect needs no markup. -->
-        <div class="color-picker-popover hidden" id="fx-picker-popover" role="dialog" aria-label="Pick an FX effect for this slot"></div>
+        <div class="color-picker-popover hidden" id="fx-picker-popover" role="listbox" aria-label="Pick an FX effect for this slot"></div>
 
         <!-- ============ PER-BLOB (TRACK only — hidden from synth to keep it clean) ============ -->
-        <div class="stage-divider" data-stage="perblob" data-mode-section="track">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="perblob" data-mode-section="track">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-perblob">Overlay</div>
@@ -286,7 +288,7 @@
              ============================================================ -->
 
         <!-- ============ DETECTION (TRACK only) ============ -->
-        <div class="stage-divider" data-stage="osc" data-mode-section="track">DETECTION <span class="stage-sub">lumi channel</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="osc" data-mode-section="track">DETECTION <span class="stage-sub">lumi channel</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-lumi-channel">Lumi Channel</div>
@@ -324,7 +326,7 @@
         </section>
 
         <!-- ============ SHAPE (TRACK only) ============ -->
-        <div class="stage-divider" data-stage="fx" data-mode-section="track">SHAPE <span class="stage-sub">bbox style</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">SHAPE <span class="stage-sub">bbox style</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-track-shape">Style</div>
@@ -350,7 +352,7 @@
         </section>
 
         <!-- ============ LINES (TRACK only) ============ -->
-        <div class="stage-divider" data-stage="fx" data-mode-section="track">LINES <span class="stage-sub">graph</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">LINES <span class="stage-sub">graph</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-track-lines">Type</div>
@@ -380,7 +382,7 @@
         </section>
 
         <!-- ============ LABELS (TRACK only) ============ -->
-        <div class="stage-divider" data-stage="fx" data-mode-section="track">LABELS <span class="stage-sub">XY coords · markers</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">LABELS <span class="stage-sub">XY coords · markers</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-track-labels">Show</div>
@@ -411,7 +413,7 @@
         </section>
 
         <!-- ============ EFFECTS (TRACK only) — 3 stackable cards ============ -->
-        <div class="stage-divider" data-stage="fx" data-mode-section="track">EFFECTS <span class="stage-sub">stack · 0–3</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">EFFECTS <span class="stage-sub">stack · 0–3</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-track-fx">Slots</div>
@@ -420,7 +422,7 @@
           </div>
         </section>
 
-        <div class="color-picker-popover hidden" id="track-fx-picker-popover" role="dialog" aria-label="Pick a tracking effect for this slot">
+        <div class="color-picker-popover hidden" id="track-fx-picker-popover" role="listbox" aria-label="Pick a tracking effect for this slot">
           <button type="button" class="color-pick" data-pick-trackfx="none"     data-tip="Clear this slot. Slot becomes empty and is skipped.">None</button>
           <button type="button" class="color-pick" data-pick-trackfx="echo"     data-tip="Echo Blobs. Past N frames' bboxes appear faintly behind current. Motion ghosting at the blob level.">Echo</button>
           <button type="button" class="color-pick" data-pick-trackfx="radar"    data-tip="Radar Sweep. A rotating arc emits from frame center; blobs only become visible as the sweep crosses them.">Radar</button>
@@ -430,7 +432,7 @@
       </aside>
 
       <div id="canvas-stack">
-        <div id="canvas-topbar">
+        <div id="canvas-topbar" role="toolbar" aria-label="Canvas controls">
           <span class="topbar-title">LumiSynth</span>
           <span class="topbar-source" id="topbar-source">No source</span>
 
@@ -485,14 +487,14 @@
               </div>
             </div>
           </div>
-          <div id="fps-overlay" class="hidden">— fps · 0 blobs</div>
+          <div id="fps-overlay" class="hidden" aria-hidden="true">— fps · 0 blobs</div>
         </main>
       </div>
     </div>
 
     <div id="toast-region" role="region" aria-live="polite" aria-atomic="false" aria-label="Notifications"></div>
 
-    <div id="intro-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-copy">
+    <div id="intro-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-copy intro-copy2">
       <div id="intro-panel">
         <button id="intro-close" type="button" aria-label="Close intro">×</button>
         <div class="intro-kicker">NEW INSTRUMENT</div>
@@ -502,17 +504,18 @@
           COLOR tones the image, GRADE fine-tunes hue and saturation, FX RACK adds feedback trails —
           and TRACK finds motion in anything.
         </p>
-        <p>
+        <p id="intro-copy2">
           Start simple: load a source, pick one STRUCTURE, choose a COLOR, then turn knobs until the canvas answers.
         </p>
         <button id="intro-start" class="intro-action" type="button">Start playing</button>
       </div>
     </div>
 
-    <div id="help-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div id="help-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="help-title" aria-describedby="help-body">
       <div id="help-panel">
         <button id="help-close" type="button" aria-label="Close help">×</button>
         <h2 id="help-title">Keyboard &amp; Mouse</h2>
+        <div id="help-body" class="visually-hidden">Keyboard shortcuts and mouse controls for LumiSynth.</div>
 
         <h3>Knobs</h3>
         <ul>
@@ -533,10 +536,11 @@
 
         <h3>App</h3>
         <ul>
-          <li><span>Open help</span><span><kbd>?</kbd></span></li>
-          <li><span>Snapshot frame</span><span><kbd>S</kbd></span></li>
-          <li><span>Record clip (toggle)</span><span><kbd>R</kbd></span></li>
-          <li><span>Toggle FPS</span><span><kbd>F</kbd></span></li>
+          <li><span>Open help</span><span><kbd>Ctrl</kbd> <kbd>/</kbd></span></li>
+          <li><span>Snapshot frame</span><span><kbd>Ctrl</kbd> <kbd>S</kbd></span></li>
+          <li><span>Record clip (toggle)</span><span><kbd>Ctrl</kbd> <kbd>R</kbd></span></li>
+          <li><span>Toggle FPS</span><span><kbd>Ctrl</kbd> <kbd>F</kbd></span></li>
+          <li><span>Reset knob to default</span><span><kbd>Del</kbd> or <kbd>Backspace</kbd></span></li>
           <li><span>Close dialog</span><span><kbd>Esc</kbd></span></li>
         </ul>
 

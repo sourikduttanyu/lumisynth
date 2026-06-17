@@ -20,6 +20,28 @@ import {
   makeTrackFxFactoryParams, makeTrackFxRack,
 } from './schemas.js';
 
+// GL error surface — GL modules call this to fire a user-visible toast on
+// shader compile failure (avoids importing showToast into GL modules).
+window.__lumiGLError = (msg) => { if (typeof showToast === 'function') showToast(msg, 'error'); };
+
+// ---- Focus trap utility ----
+function trapFocus(el) {
+  el._trapHandler = (e) => {
+    if (e.key !== 'Tab') return;
+    const nodes = [...el.querySelectorAll(
+      'button:not([disabled]),input:not([disabled]),[tabindex="0"]'
+    )].filter(n => !n.closest('.hidden'));
+    if (!nodes.length) return;
+    const first = nodes[0], last = nodes[nodes.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  el.addEventListener('keydown', el._trapHandler);
+}
+function releaseTrap(el) {
+  if (el._trapHandler) { el.removeEventListener('keydown', el._trapHandler); el._trapHandler = null; }
+}
+
 // state.sourceKind tracks which input element is currently driving the chain:
 //   null    — no source loaded
 //   'video' — file-loaded HTMLVideoElement (#video, src= via createObjectURL)
@@ -1004,6 +1026,8 @@ function initKnob(el, opts = {}) {
       case 'PageDown':   next = currentValue - big;  break;
       case 'Home':       next = min; break;
       case 'End':        next = max; break;
+      case 'Delete':
+      case 'Backspace':  setValue(def); e.preventDefault(); return;
       default: return;
     }
     e.preventDefault();
@@ -1263,8 +1287,12 @@ function setToggleGroupValue(groupId, value) {
   group.querySelectorAll('.toggle-btn').forEach(b => {
     const match = b.dataset.value === String(value);
     b.classList.toggle('active', match);
-    if (isRadio) b.setAttribute('aria-checked', match ? 'true' : 'false');
-    else         b.setAttribute('aria-pressed', match ? 'true' : 'false');
+    if (isRadio) {
+      b.setAttribute('aria-checked', match ? 'true' : 'false');
+      b.tabIndex = match ? 0 : -1;
+    } else {
+      b.setAttribute('aria-pressed', match ? 'true' : 'false');
+    }
   });
 }
 
@@ -1287,6 +1315,7 @@ function wireToggleGroup(groupId, stateKey, parser, onChange) {
     const next = e.key === 'ArrowRight'
       ? (i + 1) % buttons.length
       : (i - 1 + buttons.length) % buttons.length;
+    buttons.forEach((b, idx) => { if (group.getAttribute('role') === 'radiogroup') b.tabIndex = idx === next ? 0 : -1; });
     buttons[next].focus();
     buttons[next].click();
     e.preventDefault();
@@ -1446,6 +1475,7 @@ function setColor(type) {
   if (type !== 'none') getColorParams(type);
   renderColorPanel();
   schedulePersist();
+  if (fileStatus) fileStatus.textContent = type === 'none' ? 'Color: none' : `Color: ${COLOR_LABEL[type] || type}`;
 }
 
 // Activation from a secondary interaction (knob drag, ramp-stop input,
@@ -1831,6 +1861,13 @@ buildFxPicker();
 let _openFxPickerSlotId = null;
 const _expandedFxSlots  = new Set();
 
+function swapFxSlots(a, b) {
+  if (a < 0 || b < 0 || a >= state.fxRack.length || b >= state.fxRack.length) return;
+  [state.fxRack[a], state.fxRack[b]] = [state.fxRack[b], state.fxRack[a]];
+  renderFxRack();
+  schedulePersist();
+}
+
 function renderFxRack() {
   if (!fxRackEl) return;
   fxRackEl.innerHTML = '';
@@ -1856,9 +1893,14 @@ function renderFxRack() {
     const handle = document.createElement('button');
     handle.type = 'button';
     handle.className = 'color-rack-handle';
-    handle.setAttribute('aria-label', 'Drag to reorder slot');
-    handle.dataset.tip = 'Drag to reorder this FX stage in the chain.';
+    handle.setAttribute('aria-label', `Reorder FX slot ${i + 1}. Use arrow keys to move.`);
+    handle.dataset.tip = 'Drag to reorder this FX stage in the chain. Arrow keys also work when focused.';
     handle.textContent = '≡';
+    handle.addEventListener('keydown', (ev) => {
+      const idx = parseInt(handle.closest('.color-rack-slot').dataset.slotIdx, 10);
+      if (ev.key === 'ArrowUp' && idx > 0) { swapFxSlots(idx, idx - 1); ev.preventDefault(); }
+      else if (ev.key === 'ArrowDown' && idx < state.fxRack.length - 1) { swapFxSlots(idx, idx + 1); ev.preventDefault(); }
+    });
     row.appendChild(handle);
 
     const chip = document.createElement('button');
@@ -2047,9 +2089,11 @@ function reorderFxSlot(srcIdx, dstIdx) {
   schedulePersist();
 }
 
+let _fxPickerFocusPrior = null;
 function openFxPicker(slotEl) {
   const slotId = slotEl.dataset.slotId;
   _openFxPickerSlotId = slotId;
+  _fxPickerFocusPrior = document.activeElement;
   const r = slotEl.getBoundingClientRect();
   fxPickerEl.classList.remove('hidden');
   const pr = fxPickerEl.getBoundingClientRect();
@@ -2061,6 +2105,7 @@ function openFxPicker(slotEl) {
   fxPickerEl.style.left = `${left}px`;
   const chip = slotEl.querySelector('.color-rack-chip');
   if (chip) chip.setAttribute('aria-expanded', 'true');
+  fxPickerEl.querySelector('button')?.focus();
 }
 function closeFxPicker() {
   if (!_openFxPickerSlotId) return;
@@ -2069,6 +2114,8 @@ function closeFxPicker() {
   for (const chip of fxRackEl.querySelectorAll('.color-rack-chip')) {
     chip.setAttribute('aria-expanded', 'false');
   }
+  _fxPickerFocusPrior?.focus();
+  _fxPickerFocusPrior = null;
 }
 
 fxRackEl?.addEventListener('click', (e) => {
@@ -2384,9 +2431,11 @@ function reorderTrackFxSlot(srcIdx, dstIdx) {
   schedulePersist();
 }
 
+let _trackFxPickerFocusPrior = null;
 function openTrackFxPicker(slotEl) {
   const slotId = slotEl.dataset.slotId;
   _openTrackFxPickerSlotId = slotId;
+  _trackFxPickerFocusPrior = document.activeElement;
   const r = slotEl.getBoundingClientRect();
   trackFxPickerEl.classList.remove('hidden');
   const pr = trackFxPickerEl.getBoundingClientRect();
@@ -2398,6 +2447,7 @@ function openTrackFxPicker(slotEl) {
   trackFxPickerEl.style.left = `${left}px`;
   const chip = slotEl.querySelector('.color-rack-chip');
   if (chip) chip.setAttribute('aria-expanded', 'true');
+  trackFxPickerEl.querySelector('button')?.focus();
 }
 function closeTrackFxPicker() {
   if (!_openTrackFxPickerSlotId) return;
@@ -2406,6 +2456,8 @@ function closeTrackFxPicker() {
   for (const chip of trackFxRackEl.querySelectorAll('.color-rack-chip')) {
     chip.setAttribute('aria-expanded', 'false');
   }
+  _trackFxPickerFocusPrior?.focus();
+  _trackFxPickerFocusPrior = null;
 }
 
 trackFxRackEl?.addEventListener('click', (e) => {
@@ -2905,24 +2957,41 @@ function introDismissed() {
   catch (_) { return false; }
 }
 
+let _introFocusPrior = null;
 function dismissIntro() {
   if (!introOverlay) return;
   introOverlay.classList.add('hidden');
+  releaseTrap(introOverlay);
+  _introFocusPrior?.focus();
+  _introFocusPrior = null;
   try { localStorage.setItem(INTRO_DISMISSED_KEY, 'true'); } catch (_) {}
 }
 
 function showIntroIfNeeded() {
   if (!introOverlay || introDismissed()) return;
+  _introFocusPrior = document.activeElement;
   introOverlay.classList.remove('hidden');
   if (introStart) introStart.focus();
+  trapFocus(introOverlay);
 }
 
 introClose?.addEventListener('click', dismissIntro);
 introStart?.addEventListener('click', dismissIntro);
 introOverlay?.addEventListener('click', (e) => { if (e.target === introOverlay) dismissIntro(); });
 
-function openHelp()  { helpOverlay.classList.remove('hidden'); helpClose.focus(); }
-function closeHelp() { helpOverlay.classList.add('hidden'); }
+let _helpFocusPrior = null;
+function openHelp() {
+  _helpFocusPrior = document.activeElement;
+  helpOverlay.classList.remove('hidden');
+  helpClose.focus();
+  trapFocus(helpOverlay);
+}
+function closeHelp() {
+  helpOverlay.classList.add('hidden');
+  releaseTrap(helpOverlay);
+  _helpFocusPrior?.focus();
+  _helpFocusPrior = null;
+}
 btnHelp.addEventListener('click', openHelp);
 helpClose.addEventListener('click', closeHelp);
 helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) closeHelp(); });
@@ -2952,36 +3021,39 @@ btnFps.addEventListener('click', () => {
 
 // ---- Keyboard shortcuts (global) ----
 document.addEventListener('keydown', (e) => {
-  // Ignore when typing in input/textarea or interacting with knob/toggle
+  // Ignore when typing in input/textarea
   const tag = (document.activeElement?.tagName || '').toLowerCase();
   const activeParamControl = document.activeElement?.dataset?.knob !== undefined
     || document.activeElement?.classList?.contains('knob');
   if ((tag === 'input' && !activeParamControl) || tag === 'textarea') return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-  if (e.key === ' ' && tag !== 'button') {
+  // Space: play/pause (unmodified, no AT collision)
+  if (e.key === ' ' && tag !== 'button' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     if (video.paused) { video.play().catch(() => {}); } else { video.pause(); }
     return;
   }
-  if (e.key === 'Escape' && introOverlay && !introOverlay.classList.contains('hidden')) {
-    dismissIntro(); e.preventDefault(); return;
+  // Escape: close overlays (unmodified)
+  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (introOverlay && !introOverlay.classList.contains('hidden')) { dismissIntro(); e.preventDefault(); return; }
+    if (!helpOverlay.classList.contains('hidden')) { closeHelp(); e.preventDefault(); return; }
   }
-  if (e.key === 'Escape' && !helpOverlay.classList.contains('hidden')) {
-    closeHelp(); e.preventDefault(); return;
-  }
-  if (e.key === '?' || (e.key === '/' && e.shiftKey)) { openHelp(); e.preventDefault(); return; }
-  if ((e.key === 's' || e.key === 'S') && !activeParamControl) {
-    if (!document.activeElement?.classList?.contains('knob')) { takeSnapshot(); e.preventDefault(); }
-    return;
-  }
-  if ((e.key === 'f' || e.key === 'F') && !activeParamControl) {
-    btnFps.click(); e.preventDefault();
-  }
-  if ((e.key === 'r' || e.key === 'R') && !activeParamControl) {
-    if (btnRecord && !btnRecord.disabled && btnRecord.style.display !== 'none') {
-      btnRecord.click();
-      e.preventDefault();
+
+  // Ctrl/Cmd modifier shortcuts — safe from AT browse-mode key conflicts
+  if (e.ctrlKey || e.metaKey) {
+    switch (e.key.toLowerCase()) {
+      case '/':
+        openHelp(); e.preventDefault(); return;
+      case 's':
+        if (!activeParamControl) { takeSnapshot(); e.preventDefault(); }
+        return;
+      case 'f':
+        btnFps.click(); e.preventDefault(); return;
+      case 'r':
+        if (btnRecord && !btnRecord.disabled && btnRecord.style.display !== 'none') {
+          btnRecord.click(); e.preventDefault();
+        }
+        return;
     }
   }
 });
@@ -3086,6 +3158,7 @@ function loadVideoSource(url, label) {
     selectTimelineSegment(seg.id, { applyLook: false });
     renderTimelinePanel();
     schedulePersist();
+    if (fileStatus) fileStatus.textContent = `Segment 1 created: ${formatTime(0)}–${formatTime(seg.end)}`;
   }, { once: true });
 }
 
@@ -3355,6 +3428,11 @@ function updateTimelinePlayhead(time = video.currentTime, activeId = _lastResolv
   }
   const pct = clamp(time / video.duration, 0, 1) * 100;
   timelinePlayhead.style.left = `${pct}%`;
+  // Update slider ARIA for keyboard/AT users
+  const dur = video.duration || 0;
+  timelineTrack.setAttribute('aria-valuemax', String(Math.round(dur)));
+  timelineTrack.setAttribute('aria-valuenow', String(Math.round(time)));
+  timelineTrack.setAttribute('aria-valuetext', `${formatTime(time)} / ${formatTime(dur)}`);
   if (activeId !== _lastPlayheadActiveId) {
     _lastPlayheadActiveId = activeId;
     for (const el of timelineTrack.querySelectorAll('.timeline-segment')) {
@@ -3530,6 +3608,7 @@ function addTimelineSegment() {
   state.timelineSegments.push(seg);
   sortTimelineInPlace();
   selectTimelineSegment(seg.id, { applyLook: false });
+  if (fileStatus) fileStatus.textContent = `Segment added: ${formatTime(seg.start)}–${formatTime(seg.end)}`;
 }
 
 function duplicateTimelineSegment() {
@@ -3578,6 +3657,26 @@ timelineAdd?.addEventListener('click', addTimelineSegment);
 timelineDuplicate?.addEventListener('click', duplicateTimelineSegment);
 timelineDelete?.addEventListener('click', deleteTimelineSegment);
 timelineCapture?.addEventListener('click', captureSelectedTimelineLook);
+
+// Keyboard scrubbing for timeline track (accessibility)
+if (timelineTrack) {
+  timelineTrack.setAttribute('role', 'slider');
+  timelineTrack.setAttribute('aria-label', 'Playback position');
+  timelineTrack.setAttribute('aria-valuemin', '0');
+  timelineTrack.setAttribute('aria-valuenow', '0');
+  timelineTrack.setAttribute('aria-valuemax', '0');
+  timelineTrack.setAttribute('tabindex', '0');
+  timelineTrack.addEventListener('keydown', (e) => {
+    if (!timelineAvailable()) return;
+    const step = 5;
+    if      (e.key === 'ArrowLeft')  video.currentTime = Math.max(0, video.currentTime - step);
+    else if (e.key === 'ArrowRight') video.currentTime = Math.min(video.duration, video.currentTime + step);
+    else if (e.key === 'Home')       video.currentTime = 0;
+    else if (e.key === 'End')        video.currentTime = video.duration;
+    else return;
+    e.preventDefault();
+  });
+}
 
 // The track doubles as the scrubber: pointer down on empty track seeks, and
 // keeping the pointer down keeps scrubbing. Segments swallow their own
