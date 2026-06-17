@@ -9,8 +9,11 @@
 // WASM + model are self-hosted under public/mediapipe/ so this works offline.
 import { FilesetResolver, ObjectDetector } from '@mediapipe/tasks-vision';
 
-const WASM_PATH = '/mediapipe/wasm';
-const MODEL_PATH = '/mediapipe/efficientdet_lite0.tflite';
+// BASE_URL respects vite's `base` ('/' in dev, '/lumisynth/' on GitHub Pages),
+// so these resolve under the deploy subpath instead of the domain root.
+const BASE = import.meta.env.BASE_URL;
+const WASM_PATH = `${BASE}mediapipe/wasm`;
+const MODEL_PATH = `${BASE}mediapipe/efficientdet_lite0.tflite`;
 
 // Module singletons. The detector's delegate (GPU/CPU) is fixed at create time,
 // so changing it means closing and rebuilding.
