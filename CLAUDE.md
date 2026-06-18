@@ -24,21 +24,34 @@ State lives in plain objects. Persistence is `localStorage` (`STORAGE_KEY = 'lum
 
 ## Architecture
 
-Signal flow: **STRUCTURE → COLOR (single stage) → GRADE → FX RACK → PER-BLOB overlays**
+**CRITICAL**: Blob detection and the GL pipeline run **in parallel on the same source frame** — detection does NOT feed into the GL shaders. They are two independent paths that converge only at the final composite layer.
 
 ```
-Video / webcam
-  ↓ blobDetector.js   grid local-maxima, 6 modes (motion/luma/dark/sat/edge/sharp)
-  ↓ kalman.js          Kalman + nearest-neighbour tracker, keeps blob identities stable
-  ↓ STRUCTURE pass     one full-frame WebGL effect (or none)
-  ↓ COLOR stage        ONE selected color effect (map / unique / chroma) — v8 retired the rack;
-  ↓                    layering happens on the timeline, one look per segment
-  ↓ GRADE pass         always-on hue-rotate + saturation (active when knobs off neutral,
-  ↓                    even with color = none)
-  ↓ FX RACK            0–3 slots chained after GRADE — stateful GL feedback passes (glFx.js)
-  ↓ PER-BLOB pass      CPU-side filter (inv / thermal) inside blob bounding boxes
-  ↓ overlays.js        Canvas 2D shapes, labels, connection lines drawn on top
+VIDEO / WEBCAM (srcEl)
+  │
+  ├──────────────────────────────────────────────────┐
+  │  DETECTION PATH (CPU)                            │  GL PIPELINE PATH (GPU)
+  │                                                  │
+  │  offscreen.drawImage(srcEl @ 0.125–0.5×)         │  uploadVideoFrame(srcEl)
+  │  ↓                                               │  ↓
+  │  blobDetector.js (6 modes)                       │  STRUCTURE pass (full-frame WebGL)
+  │    OR mediapipeTracker.js (EfficientDet-Lite)    │  ↓ [compose pass if screen-blend]
+  │  ↓                                               │  COLOR stage (one selected effect)
+  │  kalman.js  Kalman + nearest-neighbour tracker   │  ↓
+  │  ↓                                               │  GRADE pass (hue-rotate + sat)
+  │  oneEuroFilter.js  sub-pixel smoothing           │  ↓
+  │  ↓                                               │  FX RACK (0–3 chained GL slots)
+  │  blobs[]                                         │  ↓
+  │      │                                           │  compositeToCanvas2D()
+  │      │                                           │
+  │      └──── per-blob CPU filter (inv/thermal) ←──┘  (reads composited pixels)
+  │            ↓
+  │            overlays.js (Canvas 2D shapes, lines, labels, track FX)
+  │
+  └─→ display canvas
 ```
+
+Signal flow summary: **STRUCTURE → COLOR → GRADE → FX RACK** (GL) **+ PER-BLOB filter + overlay** (CPU, layered on top after GL composite)
 
 ### GL pipeline (critical to understand before touching any GL file)
 
@@ -78,6 +91,8 @@ Every effect vertex shader **must** call `gl.bindAttribLocation(prog, 0, 'a_pos'
       - compositeToCanvas2D with the terminal stage's blend mode
 6. PER-BLOB CPU pass (inv/thermal): getImageData → applyFilterToSubregion → putImageData
 7. TRACK mode overlay: drawTrackOverlay(ctx, blobs, ...) — Canvas 2D on top
+8. Blob LumiSynth pass (TRACK mode): for each blob, crop srcEl → runBlobFrame() → composite source-over display canvas. Runs AFTER drawTrackOverlay so it sits on top.
+9. Unified label overlay: if look.trackLabels !== 'off', draw tag above each blob box. 'confidence' = category+score above top-left (object detection only); 'position' = X:N Y:N above top-right (all modes).
 ```
 
 **`resolveActivePipeline()`** returns `{ structure: string|null, color: {type, params}|null, grade: {hue, sat}|null, fx: [{type, params, key}] }`. `color` is the single selected effect with its params from `colorParams` (fallback to factory, never mutating the look). `grade` is non-null whenever either grade knob is off neutral. `key` is the fx slot id; glFx.js keys per-slot feedback buffers on it. Called once per frame; drives the entire GL dispatch.
@@ -167,8 +182,9 @@ Exported API:
 | `src/glFx.js` | FX RACK feedback effects — flowfield, drag, lumadrag, tunnel, burnin, wobbletape. Per-slot ping-pong FBOs keyed by slot id; `resetFxFeedback()` wired into resetAllState + slot mutations |
 | `src/shaderSource.js` | Generative GLSL source library (diveclouds, phantomstar, starnest, hyperkart). Own GL context; renders into canvas fed to pipeline as video substitute. Registry-driven knob panel; Speed knobs drive accumulated phase clock |
 | `vite.config.js` | Vite build config |
-| `src/blobDetector.js` | CPU blob detection, all 6 modes |
-| `src/kalman.js` | 1D Kalman filter + nearest-neighbour tracker |
+| `src/glBlobPipeline.js` | Independent WebGL2 pipeline for per-blob LumiSynth. Own canvas/context/VAO separate from glContext.js. `runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displayW, displayH)` crops blob region, runs STRUCTURE→COLOR→GRADE→FX chain, composites source-over display canvas. |
+| `src/blobDetector.js` | CPU blob detection, all 6 modes. Blob bboxes are rectangular (gap-tolerant directional scan from peak pixel, not fixed squares). |
+| `src/kalman.js` | 1D Kalman filter + nearest-neighbour tracker. `toBlob()` includes `category` field so MediaPipe class names survive Kalman+OneEuro. |
 | `src/overlays.js` | Canvas 2D track overlay: shapes, labels, connection lines, Track FX |
 | `src/oneEuroFilter.js` | One Euro Filter for sub-pixel blob position smoothing |
 | `src/filters.js` | CPU per-blob effects (inv, thermal) applied to ImageData subregions |
@@ -282,6 +298,96 @@ Tokens defined in `DESIGN.md` / `DESIGN.json`. June 2026 pivot: the chassis is n
 
 3 fixed slots mirroring the COLOR rack, but for TRACK mode only. Effects: `echo` (ghost bboxes of past blob positions), `radar` (sweep-ring per blob), `heatmap` (canvas residue layer). Schemas live in `TRACK_FX_PARAM_SCHEMAS`; rack initialized via `makeTrackFxRack()` in `main.js`. CPU-side Canvas 2D — no GL passes.
 
+### MediaPipe object detection wiring
+
+`state.trackBackend === 'object'` switches from the CPU grid local-maxima detector to MediaPipe EfficientDet-Lite running via WASM. Both backends produce the same blob shape so everything downstream (Kalman, One Euro, overlays) is untouched.
+
+**Files:** `src/mediapipeTracker.js` (105 lines), WASM assets under `public/mediapipe/wasm/`, model at `public/mediapipe/efficientdet_lite0.tflite`.
+
+**WASM variants** (auto-selected by MediaPipe at runtime):
+- `vision_wasm_internal.js/.wasm` — standard GPU-delegate path
+- `vision_wasm_module_internal.js/.wasm` — module variant
+- `vision_wasm_nosimd_internal.js/.wasm` — CPU fallback without SIMD
+
+**Init flow** (`initObjectDetector(delegate)`):
+1. `FilesetResolver.forVisionTasks(WASM_PATH)` — loads WASM once, cached in `_fileset`
+2. `ObjectDetector.createFromOptions` with `runningMode: 'VIDEO'`, `scoreThreshold: 0.3`, `maxResults: 30`
+3. Delegate (`'GPU'` or `'CPU'`) is fixed at create-time; changing it closes + rebuilds (`setObjectDetectorDelegate`)
+4. Lazy: model loads only when backend first switches to `'object'`
+5. `_building` promise deduplicates concurrent init calls
+
+**Detection call** (`detectObjects(srcEl, timestampMs, opts)`):
+- `srcEl` = the **downscaled offscreen canvas** (0.125–0.5× of display canvas, ~360k px budget)
+- `timestampMs` = `performance.now()` — must be monotonically increasing
+- `scoreThreshold` = `Math.min(0.9, Math.max(0.05, look.threshold / 100))` — reuses the existing Threshold knob
+- `maxResults` = `Math.min(30, look.trackMaxBlobs)` — reuses the existing Max Blobs knob
+- Output bboxes are in detection-canvas pixel space; `renderFrame` rescales them with `sx = cw/ow, sy = ch/oh` before feeding `trackBlobs`
+
+**MediaPipe knobs — current mapping:**
+
+| UI Knob | State key | MediaPipe param | Notes |
+|---|---|---|---|
+| Threshold | `look.threshold` | `scoreThreshold` 0.05–0.9 | Confidence filter |
+| Max Blobs | `look.trackMaxBlobs` | `maxResults` cap 30 | Detection ceiling |
+
+Delegate is hardcoded to `'GPU'` — the CPU option was removed from the UI. `state.mpDelegate` stays `'GPU'` always.
+
+**MediaPipe knobs — candidates to add** (no schema breakage, additive):
+- **Category filter** (`mpCategory`): EfficientDet-Lite 0 runs on 90 COCO classes (person, car, dog, …). Pass an allow-list to `detectObjects` and filter `cat.categoryName` before pushing to blobs array. UI: tag-select or searchable dropdown. State: `string[]`, not part of a look (global-only).
+- **NMS IOU threshold** (`mpIouThreshold`): controls overlap suppression in the detector. Currently at library default (~0.3). Expose as a 0–1 slider; pass to `ObjectDetector.createFromOptions` (`minSuppressionThreshold`). Requires rebuild on change.
+- **Model tier** (`mpModel`): swap `efficientdet_lite0.tflite` for `lite2` for more accuracy at higher CPU cost. Requires a model asset download and `initObjectDetector` rebuild. Expose as a toggle once a second model file is bundled.
+- **Max detection area** (`mpMaxArea`): post-filter blobs whose `area > threshold`. Knob in display-canvas pixels² or as % of frame. No rebuild — filter in `detectObjects` return.
+- **Score display** on overlay label: `blob.score` (0–1) is already in the blob shape; `overlays.js` can render it next to the category name when a "show score" toggle is on.
+
+**What is NOT fed into GL shaders**: blob positions, bboxes, scores, and categories never reach the STRUCTURE/COLOR/GRADE/FX shaders. They are purely for the per-blob CPU filter and the Canvas 2D overlay.
+
+**Performance notes**: MediaPipe WASM inference on GPU delegate typically takes 5–25ms per frame at the downscaled resolution (~360k px). The `updateInterval` throttle (every N frames) is the main tool for managing cost. CPU delegate is 2–4× slower but avoids GPU context-switching. Don't upgrade to `lite2` without adding an `updateInterval` recommendation in the UI tip.
+
+---
+
+### Blob LumiSynth — implemented
+
+Each tracked blob gets its own independent LumiSynth pipeline (STRUCTURE → COLOR → GRADE → FX RACK), composited source-over the display canvas after the main GL pipeline and track overlay. Implemented in `src/glBlobPipeline.js`.
+
+**Data flow:**
+```
+srcEl (original video)
+  │
+  ├──→ BACKGROUND GL pipeline (unchanged)
+  │
+  ├──→ Blob detection (unchanged) → blobs[]
+  │
+  └──→ BLOB GL pipeline (glBlobPipeline.js)
+       For each blob (up to MAX_BLOBS=6):
+         1. 2D canvas crop: drawImage(srcEl, bx*sx, by*sy, bw*sx, bh*sy, 0,0,bw,bh)
+            sx/sy = srcEl native dims / display dims — scales coordinates correctly
+         2. texImage2D crop canvas → GL texture
+         3. Chain: STRUCTURE → COLOR → GRADE → FX (ping-pong chain FBOs)
+         4. composite source-over display canvas at (bx,by,bw,bh)
+```
+
+**Key implementation details:**
+- Own WebGL2 canvas/context/VAO — never touches glContext.js; no interference with main pipeline
+- Chain FBOs resized lazily to each blob's bbox; shared across frames
+- Runs AFTER `drawTrackOverlay` so blob synth composites on top of shape/lines overlay
+- Always source-over composite (hardcoded — screen/add made blobs look mid)
+- Blob synth is always-on when any stage is active (`blobHasWork` check); no manual enable toggle
+- State keys live in the look (timeline-segment-aware): `blobStructure`, `blobColor`, `blobColorHue`, `blobColorSat`, `blobFxRack`, etc. — see `schemas.js` `BLOB_*` exports
+
+**Blob bboxes (blobDetector.js):**
+Blob detector uses gap-tolerant directional scanning from the peak pixel to find actual rectangular extents. Scans outward in 4 directions, allowing up to `ceil(cellSize * 0.15)` consecutive zero pixels before stopping (handles sparse motion/edge strength fields). Result is `max(hs, extent)` in each axis — naturally rectangular when content extends further in one axis.
+
+### Labels (TRACK mode)
+
+Single `trackLabels` toggle: `'off'` | `'confidence'` | `'position'`. Drawn on the display canvas after all blob synth compositing so tags appear on top.
+
+- **`'confidence'`** — category + score tag (`"person  92%"`) above the top-left corner of each blob bbox. Only renders when `blob.category` is set (Object Detection mode). Tag has dark semi-transparent pill background.
+- **`'position'`** — `X:N Y:N` centroid readout above the top-right corner of each blob bbox. Works with all tracking backends (blob detector and MediaPipe).
+
+The old separate XY-coords Labels section and the Marker (dot/plus/cross) UI were removed. `trackLabelColor`, `trackLabelFontSize`, `trackLabelMarker` removed from DEFAULTS. Center marker drawing removed from `overlays.js`'s `drawLabelsAndMarkers`.
+
+---
+
 ### Track lines and smoothing
 
 Blob tracking is general-purpose, not object-specific. Detection happens in `blobDetector.js`, identity stabilization in `kalman.js`, and display smoothing in `main.js` via `BlobOneEuroFilter` when `state.trackStability > 0`.
@@ -388,4 +494,4 @@ all of that was removed. Space toggles play/pause globally.
 
 ## Active work context
 
-See `lumisynthprd.md` for implementation status vs the original PRD. P2 (STRUCTURE → COLOR FBO chain) shipped. Track FX rack (echo/radar/heatmap) is implemented in TRACK mode. Curved hub lines are implemented as a general TRACK Lines style (`hubcurve`). Cloudflare Pages Functions + D1 auth/presets/export-gating scaffolding exists, with localhost-only internal login for testing before real D1 setup. P3 is WELL UNDERWAY: the FX RACK is a real GL rack (3 slots, drag-reorder, per-slot params, timeline-look + preset + persistence integration) with six true feedback effects (`flowfield`, `drag`, `lumadrag`, `tunnel`, `burnin`, `wobbletape`) plus the stateless signal/texture set (bloom, godrays, decayflow, feedbackwarp, crt, crtrolling, scanlines, degrade, noise) — see `src/glFx.js`. v8 replaced the COLOR rack with the single tabbed COLOR stage (MAPS / UNIQUE / CUSTOM + GRADE). June 2026 additions: the dreamcore COLOR pack (octopus, hologram, surveil, newsprint, sketch, polaroid, blacklight, dreamstatic, predator + earlier blackbody/hubble/abyss/sequin/risograph), two new STRUCTURE effects (`freqmod` FM oscillography — Dir/Mod/Wave/Thresh + Density knob for 120–300 scan rows via the optional `uParam4` 5th-param uniform; `motionedge`), the motion infrastructure (frame-history ring + `u_prev`), the `uTime` auto-upload convention in both dispatchers, the single-bar timeline, the TE-cream chrome redesign, and the generative SHADER LIBRARY source kind (`src/shaderSource.js` — `diveclouds`, `phantomstar`, `starnest`, `hyperkart`; raymarched/Shadertoy-style generators with registry-driven per-shader knobs: Speed glides via an accumulated phase clock, others upload via a `uParams[8]` float array, up to 8 controls each). Remaining P3: upgrading decayflow/feedbackwarp to real feedback, and Inv/Thermal moving from PER-BLOB into the FX RACK. `PRD_DECISIONS.md` logs what is deliberately out of scope.
+See `lumisynthprd.md` for implementation status vs the original PRD. P2 (STRUCTURE → COLOR FBO chain) shipped. Track FX rack (echo/radar/heatmap) is implemented in TRACK mode. Curved hub lines are implemented as a general TRACK Lines style (`hubcurve`). Cloudflare Pages Functions + D1 auth/presets/export-gating scaffolding exists, with localhost-only internal login for testing before real D1 setup. P3 is WELL UNDERWAY: the FX RACK is a real GL rack (3 slots, drag-reorder, per-slot params, timeline-look + preset + persistence integration) with six true feedback effects (`flowfield`, `drag`, `lumadrag`, `tunnel`, `burnin`, `wobbletape`) plus the stateless signal/texture set (bloom, godrays, decayflow, feedbackwarp, crt, crtrolling, scanlines, degrade, noise) — see `src/glFx.js`. v8 replaced the COLOR rack with the single tabbed COLOR stage (MAPS / UNIQUE / CUSTOM + GRADE). June 2026 additions: the dreamcore COLOR pack (octopus, hologram, surveil, newsprint, sketch, polaroid, blacklight, dreamstatic, predator + earlier blackbody/hubble/abyss/sequin/risograph), two new STRUCTURE effects (`freqmod` FM oscillography — Dir/Mod/Wave/Thresh + Density knob for 120–300 scan rows via the optional `uParam4` 5th-param uniform; `motionedge`), the motion infrastructure (frame-history ring + `u_prev`), the `uTime` auto-upload convention in both dispatchers, the single-bar timeline, the TE-cream chrome redesign, and the generative SHADER LIBRARY source kind (`src/shaderSource.js` — `diveclouds`, `phantomstar`, `starnest`, `hyperkart`; raymarched/Shadertoy-style generators with registry-driven per-shader knobs: Speed glides via an accumulated phase clock, others upload via a `uParams[8]` float array, up to 8 controls each). **Blob LumiSynth is now implemented** (`src/glBlobPipeline.js`) — per-blob independent STRUCTURE→COLOR→GRADE→FX chain composited source-over on the display canvas, rectangular blob bboxes from gap-tolerant directional scan, `category` field propagated through Kalman tracker, unified `trackLabels: 'off'|'confidence'|'position'` replacing separate XY-labels and MediaPipe-labels sections, MediaPipe hardcoded to GPU delegate, lag cursor permanently disabled. Remaining P3: upgrading decayflow/feedbackwarp to real feedback, and Inv/Thermal moving from PER-BLOB into the FX RACK. `PRD_DECISIONS.md` logs what is deliberately out of scope.

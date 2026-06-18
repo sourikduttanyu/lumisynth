@@ -271,18 +271,6 @@
              main.js (buildFxPicker) — adding an FX effect needs no markup. -->
         <div class="color-picker-popover hidden" id="fx-picker-popover" role="listbox" aria-label="Pick an FX effect for this slot"></div>
 
-        <!-- ============ PER-BLOB (TRACK only — hidden from synth to keep it clean) ============ -->
-        <div class="stage-divider" role="heading" aria-level="3" data-stage="perblob" data-mode-section="track">PER-BLOB <span class="stage-sub">fill blobs with effect</span></div>
-
-        <section class="control-section" data-mode-section="track">
-          <div class="section-label" id="lbl-perblob">Overlay</div>
-          <div class="toggle-group filter-swatch-group" id="perblob-group" role="radiogroup" aria-labelledby="lbl-perblob">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"    aria-label="No per-blob overlay" data-tip="No per-blob overlay. Only the main chain renders."><span>None</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="inv"     aria-label="Invert colors"       data-tip="PER-BLOB. Inverts colors within each blob's region."><span>Inv</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="thermal" aria-label="Thermal palette"     data-tip="PER-BLOB. Maps luma to a thermal palette within each blob's region."><span>Thermal</span></button>
-          </div>
-        </section>
-
         <!-- ============================================================
              TRACK-mode sections. Visible only when body[data-mode="track"].
              ============================================================ -->
@@ -298,13 +286,6 @@
           </div>
         </section>
 
-        <section class="control-section" id="mp-delegate-section" data-mode-section="track" style="display:none">
-          <div class="section-label" id="lbl-mp-delegate">Delegate</div>
-          <div class="toggle-group" id="mp-delegate-group" role="radiogroup" aria-labelledby="lbl-mp-delegate">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="GPU" data-tip="GPU inference. Faster, but shares the GPU with the effect pipeline.">GPU</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="CPU" data-tip="CPU inference. Avoids GPU contention with effects; heavier on CPU.">CPU</button>
-          </div>
-        </section>
 
         <section class="control-section" id="lumi-channel-section" data-mode-section="track">
           <div class="section-label" id="lbl-lumi-channel">Lumi Channel</div>
@@ -398,52 +379,109 @@
         </section>
 
         <!-- ============ LABELS (TRACK only) ============ -->
-        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">LABELS <span class="stage-sub">XY coords · markers</span></div>
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">LABELS</div>
 
         <section class="control-section" data-mode-section="track">
-          <div class="section-label" id="lbl-track-labels">Show</div>
+          <div class="section-label" id="lbl-track-labels">Type</div>
           <div class="toggle-group" id="track-labels-group" role="radiogroup" aria-labelledby="lbl-track-labels">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="false" data-tip="No coordinate labels or center markers.">Off</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="true"  data-tip="Show X/Y coordinate readouts and center marker on each blob centroid.">On</button>
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="off"        data-tip="No labels on blobs.">Off</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="confidence" data-tip="Object category + confidence above top-left of each detected object. Object Detection only.">Conf</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="position"   data-tip="X/Y position of each blob centroid above top-right of its bounding box. Works with all tracking modes.">Pos</button>
+          </div>
+        </section>
+
+        <!-- ============ BLOB SYNTH (TRACK only) — independent LumiSynth per blob ============ -->
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-synth" data-mode-section="track">BLOB SYNTH <span class="stage-sub">independent chain · per blob</span></div>
+
+        <!-- BLOB STRUCTURE -->
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-structure" data-mode-section="track">BLOB STRUCT <span class="stage-sub">geometry · pattern</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="section-label" id="lbl-blob-structure">Pick one</div>
+          <div class="toggle-group filter-swatch-group" id="blob-structure-group" role="radiogroup" aria-labelledby="lbl-blob-structure">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"      data-tip="No STRUCTURE pass — raw blob region passes through to color.">None</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"     data-tip="BLOB STRUCT. Morphological erode/dilate + edge ring inside blob region.">Erode</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="watershed" data-tip="BLOB STRUCT. Watershed segmentation inside blob region.">Shed</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort" data-tip="BLOB STRUCT. Pixel sort inside blob region.">PixSort</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"      data-tip="BLOB STRUCT. Melt drip inside blob region.">Melt</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"   data-tip="BLOB STRUCT. FM oscillography inside blob region.">FreqMod</button>
           </div>
         </section>
 
         <section class="control-section" data-mode-section="track">
-          <div class="section-label" id="lbl-track-label-marker">Marker</div>
-          <div class="toggle-group" id="track-label-marker-group" role="radiogroup" aria-labelledby="lbl-track-label-marker">
-            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="dot"   data-tip="Filled dot at blob centroid.">Dot</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="plus"  data-tip="Plus (+) crosshair at blob centroid.">+</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="cross" data-tip="Cross (×) crosshair at blob centroid.">×</button>
+          <div class="section-label" id="lbl-blob-structure-output">Output</div>
+          <div class="toggle-group" id="blob-structure-output-group" role="radiogroup" aria-labelledby="lbl-blob-structure-output">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="mono"   data-tip="Greyscale.">Mono</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="source" data-tip="Mask source video with the structure.">Source</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ink"    data-tip="Black/cream poster.">Ink</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="invert" data-tip="Negative of mono.">Invert</button>
           </div>
         </section>
+
+        <!-- Blob structure ink colors -->
+        <section class="control-section" id="blob-ink-controls" data-mode-section="track" style="display:none">
+          <div class="section-label">Ink Colors</div>
+          <div class="color-picker-row ink-color-row">
+            <label class="color-picker-control">
+              <input type="color" id="blob-ink-black-input" class="color-picker-input" value="#0a0908" data-tip="Blob ink dark color (used when output = Ink).">
+              <span class="color-picker-label">DARK</span>
+            </label>
+            <label class="color-picker-control">
+              <input type="color" id="blob-ink-cream-input" class="color-picker-input" value="#ebe0c7" data-tip="Blob ink light color (used when output = Ink).">
+              <span class="color-picker-label">LIGHT</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Blob structure knob panel — built dynamically by JS when a structure is selected -->
+        <div id="blob-structure-knob-panel" data-mode-section="track"></div>
+
+        <!-- BLOB COLOR -->
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-color" data-mode-section="track">BLOB COLOR <span class="stage-sub">one stage · graded</span></div>
 
         <section class="control-section" data-mode-section="track">
-          <div class="control-stack">
-            <div class="knob-cluster knob-cluster-center">
-              <div class="knob" id="track-label-color"    data-knob data-state="trackLabelColor"    data-min="0" data-max="1" data-step="0.01" data-default="0"  aria-label="Label color (hue)"  data-tip="Hue of label text and marker. At 0 white; scrolls through full hue range." tabindex="0"><span class="knob-label">Color</span><span class="knob-val" id="track-label-color-val">0</span></div>
-            </div>
-            <div class="slider-stack">
-              <div class="knob" id="track-label-fontsize" data-knob data-control="slider" data-state="trackLabelFontSize" data-min="8" data-max="16" data-step="1"   data-default="10" aria-label="Label font size (px)" data-tip="Font size of XY coordinate readouts (8–16 px)." tabindex="0"><span class="knob-label">Size</span><span class="knob-val" id="track-label-fontsize-val">10</span></div>
-            </div>
+          <div class="toggle-group" id="blob-color-tab-group" role="tablist" aria-label="Blob color source tabs">
+            <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   id="blob-tab-btn-maps"   data-tip="Color map library for blob regions.">Maps</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" id="blob-tab-btn-unique" data-tip="Unique effects for blob regions.">Unique</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" id="blob-tab-btn-custom" data-tip="ChromaEngine for blob regions.">Custom</button>
+          </div>
+
+          <div id="blob-color-tab-maps" role="tabpanel" aria-labelledby="blob-tab-btn-maps" tabindex="0">
+            <div class="toggle-group filter-swatch-group color-maps-grid" id="blob-color-maps-grid" role="radiogroup" aria-label="Blob color map library"></div>
+            <div id="blob-color-maps-knob-panel"></div>
+          </div>
+
+          <div id="blob-color-tab-unique" class="hidden color-source-tab" role="tabpanel" aria-labelledby="blob-tab-btn-unique" tabindex="0">
+            <div id="blob-color-unique-grid" role="radiogroup" aria-label="Blob unique color effects"></div>
+            <div id="blob-color-unique-knob-panel"></div>
+          </div>
+
+          <div id="blob-color-tab-custom" class="hidden color-source-tab" role="tabpanel" aria-labelledby="blob-tab-btn-custom" tabindex="0">
+            <div class="section-label" id="lbl-blob-chroma-driver">Driver</div>
+            <div class="toggle-group" id="blob-chroma-driver-group" role="radiogroup" aria-labelledby="lbl-blob-chroma-driver"></div>
+            <div class="section-label" id="lbl-blob-chroma-stops">Ramp stops</div>
+            <div class="color-picker-row ink-color-row" id="blob-chroma-stop-row" aria-labelledby="lbl-blob-chroma-stops"></div>
+            <div id="blob-chroma-knob-panel"></div>
+          </div>
+
+          <div class="section-label" id="lbl-blob-grade">Grade</div>
+          <div class="knob-cluster" aria-labelledby="lbl-blob-grade">
+            <div class="knob" id="blob-color-hue" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Blob Grade Hue Rotate" data-tip="Hue rotation on blob output (0–360°)." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="blob-color-hue-val">0</span></div>
+            <div class="knob" id="blob-color-sat" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Blob Grade Saturation" data-tip="Saturation on blob output. 0.5 = neutral." tabindex="0"><span class="knob-label">Sat</span><span class="knob-val" id="blob-color-sat-val">0.5</span></div>
           </div>
         </section>
 
-        <!-- ============ EFFECTS (TRACK only) — 3 stackable cards ============ -->
-        <div class="stage-divider" role="heading" aria-level="3" data-stage="fx" data-mode-section="track">EFFECTS <span class="stage-sub">stack · 0–3</span></div>
+        <!-- BLOB FX RACK (stateless effects only) -->
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-fx" data-mode-section="track">BLOB FX <span class="stage-sub">stateless chain · 0–3</span></div>
 
         <section class="control-section" data-mode-section="track">
-          <div class="section-label" id="lbl-track-fx">Slots</div>
-          <div class="color-rack" id="track-fx-rack" role="list" aria-labelledby="lbl-track-fx"
-               data-tip="Up to 3 tracking effects stacked on top of Shape + Lines. Drag the handle to reorder; toggle to A/B; × clears.">
+          <div class="section-label" id="lbl-blob-fx">Slots</div>
+          <div class="color-rack" id="blob-fx-rack" role="list" aria-labelledby="lbl-blob-fx"
+               data-tip="Up to 3 stateless FX stages applied to each blob's synth output. Feedback effects are not available (no per-blob frame history).">
           </div>
         </section>
 
-        <div class="color-picker-popover hidden" id="track-fx-picker-popover" role="listbox" aria-label="Pick a tracking effect for this slot">
-          <button type="button" class="color-pick" data-pick-trackfx="none"     data-tip="Clear this slot. Slot becomes empty and is skipped.">None</button>
-          <button type="button" class="color-pick" data-pick-trackfx="echo"     data-tip="Echo Blobs. Past N frames' bboxes appear faintly behind current. Motion ghosting at the blob level.">Echo</button>
-          <button type="button" class="color-pick" data-pick-trackfx="radar"    data-tip="Radar Sweep. A rotating arc emits from frame center; blobs only become visible as the sweep crosses them.">Radar</button>
-          <button type="button" class="color-pick" data-pick-trackfx="heatmap"  data-tip="Heatmap Residue. Wherever a blob has been recently glows. Motion smear of the entire scene's blob history.">Heat</button>
-        </div>
+        <div class="color-picker-popover hidden" id="blob-fx-picker-popover" role="listbox" aria-label="Pick a blob FX effect for this slot"></div>
 
       </aside>
 

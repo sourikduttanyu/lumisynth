@@ -109,18 +109,19 @@ export const DEFAULTS = Object.freeze({
   trackLines: 'off',
   trackLinesColor: 0, trackLinesThickness: 1, trackLinesParam: 0.5, trackLinesTaper: 0,
 
-  // Labels + center markers (Tracery-style XY readouts).
-  //   trackLabels:       true | false
-  //   trackLabelMarker:  'dot' | 'plus' | 'cross'
-  //   trackLabelFontSize: 8..16
-  //   trackLabelColor:   0..1  — hue knob (same scheme as shape/lines)
-  trackLabels: false,
-  trackLabelMarker: 'dot',
-  trackLabelFontSize: 10,
-  trackLabelColor: 0,
+  // Labels: 'off' | 'confidence' (obj detection category+score, top-left) | 'position' (XY, top-right)
+  trackLabels: 'off',
 
   // Track FX rack (3 slots, like colorRack) — initialized via makeTrackFxRack()
   // at startup. Stores up to 3 stackable tracking effects: echo / radar / heatmap.
+
+  // BLOB SYNTH — per-blob independent LumiSynth pipeline (TRACK mode only).
+  // blobStructureParams and blobColorParams are object-valued (not in DEFAULTS).
+  blobSynthEnabled: false,
+  blobStructure: 'none', blobStructureOutputMode: 'mono',
+  blobColor: 'none', blobColorHue: 0, blobColorSat: 0.5,
+  blobComposite: 'screen',
+  blobInkBlackHex: '#0a0908', blobInkCreamHex: '#ebe0c7',
 });
 
 // Schema for COLOR effect parameters. Source of truth for what knobs/toggles
@@ -854,4 +855,125 @@ export function makeTrackFxRack() {
     enabled: false,
     params: {},
   }));
+}
+
+// Blob structure effect param schemas — each key maps to a state key stored
+// under look.blobStructureParams[effectName]. Parallel to COLOR_PARAM_SCHEMAS
+// but for blob-scoped STRUCTURE effects.
+export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
+  erode: {
+    toggles: [{ key: 'mode', label: 'Mode', default: 0, options: [
+      { value: 0, label: 'Erode', tip: 'Morphological erosion.' },
+      { value: 1, label: 'Dilate', tip: 'Morphological dilation.' },
+    ]}],
+    knobs: [
+      { key: 'radius',   label: 'Radius',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Kernel radius (1–6 px). Higher = more erosion.' },
+      { key: 'strength', label: 'Strength', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Blend between original and morphed (0=original, 1=full morph).' },
+      { key: 'edge',     label: 'Edge',     min: 0, max: 1, step: 0.01, default: 0,   tip: 'Edge ring overlay weight. 0=none, 1=pure ring.' },
+    ],
+  },
+  watershed: {
+    toggles: [],
+    knobs: [
+      { key: 'basin',    label: 'Basin',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Basin size. Larger = more merged regions.' },
+      { key: 'boundary', label: 'Boundary', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Boundary brightness.' },
+      { key: 'flat',     label: 'Flat',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Region fill flatness.' },
+      { key: 'depth',    label: 'Depth',    min: 0, max: 1, step: 0.01, default: 0,   tip: 'Depth toning (0=none).' },
+    ],
+  },
+  pixelsort: {
+    toggles: [],
+    knobs: [
+      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Luminance threshold — pixels above sort.' },
+      { key: 'length',  label: 'Length',  min: 0, max: 1, step: 0.01, default: 0.3, control: 'slider', tip: 'Sort run length.' },
+      { key: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.01, default: 0.8, control: 'slider', tip: 'Blend with original.' },
+      { key: 'dir',     label: 'Dir',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Sort direction (0=horizontal, 1=vertical).' },
+    ],
+  },
+  melt: {
+    toggles: [],
+    knobs: [
+      { key: 'amount',    label: 'Amount',    min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Melt amount.' },
+      { key: 'drip',      label: 'Drip',      min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Drip length.' },
+      { key: 'viscosity', label: 'Viscosity', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Flow viscosity.' },
+      { key: 'dir',       label: 'Dir',       min: 0, max: 1, step: 0.01, default: 0,   tip: 'Direction (0=down, 0.5=up, others=rotated).' },
+    ],
+  },
+  freqmod: {
+    toggles: [],
+    knobs: [
+      { key: 'dir',     label: 'Dir',     min: 0, max: 1,   step: 0.01, default: 0,   tip: 'Scan direction (0–180°).' },
+      { key: 'mod',     label: 'Mod',     min: 0, max: 1,   step: 0.01, default: 0.6, tip: 'Frequency modulation depth.' },
+      { key: 'wave',    label: 'Wave',    min: 0, max: 1,   step: 0.01, default: 0.5, tip: 'Waveform shape.' },
+      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1,   step: 0.01, default: 0.2, tip: 'Luminance gate threshold.' },
+      { key: 'density', label: 'Density', min: 120, max: 300, step: 1, default: 240, control: 'slider', tip: 'Scan line density (rows).' },
+    ],
+  },
+};
+
+export const BLOB_STRUCTURE_SECTIONS = Object.keys(BLOB_STRUCTURE_PARAM_SCHEMAS);
+
+// Stateless-only FX sections for the blob FX rack — excludes feedback effects
+// (flowfield, drag, lumadrag, tunnel, burnin, wobbletape) which need per-blob
+// frame history that the blob pipeline doesn't maintain.
+export const BLOB_FX_SECTIONS = FX_SECTIONS.filter(
+  (n) => !FX_PARAM_SCHEMAS[n]?.feedback
+);
+
+export function makeBlobStructureParams(effectName) {
+  const schema = BLOB_STRUCTURE_PARAM_SCHEMAS[effectName];
+  if (!schema) return {};
+  const p = {};
+  for (const t of schema.toggles) p[t.key] = t.default;
+  for (const k of schema.knobs)   p[k.key] = k.default;
+  return p;
+}
+
+export function makeBlobFxRack() {
+  return Array.from({ length: RACK_SLOTS }, () => ({
+    id: makeSlotId(),
+    type: 'none',
+    enabled: false,
+    params: {},
+  }));
+}
+
+export function sanitizeBlobFxRack(rack) {
+  if (!Array.isArray(rack) || rack.length !== RACK_SLOTS) return makeBlobFxRack();
+  return rack.map((slot) => {
+    if (!slot || typeof slot !== 'object') {
+      return { id: makeSlotId(), type: 'none', enabled: false, params: {} };
+    }
+    const type = (slot.type === 'none' || BLOB_FX_SECTIONS.includes(slot.type)) ? slot.type : 'none';
+    const factoryP = makeFxFactoryParams(type);
+    const params = { ...factoryP };
+    if (slot.params && typeof slot.params === 'object') {
+      for (const k of Object.keys(factoryP)) {
+        const v = slot.params[k];
+        if (typeof v === 'number' && Number.isFinite(v)) params[k] = v;
+      }
+    }
+    return {
+      id: slot.id || makeSlotId(),
+      type,
+      enabled: !!slot.enabled && type !== 'none',
+      params,
+    };
+  });
+}
+
+export function sanitizeBlobStructureParams(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const out = {};
+  for (const name of BLOB_STRUCTURE_SECTIONS) {
+    if (!raw[name]) continue;
+    const defaults = makeBlobStructureParams(name);
+    const p = { ...defaults };
+    for (const k of Object.keys(defaults)) {
+      const v = raw[name][k];
+      if (typeof v === 'number' && Number.isFinite(v)) p[k] = v;
+    }
+    out[name] = p;
+  }
+  return out;
 }

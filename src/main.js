@@ -19,7 +19,10 @@ import {
   makeSlotId, makeFactoryParams,
   makeFxFactoryParams, makeFxRack,
   makeTrackFxFactoryParams, makeTrackFxRack,
+  BLOB_STRUCTURE_PARAM_SCHEMAS, BLOB_STRUCTURE_SECTIONS, BLOB_FX_SECTIONS,
+  makeBlobFxRack, sanitizeBlobFxRack, sanitizeBlobStructureParams, makeBlobStructureParams,
 } from './schemas.js';
+import { runBlobFrame, disposeBlobPipeline } from './glBlobPipeline.js';
 
 // GL error surface — GL modules call this to fire a user-visible toast on
 // shader compile failure (avoids importing showToast into GL modules).
@@ -65,6 +68,9 @@ const state = {
   colorParams: {},
   fxRack: makeFxRack(),
   trackFxRack: makeTrackFxRack(),
+  blobColorParams: {},
+  blobFxRack: makeBlobFxRack(),
+  blobStructureParams: {},
   ...TIMELINE_DEFAULTS,
 };
 
@@ -127,6 +133,19 @@ const colorKeyInput   = document.getElementById('color-key-input');
 const inkLowInput     = document.getElementById('ink-low-input');
 const inkHighInput    = document.getElementById('ink-high-input');
 // (overlay-color swatch grid retired — replaced by per-shape/per-lines hue knob)
+
+// ---- Blob Synth DOM refs ----
+const blobColorTabGroup     = document.getElementById('blob-color-tab-group');
+const blobColorMapsGrid     = document.getElementById('blob-color-maps-grid');
+const blobColorUniqueGrid   = document.getElementById('blob-color-unique-grid');
+const blobColorMapsPanel    = document.getElementById('blob-color-maps-knob-panel');
+const blobColorUniquePanel  = document.getElementById('blob-color-unique-knob-panel');
+const blobChromaDriverGroup = document.getElementById('blob-chroma-driver-group');
+const blobChromaStopRow     = document.getElementById('blob-chroma-stop-row');
+const blobChromaKnobPanel   = document.getElementById('blob-chroma-knob-panel');
+const blobFxRackEl          = document.getElementById('blob-fx-rack');
+const blobFxPickerEl        = document.getElementById('blob-fx-picker-popover');
+const blobStructureKnobPanel = document.getElementById('blob-structure-knob-panel');
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
@@ -333,6 +352,12 @@ function sanitizeLook(raw = {}) {
   look.colorParams = sanitizeColorParams(raw.colorParams);
   look.fxRack = sanitizeFxRack(raw.fxRack);
   look.trackFxRack = sanitizeTrackFxRack(raw.trackFxRack);
+  look.blobColorParams = sanitizeColorParams(raw.blobColorParams);
+  look.blobFxRack = sanitizeBlobFxRack(raw.blobFxRack);
+  look.blobStructureParams = sanitizeBlobStructureParams(raw.blobStructureParams);
+  look.blobInkBlackHex = normalizeHexColor(look.blobInkBlackHex, DEFAULTS.blobInkBlackHex);
+  look.blobInkCreamHex = normalizeHexColor(look.blobInkCreamHex, DEFAULTS.blobInkCreamHex);
+  if (look.blobColor !== 'none' && !COLOR_SECTIONS.includes(look.blobColor)) look.blobColor = 'none';
   return look;
 }
 
@@ -342,6 +367,9 @@ function makeLookSnapshot(source = state) {
   raw.colorParams = cloneData(source.colorParams || {});
   raw.fxRack = cloneData(source.fxRack || makeFxRack());
   raw.trackFxRack = cloneData(source.trackFxRack || makeTrackFxRack());
+  raw.blobColorParams = cloneData(source.blobColorParams || {});
+  raw.blobFxRack = cloneData(source.blobFxRack || makeBlobFxRack());
+  raw.blobStructureParams = cloneData(source.blobStructureParams || {});
   return sanitizeLook(raw);
 }
 
@@ -357,6 +385,9 @@ function applyLookToState(look) {
   state.colorParams = cloneData(safe.colorParams);
   state.fxRack = cloneData(safe.fxRack);
   state.trackFxRack = cloneData(safe.trackFxRack);
+  state.blobColorParams = cloneData(safe.blobColorParams);
+  state.blobFxRack = cloneData(safe.blobFxRack);
+  state.blobStructureParams = cloneData(safe.blobStructureParams);
   applyStateToUI();
 }
 
@@ -1190,14 +1221,15 @@ const TOGGLE_CONFIG = [
   ['erode-mode-group',      'erodeMode',      parseInt,   null],
   // ============ TRACK-mode toggle groups ============
   ['mode-group',            'mode',           String,     onModeChange],
-  ['track-backend-group',   'trackBackend',   String,     onTrackBackendChange],
-  ['mp-delegate-group',     'mpDelegate',     String,     onMpDelegateChange],
+  ['track-backend-group',     'trackBackend',    String,              onTrackBackendChange],
   ['track-composite-group', 'trackComposite', String,     null],
   ['lumi-channel-group',    'trackChannel',   String,     (v) => { resetFrameHistory(); refreshColorKeyControls(v); }],
   ['track-shape-group',     'trackShape',     String,     null],
   ['track-lines-group',     'trackLines',     String,     null],
-  ['track-label-marker-group', 'trackLabelMarker', String, null],
-  ['track-labels-group',       'trackLabels',      (v) => v === 'true', null],
+  ['track-labels-group',    'trackLabels',    String,     null],
+  // ============ BLOB SYNTH toggle groups ============
+  ['blob-structure-group',        'blobStructure',           String,               onBlobStructureChange],
+  ['blob-structure-output-group', 'blobStructureOutputMode', String,               onBlobStructureOutputChange],
 ];
 
 // Resolve which effects render this frame. STRUCTURE plus 0-3 chained
@@ -1207,6 +1239,46 @@ const TOGGLE_CONFIG = [
 //
 // Per-blob (Inv / Thermal) remains independent — always layers on top
 // of whatever the main chain produced; not part of this resolver.
+
+// Resolve the blob synth pipeline descriptor from a look snapshot.
+// Returns a blobPipe object consumed by runBlobFrame() in glBlobPipeline.js.
+function resolveBlobPipeline(look) {
+  const STRUCTURE_OUTPUT_MODE_VALUE = { mono: 0, source: 1, ink: 2, invert: 3 };
+  const structureName = look.blobStructure !== 'none' ? look.blobStructure : null;
+  let structureParams = [];
+  if (structureName) {
+    const p = (look.blobStructureParams && look.blobStructureParams[structureName]) || makeBlobStructureParams(structureName);
+    switch (structureName) {
+      case 'erode':     structureParams = [p.mode ?? 0, p.radius ?? 0.3, p.strength ?? 0.7, p.edge ?? 0]; break;
+      case 'watershed': structureParams = [p.basin ?? 0.4, p.boundary ?? 0.5, p.flat ?? 0.5, p.depth ?? 0]; break;
+      case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.3, p.opacity ?? 0.8, p.dir ?? 0.5]; break;
+      case 'melt':      structureParams = [p.amount ?? 0.5, p.drip ?? 0.4, p.viscosity ?? 0.5, p.dir ?? 0]; break;
+      case 'freqmod':   structureParams = [p.dir ?? 0, p.mod ?? 0.6, p.wave ?? 0.5, p.thresh ?? 0.2, p.density ?? 240]; break;
+      default:          structureParams = [0, 0, 0, 0]; break;
+    }
+  }
+
+  const colorActive = look.blobColor && look.blobColor !== 'none' && COLOR_PARAM_SCHEMAS[look.blobColor];
+  const hue = typeof look.blobColorHue === 'number' ? look.blobColorHue : 0;
+  const sat = typeof look.blobColorSat === 'number' ? look.blobColorSat : 0.5;
+
+  return {
+    structure: structureName,
+    structureParams,
+    structureOutputMode: STRUCTURE_OUTPUT_MODE_VALUE[look.blobStructureOutputMode] ?? 0,
+    inkLow:  hexToRgb01(look.blobInkBlackHex, DEFAULTS.blobInkBlackHex),
+    inkHigh: hexToRgb01(look.blobInkCreamHex, DEFAULTS.blobInkCreamHex),
+    color: colorActive
+      ? { type: look.blobColor, params: (look.blobColorParams && look.blobColorParams[look.blobColor]) || makeFactoryParams(look.blobColor) }
+      : null,
+    grade: (hue > 0.001 || Math.abs(sat - 0.5) > 0.001) ? { hue, sat } : null,
+    fx: (look.blobFxRack || [])
+      .filter((s) => s.enabled && s.type !== 'none' && !FX_PARAM_SCHEMAS[s.type]?.feedback)
+      .map((s) => ({ type: s.type, params: s.params })),
+    composite: 'source-over',
+  };
+}
+
 function resolveActivePipeline(look = currentLook()) {
   // Single COLOR stage (v8): the selected effect + its params from the
   // per-effect memory. Params fall back to factory without mutating the
@@ -1287,8 +1359,6 @@ function refreshBackendControls(backend) {
   const isObj = backend === 'object';
   const lumi = document.getElementById('lumi-channel-section');
   if (lumi) lumi.style.display = isObj ? 'none' : '';
-  const del = document.getElementById('mp-delegate-section');
-  if (del) del.style.display = isObj ? '' : 'none';
   if (isObj) { const ck = document.getElementById('color-key-controls'); if (ck) ck.style.display = 'none'; }
   else refreshColorKeyControls(state.trackChannel);
 }
@@ -1826,6 +1896,397 @@ function renderColorPanel() {
 
 buildColorMapsGrid();
 buildColorUniqueGrid();
+
+// ============================================================
+// BLOB COLOR — mirrors the main color panel but bound to
+// state.blobColorParams, state.blobColor, state.blobColorHue/Sat.
+// ============================================================
+
+function getBlobColorParams(type) {
+  if (!COLOR_SECTIONS.includes(type)) return {};
+  const factory = makeFactoryParams(type);
+  if (!state.blobColorParams) state.blobColorParams = {};
+  if (!state.blobColorParams[type]) {
+    state.blobColorParams[type] = factory;
+  } else {
+    for (const k of Object.keys(factory)) {
+      if (!(k in state.blobColorParams[type])) state.blobColorParams[type][k] = factory[k];
+    }
+  }
+  return state.blobColorParams[type];
+}
+
+let _blobColorTab = 'maps';
+let _buildingBlobColorPanel = false;
+
+function setBlobColor(type) {
+  if (type !== 'none' && !COLOR_SECTIONS.includes(type)) return;
+  state.blobColor = type;
+  if (type !== 'none') getBlobColorParams(type);
+  renderBlobColorPanel();
+  schedulePersist();
+}
+
+function activateBlobColor(type) {
+  if (_buildingBlobColorPanel || state.blobColor === type) return;
+  state.blobColor = type;
+  updateBlobColorActiveStates();
+  schedulePersist();
+}
+
+function updateBlobColorActiveStates() {
+  for (const grid of [blobColorMapsGrid, blobColorUniqueGrid]) {
+    if (!grid) continue;
+    for (const btn of grid.querySelectorAll('.toggle-btn')) {
+      const active = btn.dataset.value === state.blobColor;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    }
+  }
+}
+
+function setBlobColorTab(tab) {
+  _blobColorTab = tab;
+  if (blobColorTabGroup) {
+    for (const btn of blobColorTabGroup.querySelectorAll('.toggle-btn')) {
+      const match = btn.dataset.value === tab;
+      btn.classList.toggle('active', match);
+      btn.setAttribute('aria-selected', match ? 'true' : 'false');
+    }
+  }
+  document.getElementById('blob-color-tab-maps')?.classList.toggle('hidden', tab !== 'maps');
+  document.getElementById('blob-color-tab-unique')?.classList.toggle('hidden', tab !== 'unique');
+  document.getElementById('blob-color-tab-custom')?.classList.toggle('hidden', tab !== 'custom');
+}
+
+function makeBlobColorSwatchButton(name) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toggle-btn';
+  btn.setAttribute('role', 'radio');
+  btn.dataset.value = name;
+  if (name === 'none') {
+    btn.dataset.tip = 'No blob color stage.';
+    btn.setAttribute('aria-label', 'No color');
+  } else {
+    btn.dataset.tip = COLOR_MAP_TIPS[name] || '';
+    btn.style.background = COLOR_SWATCH_GRADIENTS[name] || '';
+    btn.setAttribute('aria-label', COLOR_LABEL[name] || name);
+  }
+  const span = document.createElement('span');
+  span.textContent = name === 'none' ? 'None' : (COLOR_LABEL[name] || name);
+  btn.appendChild(span);
+  return btn;
+}
+
+function buildBlobColorMapsGrid() {
+  if (!blobColorMapsGrid) return;
+  blobColorMapsGrid.innerHTML = '';
+  blobColorMapsGrid.appendChild(makeBlobColorSwatchButton('none'));
+  for (const name of COLOR_MAP_SECTIONS) blobColorMapsGrid.appendChild(makeBlobColorSwatchButton(name));
+}
+
+function buildBlobColorUniqueGrid() {
+  if (!blobColorUniqueGrid) return;
+  blobColorUniqueGrid.innerHTML = '';
+  for (const category of COLOR_UNIQUE_SECTIONS) {
+    const header = document.createElement('div');
+    header.className = 'color-grid-category';
+    header.textContent = category.label;
+    blobColorUniqueGrid.appendChild(header);
+    const grid = document.createElement('div');
+    grid.className = 'toggle-group filter-swatch-group color-maps-grid color-unique-row';
+    grid.setAttribute('role', 'radiogroup');
+    for (const name of category.effects) grid.appendChild(makeBlobColorSwatchButton(name));
+    blobColorUniqueGrid.appendChild(grid);
+  }
+}
+
+function buildBlobColorKnobs(container, type, idPrefix) {
+  if (!container) return;
+  container.innerHTML = '';
+  const schema = COLOR_PARAM_SCHEMAS[type];
+  if (!schema) return;
+  const params = getBlobColorParams(type);
+
+  if (schema.toggles && schema.toggles.length) {
+    for (const t of schema.toggles) {
+      if (type === 'chroma' && t.key === 'driver') continue;
+      const wrap = document.createElement('div');
+      wrap.className = 'color-rack-slot-toggle';
+      const lbl = document.createElement('span');
+      lbl.className = 'color-rack-slot-toggle-label';
+      lbl.textContent = t.label;
+      wrap.appendChild(lbl);
+      const grp = document.createElement('div');
+      grp.className = 'color-rack-slot-toggle-group';
+      for (const opt of t.options) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'color-rack-slot-toggle-btn';
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(params[t.key] === opt.value));
+        b.dataset.tip = opt.tip; b.textContent = opt.label;
+        if (params[t.key] === opt.value) b.classList.add('active');
+        b.addEventListener('click', () => {
+          if (params[t.key] === opt.value) return;
+          params[t.key] = opt.value;
+          for (const sib of grp.children) {
+            const match = sib === b;
+            sib.classList.toggle('active', match);
+            sib.setAttribute('aria-checked', String(match));
+          }
+          activateBlobColor(type);
+          schedulePersist();
+        });
+        grp.appendChild(b);
+      }
+      wrap.appendChild(grp);
+      container.appendChild(wrap);
+    }
+  }
+
+  const controlStack = document.createElement('div');
+  controlStack.className = 'control-stack color-stage-controls';
+  const sliderStack = document.createElement('div');
+  sliderStack.className = 'slider-stack';
+  const knobCluster = document.createElement('div');
+  knobCluster.className = 'knob-cluster color-rack-slot-knob-grid';
+  for (const k of schema.knobs) {
+    const knobId = `${idPrefix}-${k.key}`;
+    const knobEl = document.createElement('div');
+    knobEl.className = 'knob slot-knob'; knobEl.id = knobId;
+    knobEl.dataset.knob = '';
+    knobEl.dataset.min = String(k.min); knobEl.dataset.max = String(k.max);
+    knobEl.dataset.step = String(k.step); knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
+    knobEl.dataset.tip = k.tip; knobEl.tabIndex = 0;
+    knobEl.setAttribute('aria-label', `Blob ${COLOR_LABEL[type] || type} ${k.label}`);
+    const labelEl = document.createElement('span'); labelEl.className = 'knob-label'; labelEl.textContent = k.label;
+    const valSpan = document.createElement('span'); valSpan.className = 'knob-val'; valSpan.id = `${knobId}-val`;
+    valSpan.textContent = String(params[k.key] ?? k.default);
+    knobEl.appendChild(labelEl); knobEl.appendChild(valSpan);
+    if (k.control === 'slider') sliderStack.appendChild(knobEl);
+    else knobCluster.appendChild(knobEl);
+    initKnob(knobEl, {
+      writeValue:   (v) => { params[k.key] = v; activateBlobColor(type); },
+      initialValue: params[k.key] ?? k.default,
+    });
+  }
+  if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
+  if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
+  if (controlStack.childElementCount) container.appendChild(controlStack);
+}
+
+function buildBlobChromaControls() {
+  const schema = COLOR_PARAM_SCHEMAS.chroma;
+  if (!schema) return;
+  const params = getBlobColorParams('chroma');
+
+  if (blobChromaDriverGroup) {
+    blobChromaDriverGroup.innerHTML = '';
+    const driver = schema.toggles.find((t) => t.key === 'driver');
+    if (driver) {
+      for (const opt of driver.options) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'toggle-btn'; btn.setAttribute('role', 'radio');
+        btn.dataset.driverValue = String(opt.value); btn.dataset.tip = opt.tip;
+        const active = params.driver === opt.value;
+        btn.classList.toggle('active', active); btn.setAttribute('aria-checked', String(active));
+        const span = document.createElement('span'); span.textContent = opt.label; btn.appendChild(span);
+        blobChromaDriverGroup.appendChild(btn);
+      }
+    }
+  }
+
+  if (blobChromaStopRow) {
+    blobChromaStopRow.innerHTML = '';
+    for (const c of schema.colors || []) {
+      const label = document.createElement('label'); label.className = 'color-picker-control';
+      const input = document.createElement('input'); input.type = 'color';
+      input.className = 'color-picker-input';
+      input.value = normalizeHexColor(params[c.key], c.default);
+      input.dataset.tip = c.tip; input.dataset.stopKey = c.key;
+      const span = document.createElement('span'); span.className = 'color-picker-label';
+      span.textContent = c.label.toUpperCase();
+      label.appendChild(input); label.appendChild(span); blobChromaStopRow.appendChild(label);
+    }
+  }
+
+  buildBlobColorKnobs(blobChromaKnobPanel, 'chroma', 'blob-chroma-knob');
+}
+
+function renderBlobColorPanel() {
+  _buildingBlobColorPanel = true;
+  try {
+    if (blobColorMapsPanel) {
+      blobColorMapsPanel.innerHTML = '';
+      if (COLOR_MAP_SECTIONS.includes(state.blobColor)) {
+        buildBlobColorKnobs(blobColorMapsPanel, state.blobColor, `blob-map-${state.blobColor}`);
+      }
+    }
+    if (blobColorUniquePanel) {
+      blobColorUniquePanel.innerHTML = '';
+      if (COLOR_UNIQUE_FLAT.includes(state.blobColor)) {
+        buildBlobColorKnobs(blobColorUniquePanel, state.blobColor, `blob-unique-${state.blobColor}`);
+      }
+    }
+    buildBlobChromaControls();
+    updateBlobColorActiveStates();
+  } finally {
+    _buildingBlobColorPanel = false;
+  }
+}
+
+blobChromaDriverGroup?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-driver-value]');
+  if (!btn) return;
+  const params = getBlobColorParams('chroma');
+  params.driver = parseInt(btn.dataset.driverValue, 10);
+  for (const b of blobChromaDriverGroup.querySelectorAll('[data-driver-value]')) {
+    const match = b === btn;
+    b.classList.toggle('active', match); b.setAttribute('aria-checked', String(match));
+  }
+  activateBlobColor('chroma'); schedulePersist();
+});
+
+blobChromaStopRow?.addEventListener('input', (e) => {
+  const input = e.target.closest('[data-stop-key]');
+  if (!input) return;
+  const params = getBlobColorParams('chroma');
+  params[input.dataset.stopKey] = normalizeHexColor(input.value, '#000000');
+  activateBlobColor('chroma'); schedulePersist();
+});
+
+blobColorTabGroup?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.toggle-btn');
+  if (btn) setBlobColorTab(btn.dataset.value);
+});
+
+blobColorMapsGrid?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.toggle-btn');
+  if (btn) setBlobColor(btn.dataset.value);
+});
+
+blobColorUniqueGrid?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.toggle-btn');
+  if (btn) setBlobColor(btn.dataset.value);
+});
+
+buildBlobColorMapsGrid();
+buildBlobColorUniqueGrid();
+
+// ---- Blob structure knob panel ----
+
+function getBlobStructureParams(effectName) {
+  if (!state.blobStructureParams) state.blobStructureParams = {};
+  if (!state.blobStructureParams[effectName]) {
+    state.blobStructureParams[effectName] = makeBlobStructureParams(effectName);
+  }
+  return state.blobStructureParams[effectName];
+}
+
+function onBlobStructureChange(v) {
+  refreshBlobStructureCardVisibility(v);
+}
+
+function onBlobStructureOutputChange(v) {
+  const inkSec = document.getElementById('blob-ink-controls');
+  if (inkSec) inkSec.style.display = v === 'ink' ? '' : 'none';
+}
+
+function refreshBlobStructureCardVisibility(effectName) {
+  if (!blobStructureKnobPanel) return;
+  blobStructureKnobPanel.innerHTML = '';
+  if (!effectName || effectName === 'none') return;
+  const schema = BLOB_STRUCTURE_PARAM_SCHEMAS[effectName];
+  if (!schema) return;
+  const params = getBlobStructureParams(effectName);
+
+  const section = document.createElement('section');
+  section.className = 'control-section';
+  section.setAttribute('data-mode-section', 'track');
+
+  if (schema.toggles?.length) {
+    for (const t of schema.toggles) {
+      const lbl = document.createElement('div');
+      lbl.className = 'section-label'; lbl.textContent = t.label;
+      section.appendChild(lbl);
+      const grp = document.createElement('div');
+      grp.className = 'toggle-group';
+      for (const opt of t.options) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'toggle-btn'; b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(params[t.key] === opt.value));
+        b.dataset.tip = opt.tip; b.textContent = opt.label;
+        if (params[t.key] === opt.value) b.classList.add('active');
+        b.addEventListener('click', () => {
+          if (params[t.key] === opt.value) return;
+          params[t.key] = opt.value;
+          for (const sib of grp.children) {
+            const match = sib === b;
+            sib.classList.toggle('active', match);
+            sib.setAttribute('aria-checked', String(match));
+          }
+          schedulePersist();
+        });
+        grp.appendChild(b);
+      }
+      section.appendChild(grp);
+    }
+  }
+
+  if (schema.knobs?.length) {
+    const sliderStack = document.createElement('div');
+    sliderStack.className = 'slider-stack';
+    const knobCluster = document.createElement('div');
+    knobCluster.className = 'knob-cluster';
+    for (const k of schema.knobs) {
+      const knobId = `blob-struct-${effectName}-${k.key}`;
+      const knobEl = document.createElement('div');
+      knobEl.className = 'knob'; knobEl.id = knobId;
+      knobEl.dataset.knob = '';
+      knobEl.dataset.min = String(k.min); knobEl.dataset.max = String(k.max);
+      knobEl.dataset.step = String(k.step); knobEl.dataset.default = String(k.default);
+      if (k.control) knobEl.dataset.control = k.control;
+      knobEl.dataset.tip = k.tip; knobEl.tabIndex = 0;
+      knobEl.setAttribute('aria-label', `Blob ${effectName} ${k.label}`);
+      const labelEl = document.createElement('span'); labelEl.className = 'knob-label'; labelEl.textContent = k.label;
+      const valSpan = document.createElement('span'); valSpan.className = 'knob-val'; valSpan.id = `${knobId}-val`;
+      valSpan.textContent = String(params[k.key] ?? k.default);
+      knobEl.appendChild(labelEl); knobEl.appendChild(valSpan);
+      if (k.control === 'slider') sliderStack.appendChild(knobEl);
+      else knobCluster.appendChild(knobEl);
+      initKnob(knobEl, {
+        writeValue:   (v) => { params[k.key] = v; },
+        initialValue: params[k.key] ?? k.default,
+      });
+    }
+    const controlStack = document.createElement('div');
+    controlStack.className = 'control-stack';
+    if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
+    if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
+    if (controlStack.childElementCount) section.appendChild(controlStack);
+  }
+
+  blobStructureKnobPanel.appendChild(section);
+}
+
+// Blob ink color inputs
+const blobInkBlackInput = document.getElementById('blob-ink-black-input');
+const blobInkCreamInput = document.getElementById('blob-ink-cream-input');
+blobInkBlackInput?.addEventListener('input', () => {
+  state.blobInkBlackHex = normalizeHexColor(blobInkBlackInput.value, DEFAULTS.blobInkBlackHex);
+  schedulePersist();
+});
+blobInkCreamInput?.addEventListener('input', () => {
+  state.blobInkCreamHex = normalizeHexColor(blobInkCreamInput.value, DEFAULTS.blobInkCreamHex);
+  schedulePersist();
+});
+
+// Blob grade knobs (blob-color-hue, blob-color-sat) are picked up by the
+// batch document.querySelectorAll('[data-knob]').forEach(initKnob) call
+// at startup; kebabToCamel maps their ids to state.blobColorHue/blobColorSat.
+// No explicit initKnob call needed here.
 
 // ============================================================
 // FX RACK — 3-slot rack with its own DOM/picker state. Reuses
@@ -2580,6 +3041,352 @@ trackFxRackEl?.addEventListener('drop', (e) => {
   _trackFxDragSrcIdx = null;
 });
 
+// ============================================================
+// BLOB FX RACK — parallel to FX rack but stateless effects only.
+// Operates on state.blobFxRack; uses BLOB_FX_SECTIONS for the picker.
+// ============================================================
+
+function buildBlobFxPicker() {
+  if (!blobFxPickerEl) return;
+  blobFxPickerEl.innerHTML = '';
+  const none = document.createElement('button');
+  none.type = 'button';
+  none.className = 'color-pick';
+  none.dataset.pickBlobFx = 'none';
+  none.dataset.tip = 'Clear this slot. Slot becomes empty and is skipped in the blob chain.';
+  none.textContent = 'None';
+  blobFxPickerEl.appendChild(none);
+  for (const name of BLOB_FX_SECTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'color-pick';
+    btn.dataset.pickBlobFx = name;
+    btn.dataset.tip = FX_CHIP_TIP[name] || '';
+    btn.textContent = FX_LABEL[name] || name;
+    blobFxPickerEl.appendChild(btn);
+  }
+}
+buildBlobFxPicker();
+
+let _openBlobFxPickerSlotId = null;
+const _expandedBlobFxSlots  = new Set();
+
+function renderBlobFxRack() {
+  if (!blobFxRackEl) return;
+  blobFxRackEl.innerHTML = '';
+  for (let i = 0; i < state.blobFxRack.length; i++) {
+    const slot     = state.blobFxRack[i];
+    const filled   = slot.type !== 'none';
+    const expanded = filled && _expandedBlobFxSlots.has(slot.id);
+
+    const el = document.createElement('div');
+    el.className = 'color-rack-slot';
+    el.setAttribute('role', 'listitem');
+    el.dataset.slotId  = slot.id;
+    el.dataset.slotIdx = String(i);
+    el.dataset.empty   = filled ? 'false' : 'true';
+    el.dataset.enabled = (slot.enabled && filled) ? 'true' : 'false';
+    el.dataset.expanded = expanded ? 'true' : 'false';
+    el.draggable = true;
+
+    const row = document.createElement('div');
+    row.className = 'color-rack-slot-row';
+    el.appendChild(row);
+
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'color-rack-handle';
+    handle.setAttribute('aria-label', `Reorder blob FX slot ${i + 1}.`);
+    handle.dataset.tip = 'Drag to reorder this blob FX stage.';
+    handle.textContent = '≡';
+    row.appendChild(handle);
+
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'color-rack-chip';
+    chip.setAttribute('aria-haspopup', 'true');
+    chip.setAttribute('aria-expanded', _openBlobFxPickerSlotId === slot.id ? 'true' : 'false');
+    chip.dataset.action = 'open-picker';
+    if (filled) {
+      chip.dataset.tip = FX_CHIP_TIP[slot.type] || '';
+      const swatch = document.createElement('span');
+      swatch.className = 'color-rack-chip-swatch';
+      swatch.style.background = FX_SWATCH_GRADIENTS[slot.type] || '';
+      const label = document.createElement('span');
+      label.className = 'color-rack-chip-label';
+      label.textContent = FX_LABEL[slot.type] || slot.type;
+      chip.appendChild(swatch);
+      chip.appendChild(label);
+    } else {
+      chip.dataset.tip = 'Empty slot. Click to add a blob FX effect.';
+      const empty = document.createElement('span');
+      empty.className = 'color-rack-chip-empty';
+      empty.textContent = '+ add effect';
+      chip.appendChild(empty);
+    }
+    row.appendChild(chip);
+
+    if (filled) {
+      const chev = document.createElement('button');
+      chev.type = 'button';
+      chev.className = 'color-rack-chevron';
+      chev.dataset.action = 'expand';
+      chev.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      chev.dataset.tip = expanded ? 'Hide controls.' : 'Show controls.';
+      chev.textContent = expanded ? '▴' : '▾';
+      row.appendChild(chev);
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'color-rack-toggle';
+      toggle.dataset.action = 'toggle';
+      toggle.setAttribute('aria-pressed', slot.enabled ? 'true' : 'false');
+      toggle.dataset.tip = slot.enabled ? 'Disable this slot.' : 'Enable this slot.';
+      toggle.textContent = slot.enabled ? '✓' : '⊘';
+      row.appendChild(toggle);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'color-rack-remove';
+      remove.dataset.action = 'remove';
+      remove.dataset.tip = 'Clear this slot.';
+      remove.textContent = '×';
+      row.appendChild(remove);
+    }
+
+    if (expanded) {
+      const panel = renderBlobFxSlotPanel(slot);
+      el.appendChild(panel);
+    }
+
+    blobFxRackEl.appendChild(el);
+  }
+}
+
+function renderBlobFxSlotPanel(slot) {
+  const schema = FX_PARAM_SCHEMAS[slot.type];
+  const panel = document.createElement('div');
+  panel.className = 'color-rack-slot-panel';
+  if (!schema) return panel;
+
+  const phead = document.createElement('div');
+  phead.className = 'color-rack-slot-panel-head';
+  const ptitle = document.createElement('span');
+  ptitle.className = 'color-rack-slot-panel-title';
+  ptitle.textContent = `${FX_LABEL[slot.type] || slot.type} controls`;
+  phead.appendChild(ptitle);
+  const presetBtn = document.createElement('button');
+  presetBtn.type = 'button';
+  presetBtn.className = 'color-rack-slot-reset';
+  presetBtn.dataset.action = 'reset-params';
+  presetBtn.dataset.tip = 'Reset only THIS slot\'s controls to factory.';
+  presetBtn.textContent = '⟲';
+  phead.appendChild(presetBtn);
+  panel.appendChild(phead);
+
+  const controlStack = document.createElement('div');
+  controlStack.className = 'control-stack color-rack-slot-controls';
+  const sliderStack = document.createElement('div');
+  sliderStack.className = 'slider-stack';
+  const knobCluster = document.createElement('div');
+  knobCluster.className = 'knob-cluster color-rack-slot-knob-grid';
+  for (const k of schema.knobs) {
+    const knobId = `blobfx-${slot.id}-${k.key}`;
+    const valId  = `${knobId}-val`;
+    const knobEl = document.createElement('div');
+    knobEl.className = 'knob slot-knob';
+    knobEl.id = knobId;
+    knobEl.dataset.knob = '';
+    knobEl.dataset.min     = String(k.min);
+    knobEl.dataset.max     = String(k.max);
+    knobEl.dataset.step    = String(k.step);
+    knobEl.dataset.default = String(k.default);
+    if (k.control) knobEl.dataset.control = k.control;
+    knobEl.dataset.tip     = k.tip;
+    knobEl.tabIndex = 0;
+    knobEl.setAttribute('aria-label', `Blob ${FX_LABEL[slot.type]} ${k.label}`);
+    const labelEl = document.createElement('span');
+    labelEl.className = 'knob-label';
+    labelEl.textContent = k.label;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'knob-val';
+    valSpan.id = valId;
+    valSpan.textContent = String(slot.params[k.key] ?? k.default);
+    knobEl.appendChild(labelEl);
+    knobEl.appendChild(valSpan);
+    if (k.control === 'slider') sliderStack.appendChild(knobEl);
+    else                        knobCluster.appendChild(knobEl);
+    initKnob(knobEl, {
+      writeValue:   (v) => { slot.params[k.key] = v; },
+      initialValue: slot.params[k.key] ?? k.default,
+    });
+  }
+  if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
+  if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
+  if (controlStack.childElementCount) panel.appendChild(controlStack);
+
+  return panel;
+}
+
+function setBlobFxSlotType(slotId, type) {
+  const slot = state.blobFxRack.find((s) => s.id === slotId);
+  if (!slot) return;
+  if (type === 'none') {
+    slot.type = 'none';
+    slot.enabled = false;
+    slot.params = {};
+  } else {
+    slot.type = type;
+    slot.enabled = true;
+    slot.params = makeFxFactoryParams(type);
+  }
+  _expandedBlobFxSlots.delete(slotId);
+  renderBlobFxRack();
+  schedulePersist();
+}
+
+function toggleBlobFxSlot(slotId) {
+  const slot = state.blobFxRack.find((s) => s.id === slotId);
+  if (!slot || slot.type === 'none') return;
+  slot.enabled = !slot.enabled;
+  renderBlobFxRack();
+  schedulePersist();
+}
+
+function clearBlobFxSlot(slotId) {
+  const slot = state.blobFxRack.find((s) => s.id === slotId);
+  if (!slot) return;
+  slot.type = 'none';
+  slot.enabled = false;
+  slot.params = {};
+  _expandedBlobFxSlots.delete(slotId);
+  renderBlobFxRack();
+  schedulePersist();
+}
+
+function resetBlobFxSlotParams(slotId) {
+  const slot = state.blobFxRack.find((s) => s.id === slotId);
+  if (!slot || slot.type === 'none') return;
+  slot.params = makeFxFactoryParams(slot.type);
+  renderBlobFxRack();
+  schedulePersist();
+}
+
+function reorderBlobFxSlot(srcIdx, dstIdx) {
+  if (srcIdx === dstIdx) return;
+  const arr = state.blobFxRack.slice();
+  const [moved] = arr.splice(srcIdx, 1);
+  arr.splice(dstIdx, 0, moved);
+  state.blobFxRack = arr;
+  renderBlobFxRack();
+  schedulePersist();
+}
+
+let _blobFxPickerFocusPrior = null;
+function openBlobFxPicker(slotEl) {
+  const slotId = slotEl.dataset.slotId;
+  _openBlobFxPickerSlotId = slotId;
+  _blobFxPickerFocusPrior = document.activeElement;
+  const r = slotEl.getBoundingClientRect();
+  blobFxPickerEl.classList.remove('hidden');
+  const pr = blobFxPickerEl.getBoundingClientRect();
+  let top  = r.bottom + 4;
+  let left = r.right - pr.width;
+  if (top + pr.height > window.innerHeight - 8) top = r.top - pr.height - 4;
+  if (left < 8) left = 8;
+  blobFxPickerEl.style.top  = `${top}px`;
+  blobFxPickerEl.style.left = `${left}px`;
+  const chip = slotEl.querySelector('.color-rack-chip');
+  if (chip) chip.setAttribute('aria-expanded', 'true');
+  blobFxPickerEl.querySelector('button')?.focus();
+}
+
+function closeBlobFxPicker() {
+  if (!_openBlobFxPickerSlotId) return;
+  _openBlobFxPickerSlotId = null;
+  blobFxPickerEl.classList.add('hidden');
+  if (blobFxRackEl) {
+    for (const chip of blobFxRackEl.querySelectorAll('.color-rack-chip')) {
+      chip.setAttribute('aria-expanded', 'false');
+    }
+  }
+  _blobFxPickerFocusPrior?.focus();
+  _blobFxPickerFocusPrior = null;
+}
+
+blobFxRackEl?.addEventListener('click', (e) => {
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) return;
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (!action) return;
+  const slotId = slotEl.dataset.slotId;
+  if (action === 'open-picker') {
+    if (_openBlobFxPickerSlotId === slotId) { closeBlobFxPicker(); return; }
+    openBlobFxPicker(slotEl);
+  } else if (action === 'toggle') {
+    toggleBlobFxSlot(slotId);
+  } else if (action === 'remove') {
+    clearBlobFxSlot(slotId);
+  } else if (action === 'expand') {
+    if (_expandedBlobFxSlots.has(slotId)) _expandedBlobFxSlots.delete(slotId);
+    else                                  _expandedBlobFxSlots.add(slotId);
+    renderBlobFxRack();
+  } else if (action === 'reset-params') {
+    resetBlobFxSlotParams(slotId);
+  }
+});
+
+blobFxPickerEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-pick-blob-fx]');
+  if (!btn || !_openBlobFxPickerSlotId) return;
+  setBlobFxSlotType(_openBlobFxPickerSlotId, btn.dataset.pickBlobFx);
+  closeBlobFxPicker();
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!_openBlobFxPickerSlotId) return;
+  if (blobFxPickerEl && blobFxPickerEl.contains(e.target)) return;
+  if (e.target.closest(`#blob-fx-rack .color-rack-slot[data-slot-id="${_openBlobFxPickerSlotId}"]`)) return;
+  closeBlobFxPicker();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && _openBlobFxPickerSlotId) closeBlobFxPicker();
+});
+
+let _blobFxDragSrcIdx = null;
+blobFxRackEl?.addEventListener('dragstart', (e) => {
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) { e.preventDefault(); return; }
+  _blobFxDragSrcIdx = parseInt(slotEl.dataset.slotIdx, 10);
+  slotEl.classList.add('dragging');
+  e.dataTransfer.setData('text/plain', String(_blobFxDragSrcIdx));
+  e.dataTransfer.effectAllowed = 'move';
+});
+blobFxRackEl?.addEventListener('dragend', () => {
+  _blobFxDragSrcIdx = null;
+  for (const el of blobFxRackEl.querySelectorAll('.color-rack-slot')) {
+    el.classList.remove('dragging', 'drop-target');
+  }
+});
+blobFxRackEl?.addEventListener('dragover', (e) => {
+  if (_blobFxDragSrcIdx === null) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const slotEl = e.target.closest('.color-rack-slot');
+  for (const el of blobFxRackEl.querySelectorAll('.color-rack-slot')) {
+    el.classList.toggle('drop-target', el === slotEl && el !== e.currentTarget.querySelector('.dragging'));
+  }
+});
+blobFxRackEl?.addEventListener('drop', (e) => {
+  if (_blobFxDragSrcIdx === null) return;
+  e.preventDefault();
+  const slotEl = e.target.closest('.color-rack-slot');
+  if (!slotEl) return;
+  const dstIdx = parseInt(slotEl.dataset.slotIdx, 10);
+  reorderBlobFxSlot(_blobFxDragSrcIdx, dstIdx);
+  _blobFxDragSrcIdx = null;
+});
+
 // ---- Apply persisted state to UI ----
 function applyStateToUI() {
   _applyingState = true;
@@ -2604,6 +3411,12 @@ function applyStateToUI() {
     renderColorPanel();
     renderFxRack();
     renderTrackFxRack();
+    // Blob synth state
+    setBlobColor(state.blobColor || 'none');
+    refreshBlobStructureCardVisibility(state.blobStructure || 'none');
+    onBlobStructureOutputChange(state.blobStructureOutputMode || 'mono');
+    renderBlobFxRack();
+    renderBlobColorPanel();
   } finally {
     _applyingState = false;
   }
@@ -2615,6 +3428,8 @@ function applyStateToUI() {
   if (colorKeyInput) colorKeyInput.value = state.colorKeyHex;
   if (inkLowInput) inkLowInput.value = normalizeHexColor(state.inkBlackHex, DEFAULTS.inkBlackHex);
   if (inkHighInput) inkHighInput.value = normalizeHexColor(state.inkCreamHex, DEFAULTS.inkCreamHex);
+  if (blobInkBlackInput) blobInkBlackInput.value = normalizeHexColor(state.blobInkBlackHex, DEFAULTS.blobInkBlackHex);
+  if (blobInkCreamInput) blobInkCreamInput.value = normalizeHexColor(state.blobInkCreamHex, DEFAULTS.blobInkCreamHex);
   renderTimelinePanel();
 }
 
@@ -3368,6 +4183,7 @@ function resetAllState() {
   _activeFilters.clear();
   _deadFilters.clear();
   _displayBlobs.clear();
+  disposeBlobPipeline(); // release blob FBO allocations on source change
 }
 
 function updateSourceLabel(text) {
@@ -4341,13 +5157,67 @@ function renderFrame(nowDOMHi) {
         taper:     look.trackLinesTaper,
       },
       effects,
-      labels: {
-        show:        look.trackLabels,
-        markerStyle: look.trackLabelMarker,
-        fontSize:    look.trackLabelFontSize,
-        hueColor:    look.trackLabelColor,
-      },
+      labels: { show: false },
     });
+  }
+
+  // Blob LumiSynth — composited AFTER the track overlay so it sits on top.
+  // Crops each blob's region from the original video (srcEl), runs it through
+  // an independent STRUCTURE → COLOR → GRADE → FX chain, then blends the result
+  // onto the display canvas using the chosen composite mode.
+  if (blobs.length > 0) {
+    const blobPipe = resolveBlobPipeline(look);
+    const blobHasWork = blobPipe.structure || blobPipe.color || blobPipe.grade || blobPipe.fx.length > 0;
+    if (blobHasWork) {
+      const MAX_BLOBS = 6;
+      for (let i = 0; i < Math.min(blobs.length, MAX_BLOBS); i++) {
+        const blob = blobs[i];
+        const bx = Math.max(0, Math.floor(blob.cx - blob.w / 2));
+        const by = Math.max(0, Math.floor(blob.cy - blob.h / 2));
+        const bw = Math.min(cw - bx, Math.ceil(blob.w));
+        const bh = Math.min(ch - by, Math.ceil(blob.h));
+        if (bw < 8 || bh < 8) continue;
+        runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, ctx, cw, ch);
+      }
+    }
+  }
+
+  // Unified label overlay — drawn last so tags sit above everything.
+  if (look.mode === 'track' && look.trackLabels !== 'off' && blobs.length > 0) {
+    const fSize = 10;
+    const padX = 5, padY = 3;
+    const tagH = fSize + padY * 2;
+    ctx.save();
+    ctx.font = `bold ${fSize}px monospace`;
+    for (const blob of blobs) {
+      const bx = Math.max(0, Math.floor(blob.cx - blob.w / 2));
+      const by = Math.max(0, Math.floor(blob.cy - blob.h / 2));
+      const bw = Math.min(cw - bx, Math.ceil(blob.w));
+
+      let text = null;
+      let alignRight = false;
+      if (look.trackLabels === 'confidence' && blob.category) {
+        text = `${blob.category}  ${Math.round(blob.score * 100)}%`;
+        alignRight = false;
+      } else if (look.trackLabels === 'position') {
+        text = `X:${Math.round(blob.cx)} Y:${Math.round(blob.cy)}`;
+        alignRight = true;
+      }
+      if (!text) continue;
+
+      const tagW = ctx.measureText(text).width + padX * 2;
+      const tagX = alignRight
+        ? Math.min(cw - tagW, bx + bw - tagW)
+        : Math.max(0, bx);
+      const tagY = Math.max(0, by - tagH - 1);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.70)';
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(tagX, tagY, tagW, tagH, 3); ctx.fill(); }
+      else ctx.fillRect(tagX, tagY, tagW, tagH);
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillText(text, tagX + padX, tagY + padY + fSize - 1);
+    }
+    ctx.restore();
   }
 
   if (fpsEnabled) updateFps(blobs.length);
@@ -4495,8 +5365,7 @@ function updateLagCursor(e) {
 document.addEventListener('pointermove', updateLagCursor, { passive: true });
 document.addEventListener('pointerleave', () => lagCursor.classList.remove('visible'));
 window.addEventListener('blur', () => lagCursor.classList.remove('visible'));
-setLagCursorEnabled(lagCursorMedia.matches);
-lagCursorMedia.addEventListener('change', (e) => setLagCursorEnabled(e.matches));
+setLagCursorEnabled(false);
 
 // Convention guard: future filter buttons (in any of the structure / color /
 // per-blob groups) and future effect-card controls (knobs + toggles inside

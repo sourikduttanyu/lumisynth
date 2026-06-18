@@ -246,15 +246,55 @@ export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion', min
   const passSize = (minSize <= 0) || (cellSize >= minSize);
   if (!passSize) return [];
 
-  return peaks.map((p, i) => ({
-    x:     p.cx - hs,
-    y:     p.cy - hs,
-    w:     cellSize,
-    h:     cellSize,
-    cx:    p.cx,
-    cy:    p.cy,
-    area:  cellSize * cellSize,
-    score: maxVal > 0 ? p.val / maxVal : 0,
-    index: i,
-  }));
+  // Scan cap: don't let a blob grow wider/taller than 2× the cell size.
+  // Prevents large uniform regions (bright sky, full-frame glow) from
+  // swallowing the entire frame under certain modes.
+  const maxScan = cellSize * 2;
+
+  return peaks.map((p, i) => {
+    // Scan outward from the peak pixel in all 4 directions until the
+    // strength field drops to zero (already thresholded by detectBlobs).
+    // This gives a naturally rectangular bbox that reflects the actual
+    // blob shape instead of the fixed-square cellSize × cellSize region.
+    const px = Math.round(p.cx);
+    const py = Math.round(p.cy);
+    let wL = 0, wR = 0, hU = 0, hD = 0;
+    // Gap-tolerant scan: allow up to GAP consecutive zero pixels before
+    // stopping, so sparse strength fields (motion, edge) give accurate extents.
+    const GAP = Math.max(2, Math.ceil(cellSize * 0.15));
+    let gap;
+    gap = 0;
+    for (let d = 1; d <= maxScan; d++) {
+      if (px - d >= 0 && strength[py * width + (px - d)] > 0) { wL = d; gap = 0; }
+      else if (++gap > GAP) break;
+    }
+    gap = 0;
+    for (let d = 1; d <= maxScan; d++) {
+      if (px + d < width  && strength[py * width + (px + d)] > 0) { wR = d; gap = 0; }
+      else if (++gap > GAP) break;
+    }
+    gap = 0;
+    for (let d = 1; d <= maxScan; d++) {
+      if (py - d >= 0 && strength[(py - d) * width + px] > 0) { hU = d; gap = 0; }
+      else if (++gap > GAP) break;
+    }
+    gap = 0;
+    for (let d = 1; d <= maxScan; d++) {
+      if (py + d < height && strength[(py + d) * width + px] > 0) { hD = d; gap = 0; }
+      else if (++gap > GAP) break;
+    }
+    const bw = Math.max(hs, wL + wR + 1);
+    const bh = Math.max(hs, hU + hD + 1);
+    return {
+      x:     p.cx - bw / 2,
+      y:     p.cy - bh / 2,
+      w:     bw,
+      h:     bh,
+      cx:    p.cx,
+      cy:    p.cy,
+      area:  bw * bh,
+      score: maxVal > 0 ? p.val / maxVal : 0,
+      index: i,
+    };
+  });
 }

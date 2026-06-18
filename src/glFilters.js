@@ -9,7 +9,7 @@
 
 import { ensureContext, getGL, getVideoTex, getMotionTex } from './glContext.js';
 
-const VERT = `#version 300 es
+export const VERT = `#version 300 es
 in vec2 a_pos;
 out vec2 vUV;
 void main() {
@@ -1879,7 +1879,7 @@ void main() {
   fragColor = vec4(clamp(col.x * col2 * karo * vign, 0.0, 1.0), 1.0);
 }`;
 
-const FRAGS = {
+export const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
   synth:        FRAG_SYNTH,

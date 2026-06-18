@@ -85,16 +85,17 @@ class BlobTracker {
     const w  = Math.max(8, this.kw.pos);
     const h  = Math.max(8, this.kh.pos);
     return {
-      x:     cx - w / 2,
-      y:     cy - h / 2,
+      x:        cx - w / 2,
+      y:        cy - h / 2,
       w,
       h,
       cx,
       cy,
-      area:  this.lastBlob.area,
-      score: this.lastBlob.score,
+      area:     this.lastBlob.area,
+      score:    this.lastBlob.score,
+      category: this.lastBlob.category || '',
       index,
-      id:    this.id,
+      id:       this.id,
     };
   }
 }

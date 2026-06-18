@@ -527,26 +527,6 @@ function drawLabelsAndMarkers(ctx, blobs, L) {
   for (const b of blobs) {
     const cx = b.cx, cy = b.cy;
 
-    // Center marker
-    ctx.strokeStyle = color;
-    ctx.fillStyle   = color;
-    ctx.lineWidth   = 1.5;
-    if (mStyle === 'dot') {
-      ctx.beginPath();
-      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (mStyle === 'plus') {
-      ctx.beginPath();
-      ctx.moveTo(cx - armLen, cy); ctx.lineTo(cx + armLen, cy);
-      ctx.moveTo(cx, cy - armLen); ctx.lineTo(cx, cy + armLen);
-      ctx.stroke();
-    } else if (mStyle === 'cross') {
-      ctx.beginPath();
-      ctx.moveTo(cx - armLen, cy - armLen); ctx.lineTo(cx + armLen, cy + armLen);
-      ctx.moveTo(cx + armLen, cy - armLen); ctx.lineTo(cx - armLen, cy + armLen);
-      ctx.stroke();
-    }
-
     // XY text label — drawn slightly above-right of the centroid, inside
     // the canvas bounds. Nudge inward on edges.
     const xStr = `X:${Math.round(cx)}`;
