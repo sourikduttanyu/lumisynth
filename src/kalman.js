@@ -93,6 +93,7 @@ class BlobTracker {
       cy,
       area:  this.lastBlob.area,
       score: this.lastBlob.score,
+      category: this.lastBlob.category || '',
       index,
       id:    this.id,
     };

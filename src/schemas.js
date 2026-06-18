@@ -86,6 +86,10 @@ export const DEFAULTS = Object.freeze({
   trackStability: 0,
   trackMaxBlobs: 12,
   updateInterval: 1,
+  // Object-backend (MediaPipe) bbox scale, 0.05..1. Object detections cover the
+  // whole subject (a person fills a big box), so the drawn blob shrinks toward
+  // the bbox center by this factor. 1 = raw detection size. Blob backend ignores it.
+  objectSize: 0.4,
   // Color-key mode: hex string '#rrggbb'. Only active when trackChannel='color'.
   colorKeyHex: '#ff0000',
   colorKeyHueTol: 18,   // degrees

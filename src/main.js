@@ -1289,6 +1289,8 @@ function refreshBackendControls(backend) {
   if (lumi) lumi.style.display = isObj ? 'none' : '';
   const del = document.getElementById('mp-delegate-section');
   if (del) del.style.display = isObj ? '' : 'none';
+  const obj = document.getElementById('object-controls');
+  if (obj) obj.style.display = isObj ? '' : 'none';
   if (isObj) { const ck = document.getElementById('color-key-controls'); if (ck) ck.style.display = 'none'; }
   else refreshColorKeyControls(state.trackChannel);
 }
@@ -4142,7 +4144,7 @@ function renderFrame(nowDOMHi) {
           if (!isObjectDetectorReady()) { rawBlobs = []; }
           else {
             const scoreThreshold = Math.min(0.9, Math.max(0.05, look.threshold / 100));
-            rawBlobs = detectObjects(offscreen, performance.now(), { scoreThreshold, maxResults: cap });
+            rawBlobs = detectObjects(offscreen, performance.now(), { scoreThreshold, maxResults: cap, sizeScale: look.objectSize });
           }
         } else {
           const minSizeDetect = look.trackMinSize * detectScale;

@@ -64,7 +64,7 @@ export function setObjectDetectorDelegate(delegate) {
 // timestampMs must be monotonically increasing (use performance.now()).
 // Returns raw blobs in the source element's pixel space; caller rescales to
 // canvas space and feeds through trackBlobs for IDs — same as the blob path.
-export function detectObjects(srcEl, timestampMs, { scoreThreshold = 0.3, maxResults = 12 } = {}) {
+export function detectObjects(srcEl, timestampMs, { scoreThreshold = 0.3, maxResults = 12, sizeScale = 1 } = {}) {
   if (!_ready || !_detector) return [];
   let result;
   try {
@@ -72,6 +72,7 @@ export function detectObjects(srcEl, timestampMs, { scoreThreshold = 0.3, maxRes
   } catch {
     return [];
   }
+  const s = Math.max(0.05, Math.min(1, sizeScale));
   const dets = result?.detections || [];
   const blobs = [];
   for (let i = 0; i < dets.length && blobs.length < maxResults; i++) {
@@ -81,13 +82,15 @@ export function detectObjects(srcEl, timestampMs, { scoreThreshold = 0.3, maxRes
     if (score < scoreThreshold) continue;
     const bb = d.boundingBox;
     if (!bb) continue;
-    const w = bb.width, h = bb.height;
+    // Shrink the bbox toward its center by sizeScale (detections cover the
+    // whole subject, which renders as an oversized blob). cx/cy preserved.
+    const cx = bb.originX + bb.width / 2;
+    const cy = bb.originY + bb.height / 2;
+    const w = bb.width * s, h = bb.height * s;
     blobs.push({
-      x: bb.originX,
-      y: bb.originY,
-      w, h,
-      cx: bb.originX + w / 2,
-      cy: bb.originY + h / 2,
+      x: cx - w / 2,
+      y: cy - h / 2,
+      w, h, cx, cy,
       area: w * h,
       score,
       category: cat ? cat.categoryName : '',

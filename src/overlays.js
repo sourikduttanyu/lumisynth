@@ -562,6 +562,16 @@ function drawLabelsAndMarkers(ctx, blobs, L) {
     ctx.fillStyle = color;
     ctx.fillText(xStr, lx, lyTop);
     ctx.fillText(yStr, lx, lyBot);
+
+    // Class label (object backend) — uppercase, above the XY readout.
+    if (b.category) {
+      const cStr = b.category.toUpperCase();
+      const cLy = lyTop - fsize - 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillText(cStr, lx + 1, cLy + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(cStr, lx, cLy);
+    }
   }
   ctx.restore();
 }

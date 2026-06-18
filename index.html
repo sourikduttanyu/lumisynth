@@ -306,6 +306,12 @@
           </div>
         </section>
 
+        <section class="control-section" id="object-controls" data-mode-section="track" style="display:none">
+          <div class="slider-stack">
+            <div class="knob" id="track-object-size" data-knob data-control="slider" data-state="objectSize" data-min="0.05" data-max="1" data-step="0.01" data-default="0.4" aria-label="Object blob size (bbox scale)" data-tip="Shrinks object-detection blobs toward their center. Object boxes cover the whole subject; lower = smaller blobs. 1 = raw detection size." tabindex="0"><span class="knob-label">Size</span><span class="knob-val" id="track-object-size-val">0.4</span></div>
+          </div>
+        </section>
+
         <section class="control-section" id="lumi-channel-section" data-mode-section="track">
           <div class="section-label" id="lbl-lumi-channel">Lumi Channel</div>
           <div class="toggle-group" id="lumi-channel-group" role="radiogroup" aria-labelledby="lbl-lumi-channel">
