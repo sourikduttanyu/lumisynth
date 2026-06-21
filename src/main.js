@@ -1188,7 +1188,7 @@ function runColorEffect(name, params, opts = {}) {
   // okdrift packs stops count + relationship type into uParam4: N*10+relType.
   if (name === 'okdrift') {
     const nStops  = Math.max(4, Math.min(10, Math.round(Number.isFinite(tuple[4]) ? tuple[4] : 6)));
-    const relType = Math.max(0, Math.min(5,  Math.round(params.relType ?? 0)));
+    const relType = Math.max(0, Math.min(9,  Math.round(params.relType ?? 0)));
     tuple[4] = nStops * 10 + relType;
   }
   // ChromaEngine ramp stops are hex strings in params — they travel as vec3
@@ -1869,6 +1869,10 @@ function _okdriftBaseHue(idx, N, relType, hueOffset) {
     case 3: return base + (idx - span * 0.5) * (0.524 / span); // ±15° arc
     case 4: return base + (idx % 3) * (tau / 3) + Math.floor(idx / 3) * 0.20;
     case 5: return base + (idx % 4) * (tau / 4) + Math.floor(idx / 4) * 0.18;
+    case 6: { const grp=idx%3, pole=grp===0?0:grp===1?2.618:3.665; return base+pole+Math.floor(idx/3)*0.25; } // split-comp
+    case 7: return base + idx * (tau / Math.max(N, 1)); // spectral rainbow
+    case 8: { const pole=(idx%2)*Math.PI, gi=Math.floor(idx/2), gs=Math.max(Math.floor(N/2)-1,1); return base+pole+(gi-gs*0.5)*0.30/gs; } // duotone
+    case 9: return base + (idx%5)*(tau/5) + Math.floor(idx/5)*0.16; // pentadic
     default: return base + idx * 2.39996; // golden angle (smart)
   }
 }
@@ -1907,7 +1911,7 @@ function buildOkdriftPanel(container) {
 
   const relSelect = document.createElement('select');
   relSelect.className = 'okdrift-rel-select';
-  for (const [v, lbl] of [[0,'Smart'],[1,'Monochromatic'],[2,'Complementary'],[3,'Analogous'],[4,'Triadic'],[5,'Tetradic']]) {
+  for (const [v, lbl] of [[0,'Smart'],[1,'Monochromatic'],[2,'Complementary'],[3,'Analogous'],[4,'Triadic'],[5,'Tetradic'],[6,'Split-Comp'],[7,'Spectral'],[8,'Duotone'],[9,'Pentadic']]) {
     const opt = document.createElement('option');
     opt.value = v; opt.textContent = lbl;
     if (v === (params.relType ?? 0)) opt.selected = true;
@@ -1943,7 +1947,7 @@ function buildOkdriftPanel(container) {
   // Swatch preview + Rate-driven auto-randomize tick
   function tick() {
     const N = Math.max(4, Math.min(10, Math.round(params.stops ?? 6)));
-    const relType = Math.max(0, Math.min(5, Math.round(params.relType ?? 0)));
+    const relType = Math.max(0, Math.min(9, Math.round(params.relType ?? 0)));
     const rate = params.rate ?? 0;
 
     // Auto-randomize: Rate > 0 fires a new random hue at a log-scaled interval.

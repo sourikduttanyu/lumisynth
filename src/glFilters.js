@@ -2488,6 +2488,18 @@ float base_hue(int idx, int N, int relType, float seed) {
   if (relType == 3) return base + (fi - span*0.5) * (0.524 / span); // ±15° arc
   if (relType == 4) { float pole=float(idx%3)*(tau/3.0); return base+pole+float(idx/3)*0.20; }
   if (relType == 5) { float pole=float(idx%4)*(tau/4.0); return base+pole+float(idx/4)*0.18; }
+  if (relType == 6) { // split-comp: base + two flanks of complement (150° / 210°)
+    int grp=idx%3; float pole;
+    if (grp==0) pole=0.0; else if (grp==1) pole=2.618; else pole=3.665;
+    return base+pole+float(idx/3)*0.25;
+  }
+  if (relType == 7) { return base+fi*(tau/float(max(N,1))); } // spectral: full rainbow
+  if (relType == 8) { // duotone: two tight clusters at base & complement
+    float pole=float(idx%2)*3.14159; float gi=float(idx/2);
+    float gs=max(float(N/2-1),1.0);
+    return base+pole+(gi-gs*0.5)*0.30/gs;
+  }
+  if (relType == 9) { float pole=float(idx%5)*(tau/5.0); return base+pole+float(idx/5)*0.16; } // pentadic
   return base + fi * 2.39996; // golden angle (smart)
 }
 vec3 stop_color(int idx, int N, int relType) {
@@ -2501,7 +2513,7 @@ void main() {
   float luma  = dot(texture(u_video, vUV).rgb, vec3(0.299, 0.587, 0.114));
   int packed  = int(uParam4);
   int N       = max(packed / 10, 4);
-  int relType = clamp(packed - N * 10, 0, 5);
+  int relType = clamp(packed - N * 10, 0, 9);
   float pos = luma * float(N - 1);
   int i0 = clamp(int(floor(pos)), 0, N - 1);
   int i1 = min(i0 + 1, N - 1);
