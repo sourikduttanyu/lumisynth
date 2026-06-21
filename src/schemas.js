@@ -58,12 +58,10 @@ export const DEFAULTS = Object.freeze({
   inkBlackHex: '#0a0908', inkCreamHex: '#ebe0c7',
   asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9, asciiEdgeThreshold: 0.0,
   erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
-  watershedBasin: 0.4, watershedBoundary: 0.5, watershedFlat: 0.5, watershedDepth: 0.0,
   pixelsortThresh: 0.4, pixelsortLength: 0.3, pixelsortOpacity: 0.8, pixelsortDir: 0.5,
   meltAmount: 0.5,     meltDrip: 0.4,         meltViscosity: 0.5,   meltDir: 0.0,
-  freqmodDir: 0.0,     freqmodMod: 0.6,       freqmodWave: 0.5,     freqmodThresh: 0.2,    freqmodDensity: 240,
   motionedgeEdge: 0.5, motionedgeMotion: 0.6, motionedgeThresh: 0.15, motionedgeBoost: 0.5,
-  dogRadius: 0.35,  dogThresh: 0.18, dogSharp: 0.5,   dogK: 0.4,
+  edgedetThresh: 0.3,  edgedetGlow: 0.5,      edgedetHue: 0.15,     edgedetBlend: 0.1,
   ditherScale: 0.4, ditherLevels: 0.3, ditherContrast: 0.5, ditherBias: 0.5,
 
   // ============ TRACK-mode state ============
@@ -507,13 +505,34 @@ export const COLOR_PARAM_SCHEMAS = {
   },
   kuwahara: {
     knobs: [
-      { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Filter radius 1–5px. Larger = more painterly stroke-like blurring.' },
-      { key: 'sharp',  label: 'Sharp',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Quadrant selection sharpness. Low = blended soft oil-paint. High = hard region-locked paint.' },
-      { key: 'sat',    label: 'Sat',    min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Saturation boost on painted output. Higher = more vivid, impressionist color.' },
+      { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Filter radius 1–5px. Larger = more painterly stroke-like blurring.' },
+      { key: 'sharp',  label: 'Sharp',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Quadrant selection sharpness. Low = blended soft oil-paint. High = hard region-locked paint.' },
+      { key: 'sat',    label: 'Sat',    min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Saturation boost on painted output. Higher = more vivid, impressionist color.' },
       { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.0, tip: '0 = fully painterly Kuwahara result. 1 = source passthrough.' },
     ],
     toggles: [],
     order: ['radius', 'sharp', 'sat', 'blend'],
+  },
+  // PROCEDURAL tab — generative OKLCH palette effects.
+  okdrift: {
+    knobs: [
+      { key: 'light',  label: 'Light',  min: 0, max: 1,  step: 0.01, default: 0.5,  tip: 'Palette lightness. 0 = dark tones. 1 = bright tones. Perceptually uniform via OKLCH.' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1,  step: 0.01, default: 0.65, tip: 'Palette saturation. 0 = greyscale. 1 = maximum OKLCH chroma.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1,  step: 0.01, default: 0.0,  tip: 'Base hue offset (0–1 = 0–360°). Rotates the entire palette around the OKLCH wheel.' },
+      { key: 'rate',   label: 'Rate',   min: 0, max: 1,  step: 0.01, default: 0.0,  tip: 'Auto-randomize speed. 0 = locked palette. Higher = more frequent switches, from slow cycling to rapid strobe.' },
+      { key: 'stops',  label: 'Stops',  min: 4, max: 10, step: 1,    default: 6,    tip: 'Number of palette stops (4–10). Each stop is an independent hue with its own drift frequency.' },
+    ],
+    toggles: [
+      { key: 'relType', label: 'Harmony', default: 0, options: [
+        { value: 0, label: 'Smart',     tip: 'Golden-angle spacing — maximally distinct hues across the wheel.' },
+        { value: 1, label: 'Mono',      tip: 'Monochromatic — all stops share one hue; contrast comes from lightness grading dark→bright.' },
+        { value: 2, label: 'Comp',      tip: 'Complementary — stops alternate across two poles 180° apart.' },
+        { value: 3, label: 'Analogous', tip: 'Analogous — neighboring hues spread across a 60° arc.' },
+        { value: 4, label: 'Triadic',   tip: 'Triadic — three hue poles spaced 120° apart.' },
+        { value: 5, label: 'Tetradic',  tip: 'Tetradic — four hue poles spaced 90° apart.' },
+      ]},
+    ],
+    order: ['light', 'chroma', 'hue', 'rate', 'stops'],
   },
   // CUSTOM tab — the ChromaEngine. User-built 4-stop color ramp + a driver
   // select choosing which scalar feeds the ramp. The 4 stops are hex strings
@@ -627,9 +646,9 @@ export const FX_PARAM_SCHEMAS = {
   flowfield: {
     feedback: true,
     knobs: [
-      { key: 'speed',   label: 'Flow',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Flow speed. How far pixels advect along the luma-gradient flow field each frame. 0 = static. 1 = fast swirling drift.' },
-      { key: 'persist', label: 'Persist', min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Trail persistence. How much of the previous frame\'s trails carries forward. Near 1 = long-lived accumulating trails. Low = trails die in a few frames.' },
-      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Trail brightness. How strongly gradient edges inject new energy into the trail buffer each frame.' },
+      { key: 'speed',   label: 'Flow',    min: 0, max: 1, step: 0.01, default: 1.0, tip: 'Flow speed. How far pixels advect along the luma-gradient flow field each frame. 0 = static. 1 = fast swirling drift.' },
+      { key: 'persist', label: 'Persist', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Trail persistence. How much of the previous frame\'s trails carries forward. Near 1 = long-lived accumulating trails. Low = trails die in a few frames.' },
+      { key: 'bright',  label: 'Bright',  min: 0, max: 1, step: 0.01, default: 1.0, tip: 'Trail brightness. How strongly gradient edges inject new energy into the trail buffer each frame.' },
       { key: 'blend',   label: 'Blend',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Source blend. 0 = pure trail field. 1 = source image with trails layered over it.' },
     ],
     toggles: [],
@@ -777,16 +796,6 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['strength', 'radius', 'clamp', 'luma'],
   },
-  edgedet: {
-    knobs: [
-      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Edge detection threshold. Lower = more edges found. Higher = only strong edges.' },
-      { key: 'glow',   label: 'Glow',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Edge line softness. 0 = wide diffuse glow. 1 = sharp fine lines.' },
-      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.15, tip: 'Edge color hue (0–1 = 0–360°). Sweep for neon green, electric blue, hot pink edges.' },
-      { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.1,  tip: '0 = neon edges overlaid on source. 1 = edges only on black (wireframe look).' },
-    ],
-    toggles: [],
-    order: ['thresh', 'glow', 'hue', 'blend'],
-  },
   bokeh: {
     knobs: [
       { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Blur radius 0–12px. Larger = more pronounced bokeh blur.' },
@@ -824,7 +833,7 @@ export const FX_SECTIONS = [
   'rgbdelay', 'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
   'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise', 'okband',
-  'vignette', 'tonemap', 'chromab', 'sharpen', 'edgedet', 'bokeh', 'filmgrain', 'autoexp',
+  'vignette', 'tonemap', 'chromab', 'sharpen', 'bokeh', 'filmgrain', 'autoexp',
 ];
 
 // ============================================================
@@ -863,7 +872,7 @@ export const TRACK_FX_PARAM_SCHEMAS = {
   },
 };
 
-export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'watershed', 'pixelsort', 'melt', 'freqmod', 'motionedge', 'dog', 'dither'];
+export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'pixelsort', 'melt', 'motionedge', 'edgedet', 'dither'];
 // The MAPS tab of the COLOR picker — pure per-pixel color mapping (ramps,
 // grades, palette swaps; no neighbor sampling, no added elements). Adding a
 // map here (plus its schema/shader/label entries) is all the picker needs;
@@ -892,9 +901,9 @@ export const COLOR_UNIQUE_SECTIONS = [
   { key: 'painterly',  label: 'Painterly',  effects: ['kuwahara'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
-// Every valid value of state.color (except 'none'): maps + unique effects +
-// the CUSTOM tab's ChromaEngine. Validation/migration checks against this.
-export const COLOR_SECTIONS = [...COLOR_MAP_SECTIONS, ...COLOR_UNIQUE_FLAT, 'chroma'];
+export const COLOR_PROC_SECTIONS = ['okdrift'];
+// Every valid value of state.color (except 'none'): maps + unique + custom + proc.
+export const COLOR_SECTIONS = [...COLOR_MAP_SECTIONS, ...COLOR_UNIQUE_FLAT, 'chroma', ...COLOR_PROC_SECTIONS];
 
 // No GL_RESETS: all current structure effects are stateless single-frame ops.
 export const GL_RESETS = {};
@@ -907,12 +916,10 @@ export const GL_RESETS = {};
 export const BLEND_MODES = {
   ascii:        'source-over',
   erode:        'source-over',
-  watershed:    'source-over',
   pixelsort:    'source-over',
   melt:         'source-over',
-  freqmod:      'source-over',
   motionedge:   'source-over',
-  dog:          'source-over',
+  edgedet:      'source-over',
   dither:       'source-over',
   predator:     'source-over',
   rgbdelay:     'source-over',
@@ -974,6 +981,7 @@ export const BLEND_MODES = {
   csadjust:     'source-over',
   halftone:     'source-over',
   kuwahara:     'source-over',
+  okdrift:      'source-over',
   // Internal GRADE pass (hue rotate + saturation) — auto-appended after the
   // COLOR stage by resolveActivePipeline; never appears in any picker.
   grade:        'source-over',
@@ -1054,15 +1062,6 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'edge',     label: 'Edge',     min: 0, max: 1, step: 0.01, default: 0,   tip: 'Edge ring overlay weight. 0=none, 1=pure ring.' },
     ],
   },
-  watershed: {
-    toggles: [],
-    knobs: [
-      { key: 'basin',    label: 'Basin',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Basin size. Larger = more merged regions.' },
-      { key: 'boundary', label: 'Boundary', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Boundary brightness.' },
-      { key: 'flat',     label: 'Flat',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Region fill flatness.' },
-      { key: 'depth',    label: 'Depth',    min: 0, max: 1, step: 0.01, default: 0,   tip: 'Depth toning (0=none).' },
-    ],
-  },
   pixelsort: {
     toggles: [],
     knobs: [
@@ -1079,16 +1078,6 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'drip',      label: 'Drip',      min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Drip length.' },
       { key: 'viscosity', label: 'Viscosity', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Flow viscosity.' },
       { key: 'dir',       label: 'Dir',       min: 0, max: 1, step: 0.01, default: 0,   tip: 'Direction (0=down, 0.5=up, others=rotated).' },
-    ],
-  },
-  freqmod: {
-    toggles: [],
-    knobs: [
-      { key: 'dir',     label: 'Dir',     min: 0, max: 1,   step: 0.01, default: 0,   tip: 'Scan direction (0–180°).' },
-      { key: 'mod',     label: 'Mod',     min: 0, max: 1,   step: 0.01, default: 0.6, tip: 'Frequency modulation depth.' },
-      { key: 'wave',    label: 'Wave',    min: 0, max: 1,   step: 0.01, default: 0.5, tip: 'Waveform shape.' },
-      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1,   step: 0.01, default: 0.2, tip: 'Luminance gate threshold.' },
-      { key: 'density', label: 'Density', min: 120, max: 300, step: 1, default: 240, control: 'slider', tip: 'Scan line density (rows).' },
     ],
   },
   ascii: {
@@ -1110,15 +1099,6 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'rate',   label: 'Frames', min: 0, max: 10, step: 1, default: 0, control: 'slider', tip: 'Frame diff gap. 0 = edges only (no motion). 1 = compare to 1 frame ago. 10 = compare to 10 frames ago — slow movement lights up.' },
     ],
   },
-  dog: {
-    toggles: [],
-    knobs: [
-      { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.35, tip: 'Blur radius (1–6px). Larger = coarser, wider edges.' },
-      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.18, tip: 'Edge threshold. Raise to keep only strong contours.' },
-      { key: 'sharp',  label: 'Sharp',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Edge hardness. 0 = soft gradient. 1 = crisp hard line.' },
-      { key: 'k',      label: 'K',      min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Sigma ratio. Low = thin edges. High = fat halo rings.' },
-    ],
-  },
   dither: {
     toggles: [],
     knobs: [
@@ -1126,6 +1106,15 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'levels',   label: 'Levels',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Quantization levels (2–8). 2 = pure 1-bit B&W. Higher = more gray tones.' },
       { key: 'contrast', label: 'Contrast', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Gamma. 0.5 = neutral. Lower = shadow-heavy, higher = highlight-heavy.' },
       { key: 'bias',     label: 'Bias',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Brightness offset. 0.5 = neutral.' },
+    ],
+  },
+  edgedet: {
+    toggles: [],
+    knobs: [
+      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Edge detection threshold. Lower = more edges found.' },
+      { key: 'glow',   label: 'Glow',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Edge softness. 0 = wide diffuse. 1 = sharp fine lines.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.15, tip: 'Edge color hue (0–360°).' },
+      { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.1,  tip: '0 = edges on source. 1 = wireframe on black.' },
     ],
   },
 };

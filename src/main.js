@@ -15,7 +15,7 @@ import {
   STORAGE_KEY, RACK_SLOTS, DEFAULTS, TIMELINE_DEFAULTS, TIMELINE_MIN_SEGMENT_SECONDS,
   COLOR_PARAM_SCHEMAS, FX_PARAM_SCHEMAS, TRACK_FX_PARAM_SCHEMAS,
   STRUCTURE_SECTIONS, COLOR_MAP_SECTIONS, COLOR_UNIQUE_SECTIONS, COLOR_UNIQUE_FLAT,
-  COLOR_SECTIONS, FX_SECTIONS, BLEND_MODES, GL_RESETS,
+  COLOR_PROC_SECTIONS, COLOR_SECTIONS, FX_SECTIONS, BLEND_MODES, GL_RESETS,
   makeSlotId, makeFactoryParams,
   makeFxFactoryParams, makeFxRack,
   makeTrackFxFactoryParams, makeTrackFxRack,
@@ -448,7 +448,7 @@ function findTimelineSegmentAt(time) {
 function resolveTimelineLook(time) {
   const segment = findTimelineSegmentAt(time);
   if (segment) return { id: segment.id, look: segment.look };
-  if (state.sourceKind === 'video') return { id: null, look: makeRawTimelineLook() };
+  if (state.sourceKind === 'video') return { id: null, look: state };
   return { id: null, look: state };
 }
 
@@ -1131,18 +1131,14 @@ function runEffect(name, opts) {
       }, opts);
     case 'erode':
       return applyGLFilter('erode', canvas.width, canvas.height, [look.erodeMode, look.erodeRadius, look.erodeStrength, look.erodeEdge], { ...opts, outputMode, ...inkColors });
-    case 'watershed':
-      return applyGLFilter('watershed', canvas.width, canvas.height, [look.watershedBasin, look.watershedBoundary, look.watershedFlat, look.watershedDepth], { ...opts, outputMode, ...inkColors });
     case 'pixelsort':
       return applyGLFilter('pixelsort', canvas.width, canvas.height, [look.pixelsortThresh, look.pixelsortLength, look.pixelsortOpacity, look.pixelsortDir], { ...opts, outputMode, ...inkColors });
     case 'melt':
       return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
-    case 'freqmod':
-      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodDir, look.freqmodMod, look.freqmodWave, look.freqmodThresh, look.freqmodDensity], { ...opts, outputMode, ...inkColors });
     case 'motionedge':
       return applyGLFilter('motionedge', canvas.width, canvas.height, [look.motionedgeEdge, look.motionedgeMotion, look.motionedgeThresh, look.motionedgeBoost], { ...opts, outputMode, ...inkColors });
-    case 'dog':
-      return applyGLFilter('dog', canvas.width, canvas.height, [look.dogRadius, look.dogThresh, look.dogSharp, look.dogK], { ...opts, outputMode, ...inkColors });
+    case 'edgedet':
+      return applyGLFilter('edgedet', canvas.width, canvas.height, [look.edgedetThresh, look.edgedetGlow, look.edgedetHue, look.edgedetBlend], { ...opts, outputMode, ...inkColors });
     case 'dither':
       return applyGLFilter('dither', canvas.width, canvas.height, [look.ditherScale, look.ditherLevels, look.ditherContrast, look.ditherBias], { ...opts, outputMode, ...inkColors });
     case 'oxide':
@@ -1189,6 +1185,12 @@ function runColorEffect(name, params, opts = {}) {
     return Number.isFinite(v) ? v : 0;
   });
   while (tuple.length < 4) tuple.push(0);
+  // okdrift packs stops count + relationship type into uParam4: N*10+relType.
+  if (name === 'okdrift') {
+    const nStops  = Math.max(4, Math.min(10, Math.round(Number.isFinite(tuple[4]) ? tuple[4] : 6)));
+    const relType = Math.max(0, Math.min(5,  Math.round(params.relType ?? 0)));
+    tuple[4] = nStops * 10 + relType;
+  }
   // ChromaEngine ramp stops are hex strings in params — they travel as vec3
   // uniforms via opts.stops (same out-of-band channel as the ink colors),
   // not in uParams.
@@ -1258,13 +1260,11 @@ function resolveBlobPipeline(look) {
     const p = (look.blobStructureParams && look.blobStructureParams[structureName]) || makeBlobStructureParams(structureName);
     switch (structureName) {
       case 'erode':     structureParams = [p.mode ?? 0, p.radius ?? 0.3, p.strength ?? 0.7, p.edge ?? 0]; break;
-      case 'watershed': structureParams = [p.basin ?? 0.4, p.boundary ?? 0.5, p.flat ?? 0.5, p.depth ?? 0]; break;
       case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.3, p.opacity ?? 0.8, p.dir ?? 0.5]; break;
       case 'melt':      structureParams = [p.amount ?? 0.5, p.drip ?? 0.4, p.viscosity ?? 0.5, p.dir ?? 0]; break;
-      case 'freqmod':   structureParams = [p.dir ?? 0, p.mod ?? 0.6, p.wave ?? 0.5, p.thresh ?? 0.2, p.density ?? 240]; break;
       case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9]; break;
       case 'motionedge':structureParams = [p.edge ?? 0.5, p.motion ?? 0.6, p.thresh ?? 0.15, p.boost ?? 0.5, p.rate ?? 0]; break;
-      case 'dog':       structureParams = [p.radius ?? 0.35, p.thresh ?? 0.18, p.sharp ?? 0.5, p.k ?? 0.4]; break;
+      case 'edgedet':   structureParams = [p.thresh ?? 0.3, p.glow ?? 0.5, p.hue ?? 0.15, p.blend ?? 0.1]; break;
       case 'dither':    structureParams = [p.scale ?? 0.4, p.levels ?? 0.3, p.contrast ?? 0.5, p.bias ?? 0.5]; break;
       default:          structureParams = [0, 0, 0, 0]; break;
     }
@@ -1480,6 +1480,8 @@ const colorTabGroup     = document.getElementById('color-tab-group');
 const colorTabMaps      = document.getElementById('color-tab-maps');
 const colorTabUnique    = document.getElementById('color-tab-unique');
 const colorTabCustom    = document.getElementById('color-tab-custom');
+const colorTabProc      = document.getElementById('color-tab-proc');
+const colorProcPanel    = document.getElementById('color-proc-knob-panel');
 const colorMapsGrid     = document.getElementById('color-maps-grid');
 const colorMapsPanel    = document.getElementById('color-maps-knob-panel');
 const colorUniqueGrid   = document.getElementById('color-unique-grid');
@@ -1528,6 +1530,7 @@ const COLOR_SWATCH_GRADIENTS = {
   csadjust:   'linear-gradient(90deg, #1a1a2a, #2a4470, #7080c8, #d8ddf8)',
   halftone:   'linear-gradient(90deg, #f5f0e8, #c85a5a, #5050b0, #28a040, #f5f0e8)',
   kuwahara:   'linear-gradient(90deg, #1a0a00, #8b4513, #d4843f, #a3c48a, #5090c8)',
+  okdrift:    'linear-gradient(90deg, #2d0060, #7b00ff, #00aaff, #00ffaa, #ffaa00, #ff0055)',
 };
 const COLOR_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
@@ -1542,6 +1545,7 @@ const COLOR_LABEL = {
   okband: 'OKBand',
   chroma: 'ChromaEngine',
   palswap: 'PalSwap', csadjust: 'CSAdjust', halftone: 'Halftone', kuwahara: 'Kuwahara',
+  okdrift: 'OKDrift',
 };
 
 // Tooltip per COLOR effect — shown on the MAPS/UNIQUE grid buttons.
@@ -1582,6 +1586,7 @@ const COLOR_MAP_TIPS = {
   csadjust:   'OKLCH Color Space Adjust. Direct lightness, chroma, hue-rotation, and warmth knobs in perceptual OKLCH space — for creative grading without hue collisions.',
   halftone:   'CMYK halftone dot screens. Four angled dot-screen channels (C/M/Y/K) simulate offset-print reproduction. Scale controls dot size; Blend mixes with source.',
   kuwahara:   'Kuwahara painterly filter. Samples four quadrant neighborhoods, outputs the least-variance mean — creating oil-painting-style brush strokes. Radius controls stroke size.',
+  okdrift:    'Procedural OKLCH palette. Generates N color stops spaced by the golden angle and drifts each on an independent sinusoidal frequency. Low Rate = slow flow; High Rate = rapid snapping.',
 };
 
 // Per-effect knob memory access. Ensures state.colorParams[type] exists and
@@ -1602,10 +1607,15 @@ function getColorParams(type) {
 // Which COLOR tab is showing — UI-only, not persisted. applyStateToUI derives
 // it from the loaded selection; browsing tabs never changes the selection.
 let _colorTab = 'maps';
+// rAF handle for the Proc tab live swatch preview animation.
+let _okdriftAnimId = null;
+// Timestamp of last auto-randomize fire (for Rate-driven palette switching).
+let _okdriftLastRand = 0;
 
 function colorTabForSelection(color) {
   if (COLOR_UNIQUE_FLAT.includes(color)) return 'unique';
   if (color === 'chroma') return 'custom';
+  if (COLOR_PROC_SECTIONS.includes(color)) return 'proc';
   return 'maps';
 }
 
@@ -1644,9 +1654,14 @@ function updateColorActiveStates() {
   }
   colorTabUnique?.classList.toggle('color-source-active', COLOR_UNIQUE_FLAT.includes(state.color));
   colorTabCustom?.classList.toggle('color-source-active', state.color === 'chroma');
+  colorTabProc?.classList.toggle('color-source-active', COLOR_PROC_SECTIONS.includes(state.color));
 }
 
 function setColorTab(tab) {
+  if (tab !== 'proc' && _okdriftAnimId) {
+    cancelAnimationFrame(_okdriftAnimId);
+    _okdriftAnimId = null;
+  }
   _colorTab = tab;
   if (colorTabGroup) {
     for (const btn of colorTabGroup.querySelectorAll('.toggle-btn')) {
@@ -1658,11 +1673,15 @@ function setColorTab(tab) {
   colorTabMaps?.classList.toggle('hidden',   tab !== 'maps');
   colorTabUnique?.classList.toggle('hidden', tab !== 'unique');
   colorTabCustom?.classList.toggle('hidden', tab !== 'custom');
+  colorTabProc?.classList.toggle('hidden',   tab !== 'proc');
 }
 
 colorTabGroup?.addEventListener('click', (e) => {
   const btn = e.target.closest('.toggle-btn');
-  if (btn) setColorTab(btn.dataset.value);
+  if (!btn) return;
+  const tab = btn.dataset.value;
+  setColorTab(tab);
+  if (tab === 'proc') setColor('okdrift'); // single effect tab — auto-activate
 });
 
 // ---- Swatch button factory shared by the MAPS and UNIQUE grids ----
@@ -1745,6 +1764,7 @@ function buildColorKnobs(container, type, idPrefix) {
   if (schema.toggles && schema.toggles.length) {
     for (const t of schema.toggles) {
       if (type === 'chroma' && t.key === 'driver') continue; // driver has its own static group
+      if (type === 'okdrift' && t.key === 'relType') continue; // custom dropdown in buildOkdriftPanel
       const wrap = document.createElement('div');
       wrap.className = 'color-rack-slot-toggle';
       const lbl = document.createElement('span');
@@ -1823,6 +1843,141 @@ function buildColorKnobs(container, type, idPrefix) {
   if (sliderStack.childElementCount) controlStack.appendChild(sliderStack);
   if (knobCluster.childElementCount) controlStack.appendChild(knobCluster);
   if (controlStack.childElementCount) container.appendChild(controlStack);
+}
+
+// ---- PROC tab: OKDrift palette generator ----
+// JS OKLCH helpers mirror the shader math for the live swatch preview strip.
+function _oklchToSrgb(L, C, H) {
+  const a = C * Math.cos(H), b = C * Math.sin(H);
+  let l = L + 0.3963377774*a + 0.2158037573*b;
+  let m = L - 0.1055613458*a - 0.0638541728*b;
+  let s = L - 0.0894841775*a - 1.2914855480*b;
+  l=l*l*l; m=m*m*m; s=s*s*s;
+  const r =  4.0767416621*l - 3.3077115913*m + 0.2309699292*s;
+  const g = -1.2684380046*l + 2.6097574011*m - 0.3413193965*s;
+  const bv= -0.0041960863*l - 0.7034186147*m + 1.7076147010*s;
+  return [r, g, bv].map(v => {
+    v = Math.max(0, Math.min(1, v));
+    return v <= 0.0031308 ? 12.92*v : 1.055*Math.pow(v, 1/2.4) - 0.055;
+  });
+}
+function _okdriftBaseHue(idx, N, relType, hueOffset) {
+  const tau = Math.PI * 2, base = hueOffset * tau, span = Math.max(N - 1, 1);
+  switch (relType) {
+    case 1: return base; // monochromatic: same hue, L grades across stops
+    case 2: return base + (idx % 2) * Math.PI + Math.floor(idx / 2) * 0.30;
+    case 3: return base + (idx - span * 0.5) * (0.524 / span); // ±15° arc
+    case 4: return base + (idx % 3) * (tau / 3) + Math.floor(idx / 3) * 0.20;
+    case 5: return base + (idx % 4) * (tau / 4) + Math.floor(idx / 4) * 0.18;
+    default: return base + idx * 2.39996; // golden angle (smart)
+  }
+}
+function _okdriftStopColor(idx, N, relType, params) {
+  const t = N > 1 ? idx / (N - 1) : 0.5;
+  const L = Math.max(0.04, Math.min(0.96, 0.12 + 0.76 * t + ((params.light ?? 0.5) - 0.5) * 0.5));
+  const C = (params.chroma ?? 0.65) * 0.34;
+  const H = _okdriftBaseHue(idx, N, relType, params.hue ?? 0);
+  return _oklchToSrgb(L, C, H);
+}
+function _srgbToHex(rgb) {
+  return '#' + rgb.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
+}
+
+function buildOkdriftPanel(container) {
+  if (!container) return;
+  if (_okdriftAnimId) { cancelAnimationFrame(_okdriftAnimId); _okdriftAnimId = null; }
+  container.innerHTML = '';
+  const params = getColorParams('okdrift');
+
+  // Palette preview strip
+  const previewWrap = document.createElement('div');
+  previewWrap.className = 'okdrift-preview-wrap';
+  const swatchRow = document.createElement('div');
+  swatchRow.className = 'okdrift-swatch-row';
+  previewWrap.appendChild(swatchRow);
+  container.appendChild(previewWrap);
+
+  // Controls row: harmony dropdown + randomize button
+  const ctrlRow = document.createElement('div');
+  ctrlRow.className = 'okdrift-controls-row';
+
+  const relLabel = document.createElement('span');
+  relLabel.className = 'okdrift-rel-label';
+  relLabel.textContent = 'Harmony';
+
+  const relSelect = document.createElement('select');
+  relSelect.className = 'okdrift-rel-select';
+  for (const [v, lbl] of [[0,'Smart'],[1,'Monochromatic'],[2,'Complementary'],[3,'Analogous'],[4,'Triadic'],[5,'Tetradic']]) {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = lbl;
+    if (v === (params.relType ?? 0)) opt.selected = true;
+    relSelect.appendChild(opt);
+  }
+  relSelect.addEventListener('change', () => {
+    params.relType = parseInt(relSelect.value, 10);
+    activateColor('okdrift');
+    schedulePersist();
+  });
+
+  const randBtn = document.createElement('button');
+  randBtn.type = 'button';
+  randBtn.className = 'okdrift-rand-btn';
+  randBtn.textContent = 'Randomize';
+  randBtn.addEventListener('click', () => {
+    params.hue = Math.random();
+    activateColor('okdrift');
+    schedulePersist();
+    buildOkdriftPanel(container);
+  });
+
+  ctrlRow.appendChild(relLabel);
+  ctrlRow.appendChild(relSelect);
+  ctrlRow.appendChild(randBtn);
+  container.appendChild(ctrlRow);
+
+  // Standard knobs — use a child div so buildColorKnobs' innerHTML='' doesn't wipe our widgets
+  const knobsDiv = document.createElement('div');
+  container.appendChild(knobsDiv);
+  buildColorKnobs(knobsDiv, 'okdrift', 'proc-okdrift');
+
+  // Swatch preview + Rate-driven auto-randomize tick
+  function tick() {
+    const N = Math.max(4, Math.min(10, Math.round(params.stops ?? 6)));
+    const relType = Math.max(0, Math.min(5, Math.round(params.relType ?? 0)));
+    const rate = params.rate ?? 0;
+
+    // Auto-randomize: Rate > 0 fires a new random hue at a log-scaled interval.
+    // Rate=0 → off. Rate=0.5 → ~316ms. Rate=1 → 100ms (strobe).
+    if (rate > 0) {
+      const intervalMs = Math.pow(10, 4 - rate * 3);
+      const now = performance.now();
+      if (now - _okdriftLastRand >= intervalMs) {
+        _okdriftLastRand = now;
+        params.hue = Math.random();
+        schedulePersist();
+        const hueValEl = document.getElementById('proc-okdrift-hue-val');
+        if (hueValEl) hueValEl.textContent = params.hue.toFixed(2);
+      }
+    }
+
+    while (swatchRow.children.length < N) {
+      const sw = document.createElement('div');
+      sw.className = 'okdrift-swatch';
+      const hexEl = document.createElement('span');
+      hexEl.className = 'okdrift-hex';
+      sw.appendChild(hexEl);
+      swatchRow.appendChild(sw);
+    }
+    while (swatchRow.children.length > N) swatchRow.removeChild(swatchRow.lastChild);
+
+    for (let i = 0; i < N; i++) {
+      const hex = _srgbToHex(_okdriftStopColor(i, N, relType, params));
+      swatchRow.children[i].style.background = hex;
+      swatchRow.children[i].querySelector('.okdrift-hex').textContent = hex;
+    }
+    _okdriftAnimId = requestAnimationFrame(tick);
+  }
+  tick();
 }
 
 // ---- CUSTOM tab: ChromaEngine controls ----
@@ -1915,6 +2070,14 @@ function renderColorPanel() {
       colorUniquePanel.innerHTML = '';
       if (COLOR_UNIQUE_FLAT.includes(state.color)) {
         buildColorKnobs(colorUniquePanel, state.color, `unique-${state.color}`);
+      }
+    }
+    if (colorProcPanel) {
+      if (COLOR_PROC_SECTIONS.includes(state.color)) {
+        buildOkdriftPanel(colorProcPanel);
+      } else {
+        if (_okdriftAnimId) { cancelAnimationFrame(_okdriftAnimId); _okdriftAnimId = null; }
+        colorProcPanel.innerHTML = '';
       }
     }
     buildChromaControls();
@@ -2337,7 +2500,7 @@ const FX_LABEL = {
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
   okband: 'OKBand',
   vignette: 'Vignette', tonemap: 'Tonemap', chromab: 'ChromAb', sharpen: 'Sharpen',
-  edgedet: 'EdgeDet', bokeh: 'Bokeh', filmgrain: 'FilmGrain', autoexp: 'AutoExp',
+  bokeh: 'Bokeh', filmgrain: 'FilmGrain', autoexp: 'AutoExp',
 };
 const FX_SWATCH_GRADIENTS = {
   rgbdelay:   'linear-gradient(90deg, #080010, #cc0033 28%, #00cc55 52%, #0033cc 76%, #080010)',
@@ -2361,7 +2524,6 @@ const FX_SWATCH_GRADIENTS = {
   tonemap:    'linear-gradient(90deg, #030303, #442a10, #c86a18, #f8e870, #fffff8)',
   chromab:    'linear-gradient(90deg, #080010, #cc0030 33%, #1188aa 56%, #0022cc 79%, #080010)',
   sharpen:    'linear-gradient(90deg, #0a0a10, #2a3860, #9ab4d8, #e8f4ff)',
-  edgedet:    'linear-gradient(90deg, #000, #001a10, #00ff6a, #80ffd8, #000)',
   bokeh:      'radial-gradient(ellipse at 50% 50%, #fff8e0 0%, #ddb040 18%, #cc4400 38%, #080010 65%)',
   filmgrain:  'linear-gradient(90deg, #111, #554433, #887766, #aaa, #777, #333)',
   autoexp:    'linear-gradient(90deg, #020202, #1a2a10, #446038, #aad870, #fdfff8)',
@@ -2388,7 +2550,6 @@ const FX_CHIP_TIP = {
   tonemap:    'HDR tonemapping. Pre-expose then apply Reinhard / ACES / Hable operator. Contrast and highlight desat finish the grade. Click to swap.',
   chromab:    'Chromatic aberration. R and B channels split outward from center like a real lens. Radial amplifies corners; Spread adds a full R/G/B prismatic tri-split. Click to swap.',
   sharpen:    'Unsharp mask sharpening. Detail = center minus blurred neighbor average, added back at Strength. Clamp prevents ringing halos. Luma-only mode preserves hue. Click to swap.',
-  edgedet:    'Sobel edge detection overlaid as colored glow. Hue sweeps edge color; Blend fades from neon-on-source to pure wireframe on black. Click to swap.',
   bokeh:      'Ring-sample defocus blur. Bright spots bloom as circular (or hexagonal) bokeh highlights. Chroma adds lens fringe. Click to swap.',
   filmgrain:  'Analogue film grain. Animated per-frame, shadow-biased, spatially clumped. Halation adds a soft glow on bright areas like real film halation. Click to swap.',
   autoexp:    'Auto exposure. Samples current frame brightness, exponentially adapts toward Target over time, applies EV correction. Corner-pixel feedback state storage. Click to swap.',
@@ -2607,7 +2768,8 @@ function setFxSlotType(slotId, type) {
   // The slot's accumulated trails belong to the old effect — restart from
   // black so the new pick doesn't inherit them.
   resetFxFeedback(slotId);
-  _expandedFxSlots.delete(slotId);
+  if (type !== 'none') _expandedFxSlots.add(slotId);
+  else _expandedFxSlots.delete(slotId);
   renderFxRack();
   schedulePersist();
 }

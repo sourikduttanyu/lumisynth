@@ -2245,3 +2245,87 @@ body[data-mode="track"] [data-mode-section="synth"] { display: none !important; 
   white-space: nowrap;
 }
 .skip-link:focus { top: 0.5rem; }
+
+/* ============================================================
+   OKDRIFT PROC TAB — palette preview strip + controls
+   ============================================================ */
+.okdrift-preview-wrap {
+  width: 100%;
+  border: 1px dashed var(--border-hairline);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: var(--space-sm);
+  box-sizing: border-box;
+  background: var(--surface-base);
+}
+.okdrift-swatch-row {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.okdrift-swatch {
+  flex: 1;
+  min-width: 0;
+  height: 68px;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  overflow: hidden;
+}
+.okdrift-hex {
+  font-size: 7px;
+  letter-spacing: 0.03em;
+  color: rgba(255,255,255,0.55);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  font-family: monospace;
+  user-select: all;
+}
+.okdrift-controls-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+.okdrift-rel-label {
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.okdrift-rel-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-key);
+  font-size: 10px;
+  font-family: inherit;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+}
+.okdrift-rel-select:hover,
+.okdrift-rel-select:focus { border-color: var(--orange-signal); }
+.okdrift-rand-btn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-key);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+.okdrift-rand-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--orange-signal);
+}

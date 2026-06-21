@@ -2451,6 +2451,63 @@ void main() {
   fragColor = vec4(clamp(mix(result, src, uParams.w), 0.0, 1.0), 1.0);
 }`;
 
+// OKDRIFT — Seed-based OKLCH palette with harmony modes.
+// Palette is fully deterministic from the seed (hue offset) + relationship type.
+// Rate controls auto-randomize speed on the JS side — shader is stateless.
+// L grades dark→bright across stops so even Mono mode has visible contrast.
+// uParams: x=light(midpoint shift), y=chroma, z=hue_seed(0-1), w=unused
+// uParam4: N*10+relType  (N=4-10, relType=0-5)
+const FRAG_OKDRIFT = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uParam4;
+out vec4 fragColor;
+vec3 oklab_to_linear(float L, float a, float b) {
+  float l = L + 0.3963377774*a + 0.2158037573*b;
+  float m = L - 0.1055613458*a - 0.0638541728*b;
+  float s = L - 0.0894841775*a - 1.2914855480*b;
+  l=l*l*l; m=m*m*m; s=s*s*s;
+  return vec3(
+     4.0767416621*l - 3.3077115913*m + 0.2309699292*s,
+    -1.2684380046*l + 2.6097574011*m - 0.3413193965*s,
+    -0.0041960863*l - 0.7034186147*m + 1.7076147010*s);
+}
+vec3 lin_to_srgb(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  return mix(12.92*c, 1.055*pow(c, vec3(1.0/2.4))-0.055, step(vec3(0.0031308),c));
+}
+float base_hue(int idx, int N, int relType, float seed) {
+  float tau  = 6.2832;
+  float fi   = float(idx);
+  float base = seed * tau;
+  float span = max(float(N - 1), 1.0);
+  if (relType == 1) return base; // monochromatic: same hue, L varies across stops
+  if (relType == 2) { float pole=float(idx%2)*3.14159; return base+pole+float(idx/2)*0.30; }
+  if (relType == 3) return base + (fi - span*0.5) * (0.524 / span); // ±15° arc
+  if (relType == 4) { float pole=float(idx%3)*(tau/3.0); return base+pole+float(idx/3)*0.20; }
+  if (relType == 5) { float pole=float(idx%4)*(tau/4.0); return base+pole+float(idx/4)*0.18; }
+  return base + fi * 2.39996; // golden angle (smart)
+}
+vec3 stop_color(int idx, int N, int relType) {
+  float t = (N > 1) ? float(idx) / float(N - 1) : 0.5;
+  float L = clamp(mix(0.12, 0.88, t) + (uParams.x - 0.5) * 0.5, 0.04, 0.96);
+  float C = uParams.y * 0.34;
+  float H = base_hue(idx, N, relType, uParams.z);
+  return lin_to_srgb(oklab_to_linear(L, C*cos(H), C*sin(H)));
+}
+void main() {
+  float luma  = dot(texture(u_video, vUV).rgb, vec3(0.299, 0.587, 0.114));
+  int packed  = int(uParam4);
+  int N       = max(packed / 10, 4);
+  int relType = clamp(packed - N * 10, 0, 5);
+  float pos = luma * float(N - 1);
+  int i0 = clamp(int(floor(pos)), 0, N - 1);
+  int i1 = min(i0 + 1, N - 1);
+  fragColor = vec4(mix(stop_color(i0, N, relType), stop_color(i1, N, relType), fract(pos)), 1.0);
+}`;
+
 export const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
@@ -2523,6 +2580,7 @@ export const FRAGS = {
   csadjust:     FRAG_CSADJUST,
   halftone:     FRAG_HALFTONE,
   kuwahara:     FRAG_KUWAHARA,
+  okdrift:      FRAG_OKDRIFT,
 };
 
 // ---- WebGL helpers ----

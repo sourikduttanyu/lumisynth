@@ -100,13 +100,11 @@
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"  aria-label="No structure" data-tip="No structure stage. Video passes through to the COLOR stage unchanged."><span>None</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii" aria-label="ASCII shader" data-tip="STRUCTURE. ASCII art. Replaces video with a grid of 5×7 bitmap characters; denser glyphs for brighter regions."><span>ASCII</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"     aria-label="Erode/dilate"   data-tip="STRUCTURE. Morphological op. Erode shrinks bright regions; Dilate (mode toggle) grows them. The Edge knob can isolate just the difference as an outline ring."><span>Erode</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="watershed"  aria-label="Watershed"      data-tip="STRUCTURE. Luminance basins with sharp boundaries — each basin settles to a local average. Basin Size, Boundary, Flatness, Depth Tint."><span>Watershed</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort"  aria-label="Pixel Sort"     data-tip="STRUCTURE. Bright pixels cast sharp sorted streak trails. Threshold, Length, Opacity, Direction."><span>PixSort</span></button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"       aria-label="Melt"           data-tip="STRUCTURE. Luminance drips downward like heated wax. Amount, Drip Length, Viscosity, Direction."><span>Melt</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"    aria-label="Frequency Modulation" data-tip="STRUCTURE. FM raster synthesis — scan rows of dots whose wiggle frequency is driven by brightness. Bright areas vibrate into tight ribbons; dark areas rest as sparse dots. Layer with Drag FX."><span>FreqMod</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="motionedge" aria-label="Motion Edge" data-tip="STRUCTURE. Spatial edges + temporal motion (current frame vs ~4 frames back). Still scenes show outlines; anything moving lights up hard."><span>MotionEdge</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dog"        aria-label="Difference of Gaussians" data-tip="STRUCTURE. Difference of Gaussians edge detection — subtracts two Gaussian blurs to isolate contours. Anime line-art in Invert mode, pencil-sketch in Ink mode."><span>DoG</span></button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dither"     aria-label="Bayer Dither" data-tip="STRUCTURE. Bayer 4×4 ordered dithering — quantizes luma to N gray levels via a halftone matrix. Classic print and retro-game aesthetics."><span>Dither</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="motionedge" aria-label="Motion Edge"   data-tip="STRUCTURE. Spatial edges + temporal motion (current frame vs ~4 frames back). Still scenes show outlines; anything moving lights up hard."><span>MotionEdge</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="edgedet"    aria-label="Edge Detect"    data-tip="STRUCTURE. Sobel edge detection. Thresh controls edge sensitivity; Glow sets line hardness; Hue colors the edges; Blend fades from neon-on-source to wireframe."><span>EdgeDet</span></button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dither"     aria-label="Bayer Dither"   data-tip="STRUCTURE. Bayer 4×4 ordered dithering — quantizes luma to N gray levels via a halftone matrix. Classic print and retro-game aesthetics."><span>Dither</span></button>
           </div>
           <div class="section-label" id="lbl-structure-output">Output</div>
           <div class="toggle-group" id="structure-output-group" role="radiogroup" aria-labelledby="lbl-structure-output">
@@ -160,16 +158,6 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="watershed-controls" data-card-effect="watershed" data-mode-section="synth" aria-label="Watershed parameters">
-          <div class="effect-card-header"><div class="effect-card-title">Watershed</div><button class="card-reset-btn" type="button" data-reset-card="watershed" title="Reset Watershed knobs" aria-label="Reset Watershed knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="watershed-basin"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4" aria-label="Watershed Basin Size"       data-tip="Basin size. 0 = tiny pools. 1 = large catchment areas." tabindex="0"><span class="knob-label">Basin</span><span class="knob-val" id="watershed-basin-val">0.4</span></div>
-            <div class="knob" id="watershed-boundary" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Watershed Boundary"          data-tip="Boundary brightness. 0 = subtle dividing lines. 1 = bright sharp boundaries." tabindex="0"><span class="knob-label">Boundary</span><span class="knob-val" id="watershed-boundary-val">0.5</span></div>
-            <div class="knob" id="watershed-flat"     data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Watershed Flatness"          data-tip="Basin flatness. 0 = basins keep internal detail. 1 = flat averaged basins." tabindex="0"><span class="knob-label">Flat</span><span class="knob-val" id="watershed-flat-val">0.5</span></div>
-            <div class="knob" id="watershed-depth"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Watershed Depth Tint"        data-tip="Depth tint. 0 = uniform basins. 1 = basins tinted by their depth value." tabindex="0"><span class="knob-label">Depth</span><span class="knob-val" id="watershed-depth-val">0</span></div>
-          </div>
-        </section>
-
         <section class="effect-card hidden" id="pixelsort-controls" data-card-effect="pixelsort" data-mode-section="synth" aria-label="Pixel Sort parameters">
           <div class="effect-card-header"><div class="effect-card-title">Pixel Sort</div><button class="card-reset-btn" type="button" data-reset-card="pixelsort" title="Reset Pixel Sort knobs" aria-label="Reset Pixel Sort knobs">×</button></div>
           <div class="control-stack">
@@ -194,17 +182,6 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="freqmod-controls" data-card-effect="freqmod" data-mode-section="synth" aria-label="FreqMod parameters">
-          <div class="effect-card-header"><div class="effect-card-title">FreqMod</div><button class="card-reset-btn" type="button" data-reset-card="freqmod" title="Reset FreqMod knobs" aria-label="Reset FreqMod knobs">×</button></div>
-          <div class="knob-grid">
-            <div class="knob" id="freqmod-dir" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0" aria-label="FreqMod Direction" data-tip="Scan direction. Rotates the whole trace field 0–180°. 0 = horizontal rows, 0.5 = vertical columns, 0.25 = diagonal." tabindex="0"><span class="knob-label">Dir</span><span class="knob-val" id="freqmod-dir-val">0</span></div>
-            <div class="knob" id="freqmod-mod"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.6" aria-label="FreqMod Depth" data-tip="Frequency response. How hard brightness drives the oscillation rate. 0 = slow lazy waves everywhere. 1 = bright areas ring at high frequency." tabindex="0"><span class="knob-label">Mod</span><span class="knob-val" id="freqmod-mod-val">0.6</span></div>
-            <div class="knob" id="freqmod-wave" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="FreqMod Wave" data-tip="Wave swing. How far a full-strength signal displaces the trace. Amplitude follows luminance — dark areas always flatline." tabindex="0"><span class="knob-label">Wave</span><span class="knob-val" id="freqmod-wave-val">0.5</span></div>
-            <div class="knob" id="freqmod-thresh" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="FreqMod Threshold" data-tip="Signal gate. Luminance below this shows no trace at all. Raise it to keep only the loudest parts of the image oscillating." tabindex="0"><span class="knob-label">Thresh</span><span class="knob-val" id="freqmod-thresh-val">0.2</span></div>
-            <div class="knob" id="freqmod-density" data-knob data-min="60" data-max="300" data-step="1" data-default="240" aria-label="FreqMod Density" data-tip="Line density. Number of horizontal scan rows the image is sliced into. 60 = chunky thick traces. 300 = fine dense lines. 240 = default." tabindex="0"><span class="knob-label">Density</span><span class="knob-val" id="freqmod-density-val">240</span></div>
-          </div>
-        </section>
-
         <section class="effect-card hidden" id="motionedge-controls" data-card-effect="motionedge" data-mode-section="synth" aria-label="MotionEdge parameters">
           <div class="effect-card-header"><div class="effect-card-title">MotionEdge</div><button class="card-reset-btn" type="button" data-reset-card="motionedge" title="Reset MotionEdge knobs" aria-label="Reset MotionEdge knobs">×</button></div>
           <div class="knob-grid">
@@ -215,13 +192,14 @@
           </div>
         </section>
 
-        <section class="effect-card hidden" id="dog-controls" data-card-effect="dog" data-mode-section="synth" aria-label="DoG parameters">
-          <div class="effect-card-header"><div class="effect-card-title">DoG</div><button class="card-reset-btn" type="button" data-reset-card="dog" title="Reset DoG knobs" aria-label="Reset DoG knobs">×</button></div>
+
+        <section class="effect-card hidden" id="edgedet-controls" data-card-effect="edgedet" data-mode-section="synth" aria-label="EdgeDet parameters">
+          <div class="effect-card-header"><div class="effect-card-title">EdgeDet</div><button class="card-reset-btn" type="button" data-reset-card="edgedet" title="Reset EdgeDet knobs" aria-label="Reset EdgeDet knobs">×</button></div>
           <div class="knob-grid">
-            <div class="knob" id="dog-radius"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.35" aria-label="DoG Radius"     data-tip="Blur radius 1–6px. Larger = coarser, wider edges." tabindex="0"><span class="knob-label">Radius</span><span class="knob-val" id="dog-radius-val">0.35</span></div>
-            <div class="knob" id="dog-thresh"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.18" aria-label="DoG Threshold"   data-tip="Edge threshold. Raise to keep only strong contours." tabindex="0"><span class="knob-label">Thresh</span><span class="knob-val" id="dog-thresh-val">0.18</span></div>
-            <div class="knob" id="dog-sharp"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5"  aria-label="DoG Sharpness"   data-tip="Edge hardness. 0 = soft gradient. 1 = crisp hard line." tabindex="0"><span class="knob-label">Sharp</span><span class="knob-val" id="dog-sharp-val">0.5</span></div>
-            <div class="knob" id="dog-k"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.4"  aria-label="DoG K ratio"     data-tip="Sigma ratio between the two Gaussians. Low = thin crisp edges. High = fat halo rings." tabindex="0"><span class="knob-label">K</span><span class="knob-val" id="dog-k-val">0.4</span></div>
+            <div class="knob" id="edgedet-thresh" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3"  aria-label="EdgeDet Threshold" data-tip="Edge detection threshold. Lower = more edges found. Higher = only strong contours." tabindex="0"><span class="knob-label">Thresh</span><span class="knob-val" id="edgedet-thresh-val">0.3</span></div>
+            <div class="knob" id="edgedet-glow"   data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5"  aria-label="EdgeDet Glow" data-tip="Edge line softness. 0 = wide diffuse glow. 1 = sharp fine lines." tabindex="0"><span class="knob-label">Glow</span><span class="knob-val" id="edgedet-glow-val">0.5</span></div>
+            <div class="knob" id="edgedet-hue"    data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.15" aria-label="EdgeDet Hue" data-tip="Edge color hue (0–1 = 0–360°). Sweep for neon green, electric blue, hot pink." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="edgedet-hue-val">0.15</span></div>
+            <div class="knob" id="edgedet-blend"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.1"  aria-label="EdgeDet Blend" data-tip="0 = neon edges overlaid on source. 1 = edges only on black (wireframe)." tabindex="0"><span class="knob-label">Blend</span><span class="knob-val" id="edgedet-blend-val">0.1</span></div>
           </div>
         </section>
 
@@ -243,6 +221,7 @@
             <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   id="tab-btn-maps"   aria-controls="color-tab-maps"   data-tip="The map library — pure per-pixel color shaders, one click each.">Maps</button>
             <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" id="tab-btn-unique" aria-controls="color-tab-unique" data-tip="Unique effects — shaders that build something: atmosphere, light phenomena, depth. Grouped by category.">Unique</button>
             <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" id="tab-btn-custom" aria-controls="color-tab-custom" data-tip="ChromaEngine — build your own 4-stop color ramp and pick what drives it.">Custom</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="proc"   id="tab-btn-proc"   aria-controls="color-tab-proc"   data-tip="Procedural — generative OKLCH palette that drifts and snaps across N color stops.">Proc</button>
           </div>
 
           <!-- MAPS tab: swatch grid + knobs for the selected map. Grid is
@@ -269,6 +248,11 @@
             <div class="section-label" id="lbl-chroma-stops">Ramp stops</div>
             <div class="color-picker-row ink-color-row" id="chroma-stop-row" aria-labelledby="lbl-chroma-stops"></div>
             <div id="chroma-knob-panel"></div>
+          </div>
+
+          <!-- PROC tab: okdrift OKLCH palette generator — knobs built by JS on tab activate. -->
+          <div id="color-tab-proc" class="hidden color-source-tab" role="tabpanel" aria-labelledby="tab-btn-proc" tabindex="0">
+            <div id="color-proc-knob-panel"></div>
           </div>
 
           <!-- GRADE: always-on post pass over whatever color is selected
@@ -436,13 +420,11 @@
           <div class="toggle-group filter-swatch-group" id="blob-structure-group" role="radiogroup" aria-labelledby="lbl-blob-structure">
             <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="none"      data-tip="No STRUCTURE pass — raw blob region passes through to color.">None</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="erode"     data-tip="BLOB STRUCT. Morphological erode/dilate + edge ring inside blob region.">Erode</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="watershed" data-tip="BLOB STRUCT. Watershed segmentation inside blob region.">Shed</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort" data-tip="BLOB STRUCT. Pixel sort inside blob region.">PixSort</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"      data-tip="BLOB STRUCT. Melt drip inside blob region.">Melt</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"   data-tip="BLOB STRUCT. FM oscillography inside blob region.">FreqMod</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii"      data-tip="BLOB STRUCT. ASCII art inside blob region.">ASCII</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="motionedge" data-tip="BLOB STRUCT. Spatial edge extraction inside blob region. (Motion component unavailable in blob mode.)">Edges</button>
-            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dog"        data-tip="BLOB STRUCT. DoG edge detection inside blob region.">DoG</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="edgedet"    data-tip="BLOB STRUCT. Sobel edge detection with color hue inside blob region.">EdgeDet</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dither"     data-tip="BLOB STRUCT. Bayer dithering inside blob region.">Dither</button>
           </div>
         </section>
