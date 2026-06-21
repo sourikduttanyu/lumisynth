@@ -54,9 +54,9 @@ export const DEFAULTS = Object.freeze({
   //   colorSat 0..1 with 0.5 = neutral → 0..2× saturation.
   // - perBlob: 'none' | 'inv' | 'thermal' (legacy holding pen)
   structure: 'none', structureOutputMode: 'mono', perBlob: 'none',
-  color: 'none', colorHue: 0, colorSat: 0.5,
+  color: 'none', colorHue: 0, colorSat: 0.5, colorHueRange: 0, colorHueRate: 0,
   inkBlackHex: '#0a0908', inkCreamHex: '#ebe0c7',
-  asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9,
+  asciiCellSize: 0.3, asciiContrast: 0.3, asciiBlackThresh: 0.2, asciiGlyphStrength: 0.9, asciiEdgeThreshold: 0.0,
   erodeMode: 0,       erodeRadius: 0.3,    erodeStrength: 0.7,    erodeEdge: 0.0,
   watershedBasin: 0.4, watershedBoundary: 0.5, watershedFlat: 0.5, watershedDepth: 0.0,
   pixelsortThresh: 0.4, pixelsortLength: 0.3, pixelsortOpacity: 0.8, pixelsortDir: 0.5,
@@ -77,13 +77,17 @@ export const DEFAULTS = Object.freeze({
   //   trackChannel:    'motion' | 'luma' | 'dark' | 'sat' | 'edge' | 'sharp'
   //   threshold        10..100 — direct detection threshold passed to blobDetector
   //   trackMinSize     4..200 px (in source pixels) — passed to blobDetector
-  //   trackStability   0..1   — feeds the one-euro smoother
+  //   trackStability   0..1 — one-euro minCutoff (position jitter at rest)
+  //   trackAttack      0..1 — presence rise speed (how fast blobs appear)
+  //   trackRelease     0..1 — presence fall speed (how long ghosts linger)
   //   trackMaxBlobs    5..30  — max blobs returned per frame
   //   updateInterval   1..30  — run detection every N frames (1 = every frame)
   trackChannel: 'motion',
   threshold: 30,
   trackMinSize: 8,
   trackStability: 0,
+  trackAttack: 0.5,
+  trackRelease: 0.1,
   trackMaxBlobs: 12,
   updateInterval: 1,
   // Color-key mode: hex string '#rrggbb'. Only active when trackChannel='color'.
@@ -119,7 +123,7 @@ export const DEFAULTS = Object.freeze({
   // blobStructureParams and blobColorParams are object-valued (not in DEFAULTS).
   blobSynthEnabled: false,
   blobStructure: 'none', blobStructureOutputMode: 'mono',
-  blobColor: 'none', blobColorHue: 0, blobColorSat: 0.5,
+  blobColor: 'none', blobColorHue: 0, blobColorSat: 0.5, blobColorHueRange: 0, blobColorHueRate: 0,
   blobComposite: 'screen',
   blobInkBlackHex: '#0a0908', blobInkCreamHex: '#ebe0c7',
 });
@@ -456,6 +460,17 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['sat', 'red', 'glow', 'boost'],
   },
+  okband: {
+    knobs: [
+      { key: 'bands',  label: 'Bands',  min: 0, max: 1, step: 0.01, default: 0.42, tip: 'Number of luma bands (2-8). Each band maps to an equidistant OKLCH hue — 2=complementary, 3=triadic, 4=tetradic, etc.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.60, tip: 'Rotates the entire palette around the OKLCH wheel. All bands stay equidistant — the whole harmony cycles together. With Rate > 0, acts as a phase offset.' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.65, tip: 'Palette saturation. 0 = greyscale bands. 1 = vivid OKLCH chroma.' },
+      { key: 'dither', label: 'Dither', min: 0, max: 1, step: 0.01, default: 0.40, tip: 'Bayer 4×4 dither on the luma quantization. Softens hard band edges into an organic halftone texture.' },
+      { key: 'rate',   label: 'Rate',   min: 0, max: 1, step: 0.01, default: 0.00, tip: 'Auto-cycle speed. 0 = static. Each tick jumps the palette by one band step — ~0.5 syncs to 120 BPM, low values let it flow.' },
+    ],
+    toggles: [],
+    order: ['bands', 'hue', 'chroma', 'dither', 'rate'],
+  },
   // CUSTOM tab — the ChromaEngine. User-built 4-stop color ramp + a driver
   // select choosing which scalar feeds the ramp. The 4 stops are hex strings
   // in `colors` (passed to the shader as vec3 uniforms via opts.stops, same
@@ -498,6 +513,17 @@ export const COLOR_PARAM_SCHEMAS = {
 // COLOR_PARAM_SCHEMAS.
 // ============================================================
 export const FX_PARAM_SCHEMAS = {
+  rgbdelay: {
+    feedback: true,
+    knobs: [
+      { key: 'delay',  label: 'Delay',  min: 0, max: 1, step: 0.01, default: 0.75, tip: 'Master channel persistence. How long each colour is held in the buffer. 0 = no memory. Near 1 = near-infinite trail.' },
+      { key: 'spread', label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Channel divergence. R decays fastest (shortest delay), B slowest (longest). 0 = all channels equal. 1 = maximum separation.' },
+      { key: 'drift',  label: 'Drift',  min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Spatial drift. R and B sample the feedback buffer at slowly orbiting offsets — on motion this pulls each colour into its own ghost halo.' },
+      { key: 'srcMix', label: 'Src',    min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Source blend. Fades the live image over the delayed channels. 0 = pure delay output. 1 = fully live.' },
+    ],
+    toggles: [],
+    order: ['delay', 'spread', 'drift', 'srcMix'],
+  },
   tunnel: {
     feedback: true,
     knobs: [
@@ -655,12 +681,23 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['amount', 'size', 'shadow', 'color'],
   },
+  okband: {
+    knobs: [
+      { key: 'bands',  label: 'Bands',  min: 0, max: 1, step: 0.01, default: 0.42, tip: 'Number of luma bands (2-8). Each band maps to an equidistant OKLCH hue.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.60, tip: 'Rotates the entire palette around the OKLCH wheel. Acts as phase offset when Rate > 0.' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.65, tip: 'Palette saturation. 0 = greyscale bands. 1 = vivid OKLCH chroma.' },
+      { key: 'dither', label: 'Dither', min: 0, max: 1, step: 0.01, default: 0.40, tip: 'Bayer 4×4 dither on the luma quantization. Softens hard band edges.' },
+      { key: 'rate',   label: 'Rate',   min: 0, max: 1, step: 0.01, default: 0.00, tip: 'Auto-cycle speed. 0 = static. Each tick jumps the palette by one band step — ~0.5 syncs to 120 BPM.' },
+    ],
+    toggles: [],
+    order: ['bands', 'hue', 'chroma', 'dither', 'rate'],
+  },
 };
 
 export const FX_SECTIONS = [
-  'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
+  'rgbdelay', 'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
   'bloom', 'godrays', 'decayflow', 'feedbackwarp',
-  'crt', 'crtrolling', 'scanlines', 'degrade', 'noise',
+  'crt', 'crtrolling', 'scanlines', 'degrade', 'noise', 'okband',
 ];
 
 // ============================================================
@@ -722,7 +759,7 @@ export const COLOR_UNIQUE_SECTIONS = [
   { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin', 'hologram'] },
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
   { key: 'deepsea',    label: 'Deep Sea',   effects: ['octopus'] },
-  { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint', 'sketch'] },
+  { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint', 'sketch', 'okband'] },
   { key: 'motion',     label: 'Motion',     effects: ['predator'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
@@ -747,6 +784,7 @@ export const BLEND_MODES = {
   freqmod:      'source-over',
   motionedge:   'source-over',
   predator:     'source-over',
+  rgbdelay:     'source-over',
   tunnel:       'source-over',
   burnin:       'source-over',
   wobbletape:   'source-over',
@@ -791,6 +829,7 @@ export const BLEND_MODES = {
   scanlines:    'source-over',
   degrade:      'source-over',
   crt:          'source-over',
+  okband:       'source-over',
   chroma:       'source-over',
   // Internal GRADE pass (hue rotate + saturation) — auto-appended after the
   // COLOR stage by resolveActivePipeline; never appears in any picker.
@@ -909,16 +948,32 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'density', label: 'Density', min: 120, max: 300, step: 1, default: 240, control: 'slider', tip: 'Scan line density (rows).' },
     ],
   },
+  ascii: {
+    toggles: [],
+    knobs: [
+      { key: 'cellSize',  label: 'Cell',    min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Character cell size (10–32px). Smaller = denser grid.' },
+      { key: 'contrast',  label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Gamma contrast on per-cell luma.' },
+      { key: 'blackThresh',label: 'Black',  min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Cells darker than this render as solid black.' },
+      { key: 'glyph',     label: 'Glyph',   min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Blend luma blocks→glyphs. 1 = full ASCII characters.' },
+    ],
+  },
+  motionedge: {
+    toggles: [],
+    knobs: [
+      { key: 'edge',   label: 'Edge',   min: 0, max: 1,  step: 0.01, default: 0.5,  tip: 'Spatial edge gain. Detects contours inside the blob.' },
+      { key: 'motion', label: 'Motion', min: 0, max: 1,  step: 0.01, default: 0.6,  tip: 'Motion gain — how much temporal diff contributes to output.' },
+      { key: 'thresh', label: 'Thresh', min: 0, max: 1,  step: 0.01, default: 0.15, tip: 'Signal floor. Raise to keep only strong edges/motion.' },
+      { key: 'boost',  label: 'Boost',  min: 0, max: 1,  step: 0.01, default: 0.5,  tip: 'Output brightness.' },
+      { key: 'rate',   label: 'Frames', min: 0, max: 10, step: 1, default: 0, control: 'slider', tip: 'Frame diff gap. 0 = edges only (no motion). 1 = compare to 1 frame ago. 10 = compare to 10 frames ago — slow movement lights up.' },
+    ],
+  },
 };
 
 export const BLOB_STRUCTURE_SECTIONS = Object.keys(BLOB_STRUCTURE_PARAM_SCHEMAS);
 
-// Stateless-only FX sections for the blob FX rack — excludes feedback effects
-// (flowfield, drag, lumadrag, tunnel, burnin, wobbletape) which need per-blob
-// frame history that the blob pipeline doesn't maintain.
-export const BLOB_FX_SECTIONS = FX_SECTIONS.filter(
-  (n) => !FX_PARAM_SCHEMAS[n]?.feedback
-);
+// All FX effects available in the blob FX rack (feedback effects supported via
+// per-slot ping-pong FBOs managed in glBlobPipeline.js).
+export const BLOB_FX_SECTIONS = FX_SECTIONS;
 
 export function makeBlobStructureParams(effectName) {
   const schema = BLOB_STRUCTURE_PARAM_SCHEMAS[effectName];

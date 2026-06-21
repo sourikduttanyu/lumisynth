@@ -297,6 +297,48 @@ void main() {
   fragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
 }`;
 
+// RGB DELAY — three-channel feedback with per-channel persistence.
+// R decays fastest (short delay), B decays slowest (long delay).
+// On motion the channels split into separate chromatic ghost trails.
+// uParams: x=delay (master persistence), y=spread (R↔B divergence),
+//          z=drift (spatial orbit of channel samples), w=srcMix (live→delay blend)
+const FRAG_RGBDELAY = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+uniform float uTime;
+out vec4 fragColor;
+void main() {
+  vec2 uv  = vUV;
+  vec3 src = texture(u_video, uv).rgb;
+
+  // Drift: R and B sample feedback at slowly orbiting UV offsets.
+  // Motion separates the channels into chromatic ghost halos.
+  float drift = uParams.z * 0.014;
+  float ang   = uTime * 0.4;
+  vec2 rOff = vec2( cos(ang),  sin(ang)) * drift;
+  vec2 bOff = vec2(-cos(ang), -sin(ang)) * drift;
+
+  float rPrev = texture(u_feedback, clamp(uv + rOff, 0.0, 1.0)).r;
+  float gPrev = texture(u_feedback, uv).g;
+  float bPrev = texture(u_feedback, clamp(uv + bOff, 0.0, 1.0)).b;
+
+  // Per-channel decay: spread makes R shorter-lived, B longer-lived.
+  float hs     = uParams.y * 0.4;
+  float rDecay = clamp(uParams.x - hs, 0.0, 0.98);
+  float gDecay = clamp(uParams.x,      0.0, 0.98);
+  float bDecay = clamp(uParams.x + hs, 0.0, 0.98);
+
+  vec3 delayed = vec3(
+    mix(src.r, rPrev, rDecay),
+    mix(src.g, gPrev, gDecay),
+    mix(src.b, bPrev, bDecay)
+  );
+  fragColor = vec4(clamp(mix(delayed, src, uParams.w), 0.0, 1.0), 1.0);
+}`;
+
 // Passthrough copy: feedback write-buffer → chain output. Needed because the
 // new feedback state must land in a persistent texture AND in the chain, and
 // one draw can only target one framebuffer.
@@ -309,7 +351,8 @@ void main() {
   fragColor = texture(u_video, vUV);
 }`;
 
-const FX_FRAGS = {
+export const FX_FRAGS = {
+  rgbdelay:   FRAG_RGBDELAY,
   flowfield:  FRAG_FLOWFIELD,
   drag:       FRAG_DRAG,
   lumadrag:   FRAG_LUMADRAG,

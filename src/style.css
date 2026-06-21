@@ -1614,6 +1614,27 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   transition: background var(--duration-base) var(--ease-out);
 }
 #btn-play:hover { background: var(--surface-hover); }
+#btn-mute {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-key);
+  width: 44px; height: 44px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--duration-base) var(--ease-out);
+}
+#btn-mute:hover { background: var(--surface-hover); }
+#btn-mute.muted {
+  background: var(--orange-signal);
+  color: var(--knob-cap-black);
+  border-color: var(--orange-signal);
+  text-decoration: line-through;
+}
 .video-time {
   font-size: 10px;
   color: var(--text-muted);

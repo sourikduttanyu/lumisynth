@@ -8,6 +8,7 @@
  */
 
 import { ensureContext, getGL, getVideoTex, getMotionTex } from './glContext.js';
+import { ASCII_FRAG } from './ascii.js';
 
 export const VERT = `#version 300 es
 in vec2 a_pos;
@@ -1329,6 +1330,46 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+// OKBAND — luma-to-OKLCH hue mapper with posterized bands and Bayer dithering.
+// Each luma band maps to an equidistant OKLCH hue, auto-generating harmonious
+// palettes from the scene. Hue rotates all band colors together (equidistant
+// spacing stays intact so the whole harmony cycles). Dither adds Bayer 4×4
+// threshold noise to the luma quantization, softening hard band edges.
+// uParams: x=Bands (2-8), y=Hue (0-1), z=Chroma (0-1), w=Dither
+// uParam4: Rate — auto-cycles hue by one band step per tick; quadratic speed
+// so mid-knob (~0.5) lands near 120 BPM. Rate=0 is fully static.
+const FRAG_OKBAND = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uTime;
+uniform float uParam4;
+out vec4 fragColor;
+vec3 linToSrgb(vec3 c){return pow(max(c,vec3(0.0)),vec3(1.0/2.2));}
+vec3 labToLin(vec3 c){
+  vec3 m=vec3(dot(vec3(1.0,0.3963377774,0.2158037573),c),dot(vec3(1.0,-0.1055613458,-0.0638541728),c),dot(vec3(1.0,-0.0894841775,-1.2914855480),c));
+  m=m*m*m;
+  return vec3(dot(vec3(4.0767416621,-3.3077115913,0.2309699292),m),dot(vec3(-1.2684380046,2.6097574011,-0.3413193965),m),dot(vec3(-0.0041960863,-0.7034186147,1.7076147010),m));
+}
+float bayer4(ivec2 p){
+  int x=p.x&3,y=p.y&3,xy=x^y;
+  return float((xy&1)*8+(y&1)*4+((xy>>1)&1)*2+((y>>1)&1))/16.0-0.5;
+}
+void main(){
+  vec3 src=texture(u_video,vUV).rgb;
+  float luma=dot(src,vec3(0.299,0.587,0.114));
+  float n=floor(mix(2.0,8.0,uParams.x)+0.5);
+  float dith=bayer4(ivec2(gl_FragCoord.xy))*uParams.w/n;
+  float bandF=clamp(floor(clamp(luma+dith,0.0,0.9999)*n),0.0,n-1.0);
+  float speed=uParam4*uParam4*1.5;
+  float ticks=floor(uTime*speed*n);
+  float h=fract(uParams.y+ticks/n+bandF/n)*6.28318530718;
+  float L=mix(0.30,0.75,(bandF+0.5)/n);
+  float C=uParams.z*0.35;
+  fragColor=vec4(linToSrgb(clamp(labToLin(vec3(L,C*cos(h),C*sin(h))),0.0,1.0)),1.0);
+}`;
+
 // POLAROID 600 — instant-film chemistry. Cyan-green shadows, warm yellowed
 // highlights, milky lifted blacks, corner vignette. The shoebox-photo grade.
 // uParams: x=Age, y=Chemistry (cool→warm), z=Milk, w=Vignette
@@ -1761,21 +1802,63 @@ void main() {
 // Auto-appended after the selected color (or alone, grading raw video) by
 // resolveActivePipeline; never appears in a picker.
 // uParams.x = hue rotation (0..1 → 0..360°), y = saturation (0.5 neutral → 0..2×).
+// Hue rotation uses OKLCH (perceptually uniform): sRGB → OKLab → shift H → sRGB.
+// Near-grey pixels (C≈0) are unaffected — grey stays grey. Equal knob steps
+// produce equal-looking hue shifts across all colours and saturations.
 const FRAG_GRADE = `#version 300 es
 precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
+uniform float uTime;
 out vec4 fragColor;
 void main() {
-  vec3 col = texture(u_video, vUV).rgb;
-  float angle = uParams.x * 6.2831853;
-  // Hue rotation about the luma axis (Rodrigues on the grey diagonal).
-  float c = cos(angle), s = sin(angle);
-  vec3 k = vec3(0.57735);
-  col = col * c + cross(k, col) * s + k * dot(k, col) * (1.0 - c);
-  float lum = dot(col, vec3(0.299,0.587,0.114));
+  vec3 srgb = texture(u_video, vUV).rgb;
+
+  // sRGB → linear (gamma 2.2 approx)
+  vec3 lin = pow(max(srgb, vec3(0.0)), vec3(2.2));
+
+  // linear → OKLab
+  vec3 lms = vec3(
+    dot(vec3(0.4122214708, 0.5363325363, 0.0514459929), lin),
+    dot(vec3(0.2119034982, 0.6806995451, 0.1073969566), lin),
+    dot(vec3(0.0883024619, 0.2817188376, 0.6299787005), lin)
+  );
+  lms = pow(max(lms, vec3(0.0)), vec3(1.0/3.0));
+  vec3 lab = vec3(
+    dot(vec3( 0.2104542553,  0.7936177850, -0.0040720468), lms),
+    dot(vec3( 1.9779984951, -2.4285922050,  0.4505937099), lms),
+    dot(vec3( 0.0259040371,  0.7827717662, -0.8086757660), lms)
+  );
+
+  // Rotate H in OKLCH; C and L unchanged so greys are unaffected
+  // uParams.z = Range (max swing from base hue, 0-1 = 0-360°)
+  // uParams.w = Rate  (speed: 0=still, low=sliding, high=jumping; rate²×6 Hz)
+  float speed = uParams.w * uParams.w * 6.0;
+  float swing = sin(uTime * speed * 6.28318) * uParams.z;
+  float chroma = length(lab.yz);
+  float h = atan(lab.z, lab.y) + (uParams.x + swing) * 6.28318;
+  lab.y = chroma * cos(h);
+  lab.z = chroma * sin(h);
+
+  // OKLab → linear → sRGB
+  vec3 m = vec3(
+    dot(vec3(1.0,  0.3963377774,  0.2158037573), lab),
+    dot(vec3(1.0, -0.1055613458, -0.0638541728), lab),
+    dot(vec3(1.0, -0.0894841775, -1.2914855480), lab)
+  );
+  m = m * m * m;
+  lin = vec3(
+    dot(vec3( 4.0767416621, -3.3077115913,  0.2309699292), m),
+    dot(vec3(-1.2684380046,  2.6097574011, -0.3413193965), m),
+    dot(vec3(-0.0041960863, -0.7034186147,  1.7076147010), m)
+  );
+  vec3 col = pow(max(lin, vec3(0.0)), vec3(1.0/2.2));
+
+  // Saturation: luma-weighted blend in sRGB (0.5 = neutral, same as before)
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(lum), col, clamp(uParams.y * 2.0, 0.0, 2.0));
+
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
@@ -1887,6 +1970,7 @@ export const FRAGS = {
   thermo:       FRAG_THERMO,
   falsecolor:   FRAG_FALSECOLOR,
   // STRUCTURE additions
+  ascii:        ASCII_FRAG,
   watershed:    FRAG_WATERSHED,
   pixelsort:    FRAG_PIXELSORT,
   melt:         FRAG_MELT,
@@ -1916,6 +2000,7 @@ export const FRAGS = {
   surveil:      FRAG_SURVEIL,
   newsprint:    FRAG_NEWSPRINT,
   sketch:       FRAG_SKETCH,
+  okband:       FRAG_OKBAND,
   polaroid:     FRAG_POLAROID,
   blacklight:   FRAG_BLACKLIGHT,
   dreamstatic:  FRAG_DREAMSTATIC,

@@ -173,7 +173,10 @@ function drawShapes(ctx, blobs, S) {
   ctx.strokeStyle = stroke;
   ctx.fillStyle   = stroke;
   for (const b of blobs) {
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = prevAlpha * (b.presence ?? 1);
     drawOneShape(ctx, b, S);
+    ctx.globalAlpha = prevAlpha;
   }
   ctx.restore();
 }

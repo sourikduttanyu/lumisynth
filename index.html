@@ -129,12 +129,13 @@
           <div class="effect-card-header"><div class="effect-card-title">ASCII</div><button class="card-reset-btn" type="button" data-reset-card="ascii" title="Reset ASCII knobs" aria-label="Reset ASCII knobs">×</button></div>
           <div class="control-stack">
             <div class="slider-stack" aria-label="ASCII range controls">
-              <div class="knob" id="ascii-cell-size"      data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Cell Size"       data-tip="Character cell size in pixels (10-32). Smaller = denser ASCII grid with more characters per frame." tabindex="0"><span class="knob-label">Cell Size</span><span class="knob-val" id="ascii-cell-size-val">0.3</span></div>
-              <div class="knob" id="ascii-black-thresh"   data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="ASCII Black Threshold" data-tip="Black cutoff. Cells darker than this render as solid black (no character). Raise to ink in deeper shadows." tabindex="0"><span class="knob-label">Black</span><span class="knob-val" id="ascii-black-thresh-val">0.2</span></div>
+              <div class="knob" id="ascii-cell-size"       data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Cell Size"        data-tip="Character cell size in pixels (10-32). Smaller = denser ASCII grid with more characters per frame." tabindex="0"><span class="knob-label">Cell Size</span><span class="knob-val" id="ascii-cell-size-val">0.3</span></div>
+              <div class="knob" id="ascii-black-thresh"    data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.2" aria-label="ASCII Black Threshold"  data-tip="Black cutoff. Cells darker than this render as solid black (no character). Raise to ink in deeper shadows." tabindex="0"><span class="knob-label">Black</span><span class="knob-val" id="ascii-black-thresh-val">0.2</span></div>
+              <div class="knob" id="ascii-edge-threshold"  data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.0" aria-label="ASCII Edge Threshold"   data-tip="Sobel edge detection. 0 = no edges. Higher = more contour lines drawn with /, |, \, _ characters at image boundaries." tabindex="0"><span class="knob-label">Edges</span><span class="knob-val" id="ascii-edge-threshold-val">0.0</span></div>
             </div>
             <div class="knob-cluster" aria-label="ASCII tactile controls">
-              <div class="knob" id="ascii-contrast"       data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Contrast"        data-tip="Gamma-style contrast on the per-cell luma sample. Higher = harsher black/white character rendering." tabindex="0"><span class="knob-label">Contrast</span><span class="knob-val" id="ascii-contrast-val">0.3</span></div>
-              <div class="knob" id="ascii-glyph-strength" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.9" aria-label="ASCII Glyph Strength"  data-tip="Blend between raw luma blocks and rendered glyphs. 0 = pure luma squares (no characters). 1 = full ASCII glyphs." tabindex="0"><span class="knob-label">Glyph</span><span class="knob-val" id="ascii-glyph-strength-val">0.9</span></div>
+              <div class="knob" id="ascii-contrast"        data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.3" aria-label="ASCII Contrast"        data-tip="Gamma-style contrast on the per-cell luma sample. Higher = harsher black/white character rendering." tabindex="0"><span class="knob-label">Contrast</span><span class="knob-val" id="ascii-contrast-val">0.3</span></div>
+              <div class="knob" id="ascii-glyph-strength"  data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.9" aria-label="ASCII Glyph Strength"  data-tip="Blend between raw luma blocks and rendered glyphs. 0 = pure luma squares (no characters). 1 = full ASCII glyphs." tabindex="0"><span class="knob-label">Glyph</span><span class="knob-val" id="ascii-glyph-strength-val">0.9</span></div>
             </div>
           </div>
         </section>
@@ -254,6 +255,8 @@
           <div class="knob-cluster" aria-labelledby="lbl-grade">
             <div class="knob" id="color-hue" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Grade Hue Rotate" data-tip="Hue rotation applied after the color stage (0–360°). Spin any map into your blues / violets / magentas. Works even with no color selected." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="color-hue-val">0</span></div>
             <div class="knob" id="color-sat" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Grade Saturation" data-tip="Saturation applied after the color stage. 0.5 = neutral. Below = desaturate toward grey; above = boost up to 2×." tabindex="0"><span class="knob-label">Sat</span><span class="knob-val" id="color-sat-val">0.5</span></div>
+            <div class="knob" id="color-hue-range" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0" aria-label="Grade Hue Range" data-tip="Max hue swing from the base Hue knob (0 = off, 1 = full ±360° arc). Rate must be > 0 to animate." tabindex="0"><span class="knob-label">Range</span><span class="knob-val" id="color-hue-range-val">0</span></div>
+            <div class="knob" id="color-hue-rate" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0" aria-label="Grade Hue Rate" data-tip="Animation speed within the set Range. 0 = still. Scales as rate²×6 Hz — low values slide the hue slowly, high values snap it hard between the Range extremes." tabindex="0"><span class="knob-label">Rate</span><span class="knob-val" id="color-hue-rate-val">0</span></div>
           </div>
         </section>
 
@@ -318,7 +321,17 @@
             <div class="knob" id="track-max-blobs"  data-knob data-control="slider" data-state="trackMaxBlobs"   data-min="5"   data-max="30"  data-step="1"    data-default="12"  aria-label="Max Blobs"                         data-tip="Maximum blobs tracked per frame (5–30).">                                                                           <span class="knob-label">Max Blobs</span><span class="knob-val" id="track-max-blobs-val">12</span></div>
             <div class="knob" id="update-interval"  data-knob data-control="slider" data-state="updateInterval"  data-min="1"   data-max="30"  data-step="1"    data-default="1"   aria-label="Update Interval (frames)"          data-tip="Run detection every N frames. 1 = every frame (most responsive). Higher = cheaper, less reactive.">                  <span class="knob-label">Interval</span><span class="knob-val" id="update-interval-val">1</span></div>
             <div class="knob" id="track-min-size"   data-knob data-control="slider" data-state="trackMinSize"    data-min="4"   data-max="200" data-step="1"    data-default="8"   aria-label="Min Size (px)"                     data-tip="Smallest blob bbox side tracked, in source pixels. Below this, blobs are dropped.">                                  <span class="knob-label">Min Size</span><span class="knob-val" id="track-min-size-val">8</span></div>
-            <div class="knob" id="track-stability"  data-knob data-control="slider" data-state="trackStability"  data-min="0"   data-max="1"   data-step="0.01" data-default="0"   aria-label="Stability"                         data-tip="Temporal smoothing (One Euro Filter). 0 = raw. High = smooth, low-lag adaptive.">                                   <span class="knob-label">Stability</span><span class="knob-val" id="track-stability-val">0</span></div>
+          </div>
+        </section>
+
+        <!-- ============ SMOOTH (TRACK only) ============ -->
+        <div class="stage-divider" role="heading" aria-level="3" data-mode-section="track">SMOOTH <span class="stage-sub">temporal</span></div>
+
+        <section class="control-section" data-mode-section="track">
+          <div class="slider-stack">
+            <div class="knob" id="track-stability" data-knob data-control="slider" data-state="trackStability" data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Smooth"   data-tip="Position jitter smoothing (One Euro minCutoff). 0 = raw Kalman output. Dial up to stabilise fidgety blob positions without affecting appear/disappear speed."><span class="knob-label">Smooth</span><span class="knob-val" id="track-stability-val">0</span></div>
+            <div class="knob" id="track-attack"    data-knob data-control="slider" data-state="trackAttack"    data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Attack"   data-tip="How fast a newly detected blob rises to full presence. 0 = very slow fade-in. 1 = instant snap. Low values make blobs materialise gradually."><span class="knob-label">Attack</span><span class="knob-val" id="track-attack-val">0.5</span></div>
+            <div class="knob" id="track-release"   data-knob data-control="slider" data-state="trackRelease"   data-min="0" data-max="1" data-step="0.01" data-default="0.1" aria-label="Release"  data-tip="How long a blob lingers after it stops being detected. 0 = very long ghost trail. 1 = fast fade. Dial down for persistent ghosting of fast-moving subjects."><span class="knob-label">Release</span><span class="knob-val" id="track-release-val">0.1</span></div>
           </div>
         </section>
 
@@ -405,6 +418,8 @@
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="pixelsort" data-tip="BLOB STRUCT. Pixel sort inside blob region.">PixSort</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="melt"      data-tip="BLOB STRUCT. Melt drip inside blob region.">Melt</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"   data-tip="BLOB STRUCT. FM oscillography inside blob region.">FreqMod</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="ascii"      data-tip="BLOB STRUCT. ASCII art inside blob region.">ASCII</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="motionedge" data-tip="BLOB STRUCT. Spatial edge extraction inside blob region. (Motion component unavailable in blob mode.)">Edges</button>
           </div>
         </section>
 
@@ -468,6 +483,8 @@
           <div class="knob-cluster" aria-labelledby="lbl-blob-grade">
             <div class="knob" id="blob-color-hue" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Blob Grade Hue Rotate" data-tip="Hue rotation on blob output (0–360°)." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="blob-color-hue-val">0</span></div>
             <div class="knob" id="blob-color-sat" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0.5" aria-label="Blob Grade Saturation" data-tip="Saturation on blob output. 0.5 = neutral." tabindex="0"><span class="knob-label">Sat</span><span class="knob-val" id="blob-color-sat-val">0.5</span></div>
+            <div class="knob" id="blob-color-hue-range" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0" aria-label="Blob Grade Hue Range" data-tip="Max hue swing from the base Hue value (0 = off, 1 = ±360°). Rate must be > 0 to animate." tabindex="0"><span class="knob-label">Range</span><span class="knob-val" id="blob-color-hue-range-val">0</span></div>
+            <div class="knob" id="blob-color-hue-rate" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0" aria-label="Blob Grade Hue Rate" data-tip="Animation speed within the set Range. 0 = still. Low = slow sliding, high = fast jumping." tabindex="0"><span class="knob-label">Rate</span><span class="knob-val" id="blob-color-hue-rate-val">0</span></div>
           </div>
         </section>
 
@@ -529,6 +546,7 @@
           <div id="timeline-panel" class="timeline-panel hidden" aria-label="Playback and timeline segments">
             <div class="timeline-bar">
               <button id="btn-play" type="button" aria-label="Play / pause">▶</button>
+              <button id="btn-mute" type="button" aria-label="Mute video audio">♪</button>
               <div id="timeline-track" class="timeline-track" data-tip="Click or drag to scrub. Drag a segment to move it; drag its edges to retime it.">
                 <div id="timeline-playhead" class="timeline-playhead" aria-hidden="true"></div>
               </div>

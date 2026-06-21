@@ -15,7 +15,8 @@ void main() {
 }`;
 
 // uParams: x=CellSize, y=Contrast, z=BlackThreshold, w=GlyphStrength
-const ASCII_FRAG = `#version 300 es
+// uEdgeThreshold: 0=no edges, 1=maximum edge sensitivity
+export const ASCII_FRAG = `#version 300 es
 precision highp float;
 precision highp int;
 in vec2 vUV;
@@ -24,6 +25,7 @@ uniform vec4 uParams;
 uniform float uOutputMode;
 uniform vec3 uInkLow;
 uniform vec3 uInkHigh;
+uniform float uEdgeThreshold;
 out vec4 fragColor;
 
 float luma(vec3 rgb) {
@@ -87,6 +89,19 @@ bool pix(int c, int cx, int cy) {
   else if (c == 23) { if (cy==0) row=0x0A; else if (cy==1) row=0x1F; else if (cy==2) row=0x0A; else if (cy==3) row=0x0A; else if (cy==4) row=0x1F; else if (cy==5) row=0x0A; else if (cy==6) row=0x0A; } // #
   else if (c == 24) { if (cy==0) row=0x19; else if (cy==1) row=0x1A; else if (cy==2) row=0x04; else if (cy==3) row=0x04; else if (cy==4) row=0x0B; else if (cy==5) row=0x13; } // %
   else if (c == 25) { row=0x1F; } // dense
+  // Edge characters (c=26..29): selected by Sobel gradient orientation
+  else if (c == 26) { if (cy==5) row=0x1F; }   // _ underscore (horizontal edge)
+  else if (c == 27) {                            // / forward slash (45° edge)
+    if      (cy==0) row=0x01; else if (cy==1) row=0x02; else if (cy==2) row=0x02;
+    else if (cy==3) row=0x04; else if (cy==4) row=0x08;
+    else if (cy==5) row=0x08; else if (cy==6) row=0x10;
+  }
+  else if (c == 28) { row=0x04; }               // | vertical bar (vertical edge, all rows)
+  else if (c == 29) {                            // \ backslash (135° edge)
+    if      (cy==0) row=0x10; else if (cy==1) row=0x08; else if (cy==2) row=0x08;
+    else if (cy==3) row=0x04; else if (cy==4) row=0x02;
+    else if (cy==5) row=0x02; else if (cy==6) row=0x01;
+  }
   return ((row >> b) & 1) == 1;
 }
 
@@ -111,6 +126,19 @@ void main() {
   float val = avg;
   vec3 src = texture(u_video, vUV).rgb;
 
+  // Sobel gradient at cell-center resolution for edge detection
+  float s00 = luma(texture(u_video, cellCenter + vec2(-cellStep.x, -cellStep.y)).rgb);
+  float s10 = luma(texture(u_video, cellCenter + vec2(        0.0, -cellStep.y)).rgb);
+  float s20 = luma(texture(u_video, cellCenter + vec2( cellStep.x, -cellStep.y)).rgb);
+  float s01 = luma(texture(u_video, cellCenter + vec2(-cellStep.x,         0.0)).rgb);
+  float s21 = luma(texture(u_video, cellCenter + vec2( cellStep.x,         0.0)).rgb);
+  float s02 = luma(texture(u_video, cellCenter + vec2(-cellStep.x,  cellStep.y)).rgb);
+  float s12 = luma(texture(u_video, cellCenter + vec2(        0.0,  cellStep.y)).rgb);
+  float s22 = luma(texture(u_video, cellCenter + vec2( cellStep.x,  cellStep.y)).rgb);
+  float sobelX = -s00 + s20 - 2.0*s01 + 2.0*s21 - s02 + s22;
+  float sobelY = -s00 - 2.0*s10 - s20 + s02 + 2.0*s12 + s22;
+  float edgeMag = length(vec2(sobelX, sobelY));
+
   float blackCutoff = uParams.z * 0.4;
   if (val < blackCutoff) {
     fragColor = vec4(applyStructureOutput(0.0, src, uOutputMode), 1.0);
@@ -124,6 +152,20 @@ void main() {
   }
 
   int gid = densityGlyph(adj, detail, cellID);
+
+  // Edge overlay: Sobel angle → pick edge character (_  /  |  \)
+  // Gradient is perpendicular to the edge; fold to 0..PI to get orientation.
+  // Bins: | vert [0,PI/8)∪(7PI/8,PI]  /  [PI/8,3PI/8)  _ [3PI/8,5PI/8)  \ [5PI/8,7PI/8)
+  if (uEdgeThreshold > 0.001) {
+    float edgeThresh = (1.0 - uEdgeThreshold) * 3.0 + 0.05;
+    if (edgeMag > edgeThresh) {
+      float ori = mod(atan(sobelY, sobelX) + 3.14159265, 3.14159265);
+      if      (ori < 0.3927 || ori > 2.7489) gid = 28; // | vertical
+      else if (ori < 1.1781)                  gid = 27; // / forward slash
+      else if (ori < 1.9635)                  gid = 26; // _ horizontal
+      else                                    gid = 29; // \ backslash
+    }
+  }
 
   float padding    = cellPx * 0.08;
   float charAreaH  = cellPx - padding * 2.0;
@@ -190,11 +232,12 @@ function initProgram() {
   return {
     prog,
     u: {
-      video:  gl.getUniformLocation(prog, 'u_video'),
-      params: gl.getUniformLocation(prog, 'uParams'),
-      outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
-      inkLow: gl.getUniformLocation(prog, 'uInkLow'),
-      inkHigh: gl.getUniformLocation(prog, 'uInkHigh'),
+      video:         gl.getUniformLocation(prog, 'u_video'),
+      params:        gl.getUniformLocation(prog, 'uParams'),
+      outputMode:    gl.getUniformLocation(prog, 'uOutputMode'),
+      inkLow:        gl.getUniformLocation(prog, 'uInkLow'),
+      inkHigh:       gl.getUniformLocation(prog, 'uInkHigh'),
+      edgeThreshold: gl.getUniformLocation(prog, 'uEdgeThreshold'),
     },
   };
 }
@@ -216,6 +259,7 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   const contrast      = params.contrast      ?? 0.3;
   const blackThresh   = params.blackThreshold ?? 0.2;
   const glyphStrength = params.glyphStrength  ?? 0.9;
+  const edgeThreshold = params.edgeThreshold  ?? 0.0;
   const outputMode    = params.outputMode     ?? 0;
   const inkLow        = params.inkLow         ?? [0.04, 0.035, 0.03];
   const inkHigh       = params.inkHigh        ?? [0.92, 0.88, 0.78];
@@ -242,5 +286,6 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   gl.uniform1f(u.outputMode, outputMode);
   gl.uniform3f(u.inkLow, inkLow[0], inkLow[1], inkLow[2]);
   gl.uniform3f(u.inkHigh, inkHigh[0], inkHigh[1], inkHigh[2]);
+  gl.uniform1f(u.edgeThreshold, edgeThreshold);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

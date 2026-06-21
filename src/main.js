@@ -22,7 +22,7 @@ import {
   BLOB_STRUCTURE_PARAM_SCHEMAS, BLOB_STRUCTURE_SECTIONS, BLOB_FX_SECTIONS,
   makeBlobFxRack, sanitizeBlobFxRack, sanitizeBlobStructureParams, makeBlobStructureParams,
 } from './schemas.js';
-import { runBlobFrame, disposeBlobPipeline } from './glBlobPipeline.js';
+import { runBlobFrame, disposeBlobPipeline, resetBlobFeedback } from './glBlobPipeline.js';
 
 // GL error surface — GL modules call this to fire a user-visible toast on
 // shader compile failure (avoids importing showToast into GL modules).
@@ -120,6 +120,7 @@ const helpOverlay  = document.getElementById('help-overlay');
 const helpClose    = document.getElementById('help-close');
 const dropOverlay  = document.getElementById('drop-overlay');
 const btnPlay      = document.getElementById('btn-play');
+const btnMute      = document.getElementById('btn-mute');
 const videoTime    = document.getElementById('video-time');
 const timelinePanel = document.getElementById('timeline-panel');
 const timelineTrack = document.getElementById('timeline-track');
@@ -460,7 +461,9 @@ function timelineRuntimeSignature(look) {
     threshold: look.threshold,
     trackMinSize: look.trackMinSize,
     trackStability: look.trackStability,
-    trackMaxBlobs: look.trackMaxBlobs,
+    trackAttack:    look.trackAttack,
+    trackRelease:   look.trackRelease,
+    trackMaxBlobs:  look.trackMaxBlobs,
     updateInterval: look.updateInterval,
     colorKeyHex: look.colorKeyHex,
     colorKeyHueTol: look.colorKeyHueTol,
@@ -1123,6 +1126,7 @@ function runEffect(name, opts) {
       return applyASCII(canvas.width, canvas.height, {
         cellSize: look.asciiCellSize, contrast: look.asciiContrast,
         blackThreshold: look.asciiBlackThresh, glyphStrength: look.asciiGlyphStrength,
+        edgeThreshold: look.asciiEdgeThreshold ?? 0.0,
         outputMode, ...inkColors,
       }, opts);
     case 'erode':
@@ -1193,7 +1197,7 @@ function runColorEffect(name, params, opts = {}) {
 // The COLOR stage's always-on grade pass (Hue Rotate + Sat). Runs as its own
 // chained GL stage right after the selected color — see resolveActivePipeline.
 function runGradeEffect(grade, opts) {
-  return applyGLFilter('grade', canvas.width, canvas.height, [grade.hue, grade.sat, 0, 0], opts);
+  return applyGLFilter('grade', canvas.width, canvas.height, [grade.hue, grade.sat, grade.hueRange ?? 0, grade.hueRate ?? 0], opts);
 }
 
 // Dispatch a single FX RACK effect. Feedback effects (schema.feedback) route
@@ -1254,13 +1258,17 @@ function resolveBlobPipeline(look) {
       case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.3, p.opacity ?? 0.8, p.dir ?? 0.5]; break;
       case 'melt':      structureParams = [p.amount ?? 0.5, p.drip ?? 0.4, p.viscosity ?? 0.5, p.dir ?? 0]; break;
       case 'freqmod':   structureParams = [p.dir ?? 0, p.mod ?? 0.6, p.wave ?? 0.5, p.thresh ?? 0.2, p.density ?? 240]; break;
+      case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9]; break;
+      case 'motionedge':structureParams = [p.edge ?? 0.5, p.motion ?? 0.6, p.thresh ?? 0.15, p.boost ?? 0.5, p.rate ?? 0]; break;
       default:          structureParams = [0, 0, 0, 0]; break;
     }
   }
 
   const colorActive = look.blobColor && look.blobColor !== 'none' && COLOR_PARAM_SCHEMAS[look.blobColor];
-  const hue = typeof look.blobColorHue === 'number' ? look.blobColorHue : 0;
-  const sat = typeof look.blobColorSat === 'number' ? look.blobColorSat : 0.5;
+  const hue      = typeof look.blobColorHue      === 'number' ? look.blobColorHue      : 0;
+  const sat      = typeof look.blobColorSat      === 'number' ? look.blobColorSat      : 0.5;
+  const hueRange = typeof look.blobColorHueRange === 'number' ? look.blobColorHueRange : 0;
+  const hueRate  = typeof look.blobColorHueRate  === 'number' ? look.blobColorHueRate  : 0;
 
   return {
     structure: structureName,
@@ -1271,10 +1279,11 @@ function resolveBlobPipeline(look) {
     color: colorActive
       ? { type: look.blobColor, params: (look.blobColorParams && look.blobColorParams[look.blobColor]) || makeFactoryParams(look.blobColor) }
       : null,
-    grade: (hue > 0.001 || Math.abs(sat - 0.5) > 0.001) ? { hue, sat } : null,
+    grade: (hue > 0.001 || Math.abs(sat - 0.5) > 0.001 || hueRange > 0.001 || hueRate > 0.001)
+      ? { hue, sat, hueRange, hueRate } : null,
     fx: (look.blobFxRack || [])
-      .filter((s) => s.enabled && s.type !== 'none' && !FX_PARAM_SCHEMAS[s.type]?.feedback)
-      .map((s) => ({ type: s.type, params: s.params })),
+      .filter((s) => s.enabled && s.type !== 'none')
+      .map((s) => ({ type: s.type, params: s.params, id: s.id })),
     composite: 'source-over',
   };
 }
@@ -1284,16 +1293,19 @@ function resolveActivePipeline(look = currentLook()) {
   // per-effect memory. Params fall back to factory without mutating the
   // look — timeline looks are read-only during render.
   const colorActive = look.color && look.color !== 'none' && COLOR_PARAM_SCHEMAS[look.color];
-  const hue = typeof look.colorHue === 'number' ? look.colorHue : 0;
-  const sat = typeof look.colorSat === 'number' ? look.colorSat : 0.5;
+  const hue      = typeof look.colorHue      === 'number' ? look.colorHue      : 0;
+  const sat      = typeof look.colorSat      === 'number' ? look.colorSat      : 0.5;
+  const hueRange = typeof look.colorHueRange === 'number' ? look.colorHueRange : 0;
+  const hueRate  = typeof look.colorHueRate  === 'number' ? look.colorHueRate  : 0;
   return {
     structure: look.structure !== 'none' ? look.structure : null,
     color: colorActive
       ? { type: look.color, params: (look.colorParams && look.colorParams[look.color]) || makeFactoryParams(look.color) }
       : null,
-    // GRADE: always-on hue/sat post pass, active whenever either knob is off
+    // GRADE: always-on hue/sat post pass, active whenever any knob is off
     // neutral. Runs even with color = 'none' (grades raw video / STRUCTURE).
-    grade: (hue > 0.001 || Math.abs(sat - 0.5) > 0.001) ? { hue, sat } : null,
+    grade: (hue > 0.001 || Math.abs(sat - 0.5) > 0.001 || hueRange > 0.001 || hueRate > 0.001)
+      ? { hue, sat, hueRange, hueRate } : null,
     // FX RACK stages run after COLOR + grade (STRUCTURE → COLOR → GRADE → FX).
     // `key` is the slot id — glFx.js keys each slot's persistent feedback
     // buffers on it, so two slots with the same effect trail independently.
@@ -1505,6 +1517,7 @@ const COLOR_SWATCH_GRADIENTS = {
   blacklight: 'linear-gradient(90deg, #050008, #2a0a55, #7a1fd0, #ff3df0, #b6ff4d)',
   dreamstatic:'linear-gradient(90deg, #0a0a14, #8898d8, #e8a8c8, #b8a8e8, #f0e8ff)',
   predator:   'linear-gradient(90deg, #020512, #103a66, #2a6088, #ff8a1a, #fff3c4)',
+  okband:     'linear-gradient(90deg, #3050d0, #8030b0, #c03050, #889018, #187850)',
 };
 const COLOR_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
@@ -1516,6 +1529,7 @@ const COLOR_LABEL = {
   risograph: 'Riso',
   octopus: 'Octopus', hologram: 'Hologram', surveil: 'Surveil', newsprint: 'Newsprint', sketch: 'Sketch',
   polaroid: 'Polaroid', blacklight: 'Blacklight', dreamstatic: 'DreamStatic', predator: 'Predator',
+  okband: 'OKBand',
   chroma: 'ChromaEngine',
 };
 
@@ -1552,6 +1566,7 @@ const COLOR_MAP_TIPS = {
   blacklight: 'UV poster room. Deep purple-black base; only bright regions fluoresce in hot neon paint. Sweep Paint from violet to acid green.',
   dreamstatic:'Shadows dissolve into slowly crawling pastel static while bright content stays solid. A signal coming through from a dream.',
   predator:   'Motion-as-heat thermal vision. Anything that moved since ~4 frames ago glows hot; still regions settle into a cold blue (or purple) body.',
+  okband:     'Luma-to-OKLCH hue banding. Posterizes the scene into N luma bands; each band maps to an equidistant OKLCH hue for auto-harmonious palettes. Hue rotates the whole set. Dither softens hard band edges with Bayer grain.',
 };
 
 // Per-effect knob memory access. Ensures state.colorParams[type] exists and
@@ -2301,11 +2316,14 @@ const fxRackEl   = document.getElementById('fx-rack');
 const fxPickerEl = document.getElementById('fx-picker-popover');
 
 const FX_LABEL = {
+  rgbdelay: 'RGBDelay',
   drag: 'Drag', lumadrag: 'LumaDrag', tunnel: 'Tunnel', burnin: 'BurnIn', wobbletape: 'WobbleTape',
   flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
+  okband: 'OKBand',
 };
 const FX_SWATCH_GRADIENTS = {
+  rgbdelay:   'linear-gradient(90deg, #080010, #cc0033 28%, #00cc55 52%, #0033cc 76%, #080010)',
   drag:       'linear-gradient(90deg, #080006, #2a0060, #8000ff, #ff44cc, #ffaaff)',
   lumadrag:   'linear-gradient(90deg, #050608 0 30%, #0a2a3a, #28c8e8 78%, #eafcff)',
   tunnel:     'repeating-radial-gradient(circle at 50% 50%, #0a0414 0 6px, #3a1a6e 6px 9px, #b04ad8 9px 10px)',
@@ -2321,8 +2339,10 @@ const FX_SWATCH_GRADIENTS = {
   scanlines:  'repeating-linear-gradient(180deg, #0a0908 0 3px, #7a7a7a 3px 4px)',
   degrade:    'linear-gradient(90deg, #0b0b0b 0 20%, #4a4a4a 20% 40%, #a45d2a 40% 60%, #d8c66f 60% 80%, #f4f0d6 80%)',
   noise:      'linear-gradient(90deg, #111, #777, #222, #bbb, #333)',
+  okband:     'linear-gradient(90deg, #3050d0, #8030b0, #c03050, #889018, #187850)',
 };
 const FX_CHIP_TIP = {
+  rgbdelay:   'RGB Delay — each colour channel trails at a different rate. Spread diverges R (short) from B (long). Drift orbits the channel samples spatially so moving content splits into separate chromatic ghost halos. Click to swap.',
   drag:       'Directional drag smear. Bright areas streak like comets in a chosen direction, leaving decaying feedback trails. Wobble knob FM-modulates the smear direction with a per-scanline analog wave — turn it up for a wavering, snaking, tape-unstable smear instead of a dead-straight one. Click to swap.',
   lumadrag:   'Luminance drag — a CLEAN directional pull. Only bright content (e.g. FreqMod lines) streaks; dark gaps stay planted, so it drags the lines instead of smearing the whole frame. Gate sets how bright a pixel must be to drag; Wobble FM-modulates the pull direction for a snaking analog feel. Pairs with FreqMod. Click to swap.',
   tunnel:     'Analog video feedback tunnel — camera pointed at its own TV. Echoes recede with zoom, twist, and per-generation hue drift. Click to swap.',
@@ -2338,6 +2358,7 @@ const FX_CHIP_TIP = {
   scanlines:  'CRT/VHS scanline artifacts with per-row jitter and RGB fringing. Click to swap.',
   degrade:    'Bit depth reduction and color banding. Macroblocks, dithering, pixelation. Click to swap.',
   noise:      'Adaptive film grain / sensor noise with shadow bias and optional color noise. Click to swap.',
+  okband:     'OKLCH luma banding over any COLOR stage output. Re-posterizes into perceptually equidistant hue bands with Bayer dither. Rate knob auto-cycles the palette — ~0.5 syncs to 120 BPM. Click to swap.',
 };
 
 // Build the FX picker popover from FX_SECTIONS — adding an FX effect needs
@@ -3231,6 +3252,7 @@ function renderBlobFxSlotPanel(slot) {
 function setBlobFxSlotType(slotId, type) {
   const slot = state.blobFxRack.find((s) => s.id === slotId);
   if (!slot) return;
+  resetBlobFeedback(slotId);
   if (type === 'none') {
     slot.type = 'none';
     slot.enabled = false;
@@ -3256,6 +3278,7 @@ function toggleBlobFxSlot(slotId) {
 function clearBlobFxSlot(slotId) {
   const slot = state.blobFxRack.find((s) => s.id === slotId);
   if (!slot) return;
+  resetBlobFeedback(slotId);
   slot.type = 'none';
   slot.enabled = false;
   slot.params = {};
@@ -4173,6 +4196,7 @@ function resetAllState() {
   // FX feedback trails belong to the old source / timeline segment — a new
   // one starts from black, same as every other temporal cache here.
   resetFxFeedback();
+  resetBlobFeedback();
   resetMotionHistory();
   cachedBlobs = []; frameCount = 0;
   _lastResolvedTimelineSegmentId = null;
@@ -4182,6 +4206,7 @@ function resetAllState() {
   // first frame's blobs to leftover positions from the previous video.
   _activeFilters.clear();
   _deadFilters.clear();
+  _presenceMap.clear();
   _displayBlobs.clear();
   disposeBlobPipeline(); // release blob FBO allocations on source change
 }
@@ -4615,6 +4640,11 @@ btnPlay.addEventListener('click', () => {
 });
 video.addEventListener('play',  () => { btnPlay.textContent = '❚❚'; btnPlay.setAttribute('aria-label', 'Pause'); });
 video.addEventListener('pause', () => { btnPlay.textContent = '▶';  btnPlay.setAttribute('aria-label', 'Play'); });
+btnMute.addEventListener('click', () => { video.muted = !video.muted; });
+video.addEventListener('volumechange', () => {
+  btnMute.classList.toggle('muted', video.muted);
+  btnMute.setAttribute('aria-label', video.muted ? 'Unmute video audio' : 'Mute video audio');
+});
 
 video.addEventListener('timeupdate', () => {
   if (!isFinite(video.duration) || video.duration === 0) return;
@@ -4852,6 +4882,50 @@ function smoothBlobs(latest, canvasW) {
     : _smoothBlobsEMALegacy(latest);
 }
 
+// ---- Asymmetric presence smoother (attack / release) ----
+// Mirrors the TouchDesigner blobmask smooth pattern: blobs rise toward
+// full presence at the attack rate and decay toward zero at the release
+// rate when no longer detected. Ghost blobs linger at their last known
+// position until presence falls below the cull threshold, giving natural
+// fade-out instead of a hard pop.
+//
+// attack  0..1 → per-frame rise  rate 0.05..1.0
+// release 0..1 → per-frame decay rate 0.005..0.5
+
+const _presenceMap = new Map(); // id → { presence, lastBlob }
+
+function applyPresenceSmoother(blobs) {
+  const look    = currentLook();
+  const rawA    = look.trackAttack  ?? 0.5;
+  const rawR    = look.trackRelease ?? 0.1;
+  const attack  = 0.05 + rawA * 0.95;   // 0.05..1.0
+  const release = 0.005 + rawR * 0.495; // 0.005..0.5
+
+  const seenIds = new Set();
+  for (const b of blobs) seenIds.add(b.id);
+
+  // Rise — detected blobs
+  for (const b of blobs) {
+    const prev = _presenceMap.get(b.id);
+    const p    = prev ? prev.presence : 0;
+    _presenceMap.set(b.id, { presence: Math.min(1, p + attack * (1 - p)), lastBlob: b });
+  }
+
+  // Decay — lost blobs
+  for (const [id, entry] of _presenceMap) {
+    if (!seenIds.has(id)) {
+      entry.presence *= (1 - release);
+      if (entry.presence < 0.008) _presenceMap.delete(id);
+    }
+  }
+
+  const out = [];
+  for (const entry of _presenceMap.values()) {
+    out.push({ ...entry.lastBlob, presence: entry.presence });
+  }
+  return out;
+}
+
 function needsBlobPipeline() {
   const look = currentLook();
   return look.mode === 'track' || look.perBlob !== 'none';
@@ -4980,7 +5054,7 @@ function renderFrame(nowDOMHi) {
         cachedBlobs = trackBlobs(scaledRaw, cw, cap);
       }
     }
-    blobs = smoothBlobs(cachedBlobs, cw);
+    blobs = applyPresenceSmoother(smoothBlobs(cachedBlobs, cw));
   } else {
     clearBlobPipelineCaches();
   }
@@ -5172,6 +5246,7 @@ function renderFrame(nowDOMHi) {
       const MAX_BLOBS = 6;
       for (let i = 0; i < Math.min(blobs.length, MAX_BLOBS); i++) {
         const blob = blobs[i];
+        if ((blob.presence ?? 1) < 0.02) continue;
         const bx = Math.max(0, Math.floor(blob.cx - blob.w / 2));
         const by = Math.max(0, Math.floor(blob.cy - blob.h / 2));
         const bw = Math.min(cw - bx, Math.ceil(blob.w));
