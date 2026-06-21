@@ -1524,6 +1524,10 @@ const COLOR_SWATCH_GRADIENTS = {
   dreamstatic:'linear-gradient(90deg, #0a0a14, #8898d8, #e8a8c8, #b8a8e8, #f0e8ff)',
   predator:   'linear-gradient(90deg, #020512, #103a66, #2a6088, #ff8a1a, #fff3c4)',
   okband:     'linear-gradient(90deg, #3050d0, #8030b0, #c03050, #889018, #187850)',
+  palswap:    'linear-gradient(90deg, #1a0030, #8800cc, #cc4400, #aadd00, #00aaff)',
+  csadjust:   'linear-gradient(90deg, #1a1a2a, #2a4470, #7080c8, #d8ddf8)',
+  halftone:   'linear-gradient(90deg, #f5f0e8, #c85a5a, #5050b0, #28a040, #f5f0e8)',
+  kuwahara:   'linear-gradient(90deg, #1a0a00, #8b4513, #d4843f, #a3c48a, #5090c8)',
 };
 const COLOR_LABEL = {
   oxide: 'Oxide', synth: 'Synth', biolum: 'BioLum', thermo: 'Thermo', falsecolor: 'FalseClr',
@@ -1537,6 +1541,7 @@ const COLOR_LABEL = {
   polaroid: 'Polaroid', blacklight: 'Blacklight', dreamstatic: 'DreamStatic', predator: 'Predator',
   okband: 'OKBand',
   chroma: 'ChromaEngine',
+  palswap: 'PalSwap', csadjust: 'CSAdjust', halftone: 'Halftone', kuwahara: 'Kuwahara',
 };
 
 // Tooltip per COLOR effect — shown on the MAPS/UNIQUE grid buttons.
@@ -1573,6 +1578,10 @@ const COLOR_MAP_TIPS = {
   dreamstatic:'Shadows dissolve into slowly crawling pastel static while bright content stays solid. A signal coming through from a dream.',
   predator:   'Motion-as-heat thermal vision. Anything that moved since ~4 frames ago glows hot; still regions settle into a cold blue (or purple) body.',
   okband:     'Luma-to-OKLCH hue banding. Posterizes the scene into N luma bands; each band maps to an equidistant OKLCH hue for auto-harmonious palettes. Hue rotates the whole set. Dither softens hard band edges with Bayer grain.',
+  palswap:    'OKLCH Palette Swap. Maps scene luma to a hue gradient in perceptual OKLCH space. Hue + Spread sweeps the color arc; Chroma sets intensity; Lift lifts the dark floor.',
+  csadjust:   'OKLCH Color Space Adjust. Direct lightness, chroma, hue-rotation, and warmth knobs in perceptual OKLCH space — for creative grading without hue collisions.',
+  halftone:   'CMYK halftone dot screens. Four angled dot-screen channels (C/M/Y/K) simulate offset-print reproduction. Scale controls dot size; Blend mixes with source.',
+  kuwahara:   'Kuwahara painterly filter. Samples four quadrant neighborhoods, outputs the least-variance mean — creating oil-painting-style brush strokes. Radius controls stroke size.',
 };
 
 // Per-effect knob memory access. Ensures state.colorParams[type] exists and
@@ -2327,6 +2336,8 @@ const FX_LABEL = {
   flowfield: 'FlowField', bloom: 'Bloom', godrays: 'GodRays', decayflow: 'DecayFlow', feedbackwarp: 'FbWarp',
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
   okband: 'OKBand',
+  vignette: 'Vignette', tonemap: 'Tonemap', chromab: 'ChromAb', sharpen: 'Sharpen',
+  edgedet: 'EdgeDet', bokeh: 'Bokeh', filmgrain: 'FilmGrain', autoexp: 'AutoExp',
 };
 const FX_SWATCH_GRADIENTS = {
   rgbdelay:   'linear-gradient(90deg, #080010, #cc0033 28%, #00cc55 52%, #0033cc 76%, #080010)',
@@ -2346,6 +2357,14 @@ const FX_SWATCH_GRADIENTS = {
   degrade:    'linear-gradient(90deg, #0b0b0b 0 20%, #4a4a4a 20% 40%, #a45d2a 40% 60%, #d8c66f 60% 80%, #f4f0d6 80%)',
   noise:      'linear-gradient(90deg, #111, #777, #222, #bbb, #333)',
   okband:     'linear-gradient(90deg, #3050d0, #8030b0, #c03050, #889018, #187850)',
+  vignette:   'radial-gradient(ellipse at 50% 50%, #aabbcc 0%, #557088 25%, #1a2f3a 55%, #000 100%)',
+  tonemap:    'linear-gradient(90deg, #030303, #442a10, #c86a18, #f8e870, #fffff8)',
+  chromab:    'linear-gradient(90deg, #080010, #cc0030 33%, #1188aa 56%, #0022cc 79%, #080010)',
+  sharpen:    'linear-gradient(90deg, #0a0a10, #2a3860, #9ab4d8, #e8f4ff)',
+  edgedet:    'linear-gradient(90deg, #000, #001a10, #00ff6a, #80ffd8, #000)',
+  bokeh:      'radial-gradient(ellipse at 50% 50%, #fff8e0 0%, #ddb040 18%, #cc4400 38%, #080010 65%)',
+  filmgrain:  'linear-gradient(90deg, #111, #554433, #887766, #aaa, #777, #333)',
+  autoexp:    'linear-gradient(90deg, #020202, #1a2a10, #446038, #aad870, #fdfff8)',
 };
 const FX_CHIP_TIP = {
   rgbdelay:   'RGB Delay — each colour channel trails at a different rate. Spread diverges R (short) from B (long). Drift orbits the channel samples spatially so moving content splits into separate chromatic ghost halos. Click to swap.',
@@ -2365,6 +2384,14 @@ const FX_CHIP_TIP = {
   degrade:    'Bit depth reduction and color banding. Macroblocks, dithering, pixelation. Click to swap.',
   noise:      'Adaptive film grain / sensor noise with shadow bias and optional color noise. Click to swap.',
   okband:     'OKLCH luma banding over any COLOR stage output. Re-posterizes into perceptually equidistant hue bands with Bayer dither. Rate knob auto-cycles the palette — ~0.5 syncs to 120 BPM. Click to swap.',
+  vignette:   'Lens vignette. Radial darkening from frame center outward. Shape blends circle to rectangle. Strength controls how dark the corners get. Click to swap.',
+  tonemap:    'HDR tonemapping. Pre-expose then apply Reinhard / ACES / Hable operator. Contrast and highlight desat finish the grade. Click to swap.',
+  chromab:    'Chromatic aberration. R and B channels split outward from center like a real lens. Radial amplifies corners; Spread adds a full R/G/B prismatic tri-split. Click to swap.',
+  sharpen:    'Unsharp mask sharpening. Detail = center minus blurred neighbor average, added back at Strength. Clamp prevents ringing halos. Luma-only mode preserves hue. Click to swap.',
+  edgedet:    'Sobel edge detection overlaid as colored glow. Hue sweeps edge color; Blend fades from neon-on-source to pure wireframe on black. Click to swap.',
+  bokeh:      'Ring-sample defocus blur. Bright spots bloom as circular (or hexagonal) bokeh highlights. Chroma adds lens fringe. Click to swap.',
+  filmgrain:  'Analogue film grain. Animated per-frame, shadow-biased, spatially clumped. Halation adds a soft glow on bright areas like real film halation. Click to swap.',
+  autoexp:    'Auto exposure. Samples current frame brightness, exponentially adapts toward Target over time, applies EV correction. Corner-pixel feedback state storage. Click to swap.',
 };
 
 // Build the FX picker popover from FX_SECTIONS — adding an FX effect needs

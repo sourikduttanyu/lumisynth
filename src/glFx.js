@@ -351,6 +351,42 @@ void main() {
   fragColor = texture(u_video, vUV);
 }`;
 
+// AUTOEXP — Auto exposure via feedback corner-pixel state storage.
+// Samples scene luma, exponentially adapts, applies EV correction each frame.
+// uParams: x=range(max EV correction), y=target(brightness), z=speed(adapt rate), w=gain(pre-boost)
+const FRAG_AUTOEXP = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_feedback;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 texSz = vec2(textureSize(u_feedback, 0));
+  float prevAdapted = texture(u_feedback, 0.5 / texSz).r;
+  if (prevAdapted < 0.005) prevAdapted = 0.18;
+  float currLuma = 0.0;
+  for (int x = 0; x < 4; x++) {
+    for (int y = 0; y < 4; y++) {
+      vec2 uv = (vec2(float(x), float(y)) + 0.5) / 4.0;
+      currLuma += dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114));
+    }
+  }
+  currLuma /= 16.0;
+  float speed = mix(0.005, 0.15, uParams.z);
+  float adapted = mix(prevAdapted, currLuma, speed);
+  float target = mix(0.18, 0.72, uParams.y);
+  float maxRange = mix(0.5, 4.0, uParams.x);
+  float gain = clamp(target / max(adapted, 0.005), 1.0 / maxRange, maxRange);
+  gain *= 1.0 + uParams.w * 0.5;
+  vec3 col = texture(u_video, vUV).rgb * gain;
+  if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {
+    fragColor = vec4(adapted, 0.0, 0.0, 1.0);
+  } else {
+    fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  }
+}`;
+
 export const FX_FRAGS = {
   rgbdelay:   FRAG_RGBDELAY,
   flowfield:  FRAG_FLOWFIELD,
@@ -359,6 +395,7 @@ export const FX_FRAGS = {
   tunnel:     FRAG_TUNNEL,
   burnin:     FRAG_BURNIN,
   wobbletape: FRAG_WOBBLETAPE,
+  autoexp:    FRAG_AUTOEXP,
 };
 
 // ---- WebGL helpers (same pattern as glFilters.js) ----

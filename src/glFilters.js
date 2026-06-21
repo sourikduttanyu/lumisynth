@@ -2070,6 +2070,387 @@ void main() {
   fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
 }`;
 
+// ---- AcerolaFX-inspired FX RACK (stateless) ----
+
+// VIGNETTE — radial darkening from center outward.
+// uParams: x=size(bright-zone radius), y=soft(falloff width), z=strength, w=shape(0=round/1=rect)
+const FRAG_VIGNETTE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec3 col = texture(u_video, vUV).rgb;
+  vec2 d = vUV - 0.5;
+  float rRound = length(d);
+  float rRect  = max(abs(d.x), abs(d.y));
+  float r = mix(rRound, rRect, uParams.w);
+  float inner = 0.1 + uParams.x * 0.6;
+  float outer = inner + mix(0.04, 0.6, uParams.y);
+  float vign  = smoothstep(outer, inner, r);
+  col *= 1.0 - uParams.z * (1.0 - vign);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+// TONEMAP — HDR tonemapping (Reinhard/ACES/Hable) with pre-exposure and contrast.
+// uParams: x=exposure(EV ±2 mapped 0–1), y=operator(0=Reinhard/0.5=ACES/1=Hable), z=contrast, w=desat
+const FRAG_TONEMAP = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 reinhard(vec3 c) { return c / (c + 1.0); }
+vec3 aces(vec3 c) {
+  return clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14), 0.0, 1.0);
+}
+vec3 hable(vec3 c) {
+  float A=0.15,B=0.50,Cv=0.10,D=0.20,Ev=0.02,F=0.30;
+  return ((c*(A*c+Cv*B)+D*Ev)/(c*(A*c+B)+D*F)) - Ev/F;
+}
+void main() {
+  vec3 col = texture(u_video, vUV).rgb;
+  col *= pow(2.0, (uParams.x - 0.5) * 4.0);
+  float op = uParams.y * 2.0;
+  float t1 = clamp(op, 0.0, 1.0);
+  float t2 = clamp(op - 1.0, 0.0, 1.0);
+  vec3 wh = max(hable(vec3(11.2)), vec3(0.001));
+  vec3 tm = mix(mix(reinhard(col), aces(col), t1), hable(col) / wh, t2);
+  float cont = mix(0.4, 2.5, uParams.z);
+  tm = pow(max(tm, 0.0), vec3(1.0 / cont));
+  float luma = dot(tm, vec3(0.299, 0.587, 0.114));
+  tm = mix(tm, vec3(luma), uParams.w * smoothstep(0.5, 1.0, luma));
+  fragColor = vec4(clamp(tm, 0.0, 1.0), 1.0);
+}`;
+
+// CHROMAB — Chromatic aberration: R/B (and optionally G) channels split outward.
+// uParams: x=amount, y=radial(0=uniform/1=corner-amp), z=angle(drift dir 0–1), w=spread(0=R/B/1=R/G/B)
+const FRAG_CHROMAB = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 d = vUV - 0.5;
+  float dist = length(d);
+  vec2 dir = (dist > 0.001) ? d / dist : vec2(1.0, 0.0);
+  float amt = uParams.x * 0.04;
+  float radAmp = mix(1.0, dist * 2.5, uParams.y);
+  float ang = uParams.z * 6.2832;
+  vec2 drift = vec2(cos(ang), sin(ang)) * 0.4;
+  float step = amt * radAmp;
+  vec2 rUV = clamp(vUV + (dir + drift) * step, 0.0, 1.0);
+  vec2 bUV = clamp(vUV - (dir + drift) * step, 0.0, 1.0);
+  float gAng = ang + 2.0944;
+  vec2 gDrift = vec2(cos(gAng), sin(gAng)) * 0.4;
+  vec2 gUV = clamp(vUV + gDrift * step * uParams.w, 0.0, 1.0);
+  float r = texture(u_video, rUV).r;
+  float g = texture(u_video, gUV).g;
+  float b = texture(u_video, bUV).b;
+  fragColor = vec4(r, g, b, 1.0);
+}`;
+
+// SHARPEN — Unsharp mask: detail = center minus blurred neighbors, added back.
+// uParams: x=strength, y=radius(kernel scale), z=clamp(anti-halo), w=luma(0=all/1=luma-only)
+const FRAG_SHARPEN = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 px = 1.0 / vec2(textureSize(u_video, 0));
+  float r = mix(0.5, 3.0, uParams.y);
+  vec3 center = texture(u_video, vUV).rgb;
+  vec3 blur = vec3(0.0);
+  float wSum = 0.0;
+  for (int dx = -2; dx <= 2; dx++) {
+    for (int dy = -2; dy <= 2; dy++) {
+      float d2 = float(dx*dx + dy*dy);
+      float w = exp(-d2 / (2.0 * r * r));
+      blur += texture(u_video, vUV + vec2(float(dx), float(dy)) * px).rgb * w;
+      wSum += w;
+    }
+  }
+  blur /= wSum;
+  vec3 detail = center - blur;
+  float maxD = mix(0.5, 0.05, uParams.z);
+  detail = clamp(detail, -maxD, maxD);
+  vec3 sharp = center + uParams.x * 2.5 * detail;
+  float L0 = dot(center, vec3(0.299, 0.587, 0.114));
+  float L1 = dot(sharp,  vec3(0.299, 0.587, 0.114));
+  vec3 chromaDir = (L0 > 0.001) ? center / L0 : vec3(1.0);
+  vec3 lumaOnly  = chromaDir * clamp(L1, 0.0, 2.0);
+  sharp = mix(sharp, lumaOnly, uParams.w);
+  fragColor = vec4(clamp(sharp, 0.0, 1.0), 1.0);
+}`;
+
+// EDGEDET — Sobel edge detection overlaid as colored glow on the source.
+// uParams: x=thresh, y=glow(1=hard/0=soft), z=hue(edge color 0–1), w=blend(0=over-src/1=edges-on-black)
+const FRAG_EDGEDET = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+vec3 hue2rgb(float h) {
+  h = fract(h);
+  float r = clamp(abs(h * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+  float g = clamp(2.0 - abs(h * 6.0 - 2.0), 0.0, 1.0);
+  float b = clamp(2.0 - abs(h * 6.0 - 4.0), 0.0, 1.0);
+  return vec3(r, g, b);
+}
+void main() {
+  vec2 px = 1.0 / vec2(textureSize(u_video, 0));
+  float tl = luma(texture(u_video, vUV + vec2(-px.x,  px.y)).rgb);
+  float tc = luma(texture(u_video, vUV + vec2(  0.0,  px.y)).rgb);
+  float tr = luma(texture(u_video, vUV + vec2( px.x,  px.y)).rgb);
+  float ml = luma(texture(u_video, vUV + vec2(-px.x,  0.0)).rgb);
+  float mr = luma(texture(u_video, vUV + vec2( px.x,  0.0)).rgb);
+  float bl = luma(texture(u_video, vUV + vec2(-px.x, -px.y)).rgb);
+  float bc = luma(texture(u_video, vUV + vec2(  0.0, -px.y)).rgb);
+  float br = luma(texture(u_video, vUV + vec2( px.x, -px.y)).rgb);
+  float gx = -tl - 2.0*ml - bl + tr + 2.0*mr + br;
+  float gy =  tl + 2.0*tc + tr - bl - 2.0*bc - br;
+  float mag = length(vec2(gx, gy));
+  float hard = mix(8.0, 40.0, uParams.y);
+  float edge = smoothstep(uParams.x * 0.5, uParams.x * 0.5 + 1.0 / hard, mag);
+  vec3 edgeCol = hue2rgb(uParams.z) * edge;
+  vec3 src = texture(u_video, vUV).rgb;
+  vec3 onSrc   = src * (1.0 - edge * 0.6) + edgeCol;
+  vec3 onBlack = edgeCol;
+  fragColor = vec4(clamp(mix(onSrc, onBlack, uParams.w), 0.0, 1.0), 1.0);
+}`;
+
+// BOKEH — 12-sample ring blur weighted by brightness for bokeh highlights.
+// uParams: x=radius(0–12px), y=bright(highlight boost), z=blades(0=circle/1=hex), w=chroma(fringe)
+const FRAG_BOKEH = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+const float PI = 3.14159265;
+void main() {
+  vec2 px = 1.0 / vec2(textureSize(u_video, 0));
+  float radius = uParams.x * 12.0;
+  vec3 acc = vec3(0.0);
+  float wSum = 0.0;
+  for (int i = 0; i < 12; i++) {
+    float ang = float(i) * 2.0 * PI / 12.0;
+    float hexAng = floor(ang / (PI / 3.0) + 0.5) * (PI / 3.0);
+    ang = mix(ang, hexAng, uParams.z);
+    vec2 off = vec2(cos(ang), sin(ang)) * radius * px;
+    vec3 s = texture(u_video, clamp(vUV + off, 0.0, 1.0)).rgb;
+    float L = dot(s, vec3(0.299, 0.587, 0.114));
+    float w = 1.0 + L * uParams.y * 5.0;
+    acc += s * w;
+    wSum += w;
+  }
+  vec3 center = texture(u_video, vUV).rgb;
+  float cL = dot(center, vec3(0.299, 0.587, 0.114));
+  acc += center * (1.0 + cL * uParams.y * 5.0);
+  wSum += 1.0 + cL * uParams.y * 5.0;
+  acc /= wSum;
+  vec2 rDir = (length(vUV - 0.5) > 0.001) ? normalize(vUV - 0.5) : vec2(1.0, 0.0);
+  float cf = uParams.w * radius * 0.4;
+  float rF = texture(u_video, clamp(vUV + rDir * cf * px, 0.0, 1.0)).r;
+  float bF = texture(u_video, clamp(vUV - rDir * cf * px * 0.5, 0.0, 1.0)).b;
+  acc = mix(acc, vec3(rF, acc.g, bF), uParams.w * 0.6);
+  fragColor = vec4(clamp(acc, 0.0, 1.0), 1.0);
+}`;
+
+// FILMGRAIN — Animated Gaussian film grain: shadow-biased, spatially clumped, with halation.
+// uParams: x=amount, y=size(clump 1–4px), z=shadow(bias), w=halation
+const FRAG_FILMGRAIN = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uTime;
+out vec4 fragColor;
+float hash21a(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float hash21b(vec2 p) { return fract(sin(dot(p, vec2(269.5, 183.3))) * 43758.5453); }
+void main() {
+  vec2 px = 1.0 / vec2(textureSize(u_video, 0));
+  vec3 col = texture(u_video, vUV).rgb;
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  float scale = mix(1.0, 4.0, uParams.y);
+  float frame = floor(uTime * 24.0);
+  vec2 cellUV = floor(vUV / (px * scale)) * (px * scale);
+  float g1 = hash21a(cellUV + vec2(frame * 0.1, 0.0));
+  float g2 = hash21b(cellUV + vec2(0.0, frame * 0.07 + 0.5));
+  float grain = sqrt(-2.0 * log(max(g1, 0.001))) * cos(6.2832 * g2) * 0.25;
+  float shadowBias = mix(1.0, max(0.0, 1.2 - lum * 1.5), uParams.z);
+  col += vec3(grain * uParams.x * shadowBias);
+  if (uParams.w > 0.01) {
+    float halo = smoothstep(0.65, 1.0, lum);
+    col = mix(col, col * (1.0 + uParams.w * 0.5), halo);
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+// ---- AcerolaFX-inspired COLOR effects (MAP and UNIQUE) ----
+
+// PALSWAP — OKLCH Palette Swap: maps scene luma to a hue gradient in perceptual color space.
+// uParams: x=hue(0–1=0–360°), y=chroma(0–0.36), z=spread(luma→hue rotation), w=lift(dark floor)
+const FRAG_PALSWAP = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 oklab_to_linear(float L, float a, float b) {
+  float l = L + 0.3963377774*a + 0.2158037573*b;
+  float m = L - 0.1055613458*a - 0.0638541728*b;
+  float s = L - 0.0894841775*a - 1.2914855480*b;
+  l=l*l*l; m=m*m*m; s=s*s*s;
+  return vec3(
+     4.0767416621*l - 3.3077115913*m + 0.2309699292*s,
+    -1.2684380046*l + 2.6097574011*m - 0.3413193965*s,
+    -0.0041960863*l - 0.7034186147*m + 1.7076147010*s
+  );
+}
+vec3 linear_to_srgb(vec3 c) {
+  c = max(c, 0.0);
+  return mix(12.92 * c, 1.055 * pow(c, vec3(1.0/2.4)) - 0.055, step(vec3(0.0031308), c));
+}
+void main() {
+  vec3 src = texture(u_video, vUV).rgb;
+  float luma = dot(src, vec3(0.299, 0.587, 0.114));
+  luma = mix(uParams.w * 0.15, 1.0, luma);
+  float L = luma * 0.82 + 0.08;
+  float C = uParams.y * 0.36;
+  float H = (uParams.x + luma * uParams.z * 2.0) * 6.2832;
+  vec3 lin = oklab_to_linear(L, C * cos(H), C * sin(H));
+  fragColor = vec4(clamp(linear_to_srgb(lin), 0.0, 1.0), 1.0);
+}`;
+
+// CSADJUST — OKLCH Color Space Adjust: direct L/C/H/warmth knobs in perceptual space.
+// uParams: x=lightness(0.5=neutral), y=chroma(0.33=neutral), z=hue(0–1=0–360°), w=warmth(0.5=neutral)
+const FRAG_CSADJUST = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 srgb_to_linear(vec3 c) {
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+}
+vec3 linear_to_srgb(vec3 c) {
+  c = max(c, 0.0);
+  return mix(12.92 * c, 1.055 * pow(c, vec3(1.0/2.4)) - 0.055, step(vec3(0.0031308), c));
+}
+vec3 linear_to_oklab(vec3 c) {
+  float l = pow(max(0.4122214708*c.r + 0.5363325363*c.g + 0.0514459929*c.b, 0.0), 1.0/3.0);
+  float m = pow(max(0.2119034982*c.r + 0.6806995451*c.g + 0.1073969566*c.b, 0.0), 1.0/3.0);
+  float s = pow(max(0.0883024619*c.r + 0.2817188376*c.g + 0.6299787005*c.b, 0.0), 1.0/3.0);
+  return vec3(
+    0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+    1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+    0.0259040371*l + 0.7827717662*m - 0.8086757660*s
+  );
+}
+vec3 oklab_to_linear(vec3 lab) {
+  float l = lab.x + 0.3963377774*lab.y + 0.2158037573*lab.z;
+  float m = lab.x - 0.1055613458*lab.y - 0.0638541728*lab.z;
+  float s = lab.x - 0.0894841775*lab.y - 1.2914855480*lab.z;
+  l=l*l*l; m=m*m*m; s=s*s*s;
+  return vec3(
+     4.0767416621*l - 3.3077115913*m + 0.2309699292*s,
+    -1.2684380046*l + 2.6097574011*m - 0.3413193965*s,
+    -0.0041960863*l - 0.7034186147*m + 1.7076147010*s
+  );
+}
+void main() {
+  vec3 lab = linear_to_oklab(srgb_to_linear(texture(u_video, vUV).rgb));
+  float L = clamp(lab.x + (uParams.x - 0.5) * 0.6, 0.0, 1.0);
+  float C = length(lab.yz) * mix(0.0, 3.0, uParams.y);
+  float H = atan(lab.z, lab.y) + uParams.z * 6.2832 + (uParams.w - 0.5) * 0.8;
+  fragColor = vec4(clamp(linear_to_srgb(oklab_to_linear(vec3(L, C*cos(H), C*sin(H)))), 0.0, 1.0), 1.0);
+}`;
+
+// HALFTONE — CMYK 4-angle dot screens simulating offset-print reproduction.
+// uParams: x=scale(dot size), y=ink(hardness), z=angle(screen variation), w=blend(cmyk/src)
+const FRAG_HALFTONE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+float dot_screen(vec2 uv, float value, float angle, float freq) {
+  float s = sin(angle), c = cos(angle);
+  vec2 rot = vec2(c*uv.x - s*uv.y, s*uv.x + c*uv.y) * freq;
+  float r = length(fract(rot) - 0.5);
+  float dotR = sqrt(clamp(value, 0.0, 1.0)) * 0.7;
+  float hard = mix(0.08, 0.01, uParams.y);
+  return smoothstep(dotR - hard, dotR + hard, r);
+}
+void main() {
+  vec3 src = texture(u_video, vUV).rgb;
+  float freq = mix(60.0, 10.0, uParams.x);
+  float ang  = uParams.z * 1.5708;
+  float Kv = 1.0 - max(max(src.r, src.g), src.b);
+  float dK = max(1.0 - Kv, 0.001);
+  float Cv = (1.0 - src.r - Kv) / dK;
+  float Mv = (1.0 - src.g - Kv) / dK;
+  float Yv = (1.0 - src.b - Kv) / dK;
+  float cDot = dot_screen(vUV, Cv, 1.0472 + ang, freq);
+  float mDot = dot_screen(vUV, Mv, 2.2166 + ang, freq);
+  float yDot = dot_screen(vUV, Yv, 0.0    + ang, freq);
+  float kDot = dot_screen(vUV, Kv, 0.7854 + ang, freq);
+  vec3 cmyk = vec3(
+    cDot * (1.0 - kDot),
+    mDot * (1.0 - kDot),
+    yDot * (1.0 - kDot)
+  );
+  fragColor = vec4(clamp(mix(cmyk, src, uParams.w), 0.0, 1.0), 1.0);
+}`;
+
+// KUWAHARA — Painterly filter: pick lowest-variance quadrant mean via soft weighting.
+// uParams: x=radius(1–5px step), y=sharpness(quadrant hardness), z=saturation, w=blend(0=paint/1=src)
+const FRAG_KUWAHARA = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 px = 1.0 / vec2(textureSize(u_video, 0));
+  float stepScale = 1.0 + uParams.x * 4.0;
+  vec3 m0=vec3(0.0), m1=vec3(0.0), m2=vec3(0.0), m3=vec3(0.0);
+  float s0=0.0, s1=0.0, s2=0.0, s3=0.0;
+  float n0=0.0, n1=0.0, n2=0.0, n3=0.0;
+  for (int dx = -3; dx <= 3; dx++) {
+    for (int dy = -3; dy <= 3; dy++) {
+      vec2 off = vec2(float(dx), float(dy)) * px * stepScale / 3.0;
+      vec3 cv = texture(u_video, clamp(vUV + off, 0.0, 1.0)).rgb;
+      float L = dot(cv, vec3(0.299, 0.587, 0.114));
+      if (dx <= 0 && dy <= 0) { m0 += cv; s0 += L*L; n0 += 1.0; }
+      if (dx >= 0 && dy <= 0) { m1 += cv; s1 += L*L; n1 += 1.0; }
+      if (dx <= 0 && dy >= 0) { m2 += cv; s2 += L*L; n2 += 1.0; }
+      if (dx >= 0 && dy >= 0) { m3 += cv; s3 += L*L; n3 += 1.0; }
+    }
+  }
+  m0/=n0; m1/=n1; m2/=n2; m3/=n3;
+  vec3 lv = vec3(0.299, 0.587, 0.114);
+  float v0 = s0/n0 - dot(m0,lv)*dot(m0,lv);
+  float v1 = s1/n1 - dot(m1,lv)*dot(m1,lv);
+  float v2 = s2/n2 - dot(m2,lv)*dot(m2,lv);
+  float v3 = s3/n3 - dot(m3,lv)*dot(m3,lv);
+  float sharp = exp(mix(0.0, 7.0, uParams.y));
+  float w0=exp(-v0*sharp), w1=exp(-v1*sharp), w2=exp(-v2*sharp), w3=exp(-v3*sharp);
+  float wt = w0+w1+w2+w3;
+  vec3 result = (m0*w0 + m1*w1 + m2*w2 + m3*w3) / wt;
+  float lum = dot(result, lv);
+  result = mix(vec3(lum), result, 1.0 + uParams.z * 0.8);
+  vec3 src = texture(u_video, vUV).rgb;
+  fragColor = vec4(clamp(mix(result, src, uParams.w), 0.0, 1.0), 1.0);
+}`;
+
 export const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
@@ -2129,6 +2510,19 @@ export const FRAGS = {
   // applyGLFilter; only feedback effects route to glFx.js.
   chroma:       FRAG_CHROMA,
   grade:        FRAG_GRADE,
+  // AcerolaFX-inspired FX RACK (stateless)
+  vignette:     FRAG_VIGNETTE,
+  tonemap:      FRAG_TONEMAP,
+  chromab:      FRAG_CHROMAB,
+  sharpen:      FRAG_SHARPEN,
+  edgedet:      FRAG_EDGEDET,
+  bokeh:        FRAG_BOKEH,
+  filmgrain:    FRAG_FILMGRAIN,
+  // AcerolaFX-inspired COLOR
+  palswap:      FRAG_PALSWAP,
+  csadjust:     FRAG_CSADJUST,
+  halftone:     FRAG_HALFTONE,
+  kuwahara:     FRAG_KUWAHARA,
 };
 
 // ---- WebGL helpers ----

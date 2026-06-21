@@ -473,6 +473,48 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['bands', 'hue', 'chroma', 'dither', 'rate'],
   },
+  // AcerolaFX-inspired COLOR MAP effects
+  palswap: {
+    knobs: [
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Base hue for the palette (0–1 = 0–360°). The whole image is re-tinted from this starting hue.' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Palette saturation. 0 = greyscale. 0.5 = pastel. 1 = vivid OKLCH chroma.' },
+      { key: 'spread', label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Hue spread across luma. Bright areas drift further around the hue wheel. 0 = flat single-hue tint.' },
+      { key: 'lift',   label: 'Lift',   min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Dark floor lift. Pulls near-black pixels up before mapping — prevents muddy shadows.' },
+    ],
+    toggles: [],
+    order: ['hue', 'chroma', 'spread', 'lift'],
+  },
+  csadjust: {
+    knobs: [
+      { key: 'light',  label: 'Light',  min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'OKLCH lightness offset. 0.5 = neutral. Below = darken. Above = brighten. Perceptually even.' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.33, tip: 'Chroma scale. 0 = fully desaturated. 0.33 = neutral (no change). 1 = 3× saturation boost.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Hue rotation (0–1 = 0–360°). Rotates all colors around the OKLCH hue wheel.' },
+      { key: 'warmth', label: 'Warmth', min: 0, max: 1, step: 0.01, default: 0.5,  tip: '0.5 = neutral. Below = cooler (cyan-blue shift). Above = warmer (orange-yellow shift).' },
+    ],
+    toggles: [],
+    order: ['light', 'chroma', 'hue', 'warmth'],
+  },
+  // AcerolaFX-inspired COLOR UNIQUE effects
+  halftone: {
+    knobs: [
+      { key: 'scale', label: 'Scale', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Halftone dot size. 0 = fine dense screen. 1 = large coarse dots.' },
+      { key: 'ink',   label: 'Ink',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Dot edge hardness. 0 = soft blended dots. 1 = sharp-edged print dots.' },
+      { key: 'angle', label: 'Angle', min: 0, max: 1, step: 0.01, default: 0.0, tip: 'Screen angle variation. Rotates all four CMYK screens together.' },
+      { key: 'blend', label: 'Blend', min: 0, max: 1, step: 0.01, default: 0.1, tip: '0 = full CMYK halftone print look. 1 = original source image. Blend for hybrid effect.' },
+    ],
+    toggles: [],
+    order: ['scale', 'ink', 'angle', 'blend'],
+  },
+  kuwahara: {
+    knobs: [
+      { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Filter radius 1–5px. Larger = more painterly stroke-like blurring.' },
+      { key: 'sharp',  label: 'Sharp',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Quadrant selection sharpness. Low = blended soft oil-paint. High = hard region-locked paint.' },
+      { key: 'sat',    label: 'Sat',    min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Saturation boost on painted output. Higher = more vivid, impressionist color.' },
+      { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.0, tip: '0 = fully painterly Kuwahara result. 1 = source passthrough.' },
+    ],
+    toggles: [],
+    order: ['radius', 'sharp', 'sat', 'blend'],
+  },
   // CUSTOM tab — the ChromaEngine. User-built 4-stop color ramp + a driver
   // select choosing which scalar feeds the ramp. The 4 stops are hex strings
   // in `colors` (passed to the shader as vec3 uniforms via opts.stops, same
@@ -694,12 +736,95 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['bands', 'hue', 'chroma', 'dither', 'rate'],
   },
+  // AcerolaFX-inspired stateless FX effects
+  vignette: {
+    knobs: [
+      { key: 'size',     label: 'Size',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Inner bright-zone radius. 0 = vignette starts at center. 1 = bright zone nearly fills the frame.' },
+      { key: 'soft',     label: 'Soft',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Falloff width. 0 = hard cut. 1 = very gradual gradient from bright center to dark edge.' },
+      { key: 'strength', label: 'Strength', min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Darkening amount. 0 = invisible. 1 = corners go fully black.' },
+      { key: 'shape',    label: 'Shape',    min: 0, max: 1, step: 0.01, default: 0.0, tip: '0 = circular lens vignette. 1 = rectangular screen-burn shape.' },
+    ],
+    toggles: [],
+    order: ['size', 'soft', 'strength', 'shape'],
+  },
+  tonemap: {
+    knobs: [
+      { key: 'exposure', label: 'EV',       min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Exposure adjustment (±2 EV). 0.5 = neutral. Below = darker. Above = brighter.' },
+      { key: 'operator', label: 'Operator', min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = Reinhard (soft roll-off). 0.5 = ACES Filmic (punchy). 1 = Hable Uncharted 2 (cinematic).' },
+      { key: 'contrast', label: 'Contrast', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Post-map contrast power. 0 = very flat. 0.5 = neutral. 1 = high contrast S-curve.' },
+      { key: 'desat',    label: 'Desat',    min: 0, max: 1, step: 0.01, default: 0.0, tip: 'Highlight desaturation. Pulls bright areas toward white. Mimics film roll-off.' },
+    ],
+    toggles: [],
+    order: ['exposure', 'operator', 'contrast', 'desat'],
+  },
+  chromab: {
+    knobs: [
+      { key: 'amount', label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.35, tip: 'Chromatic separation distance. Higher = more channel split.' },
+      { key: 'radial', label: 'Radial', min: 0, max: 1, step: 0.01, default: 0.5,  tip: '0 = uniform shift across the frame. 1 = corner-amplified aberration (like a real lens).' },
+      { key: 'angle',  label: 'Angle',  min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Drift direction for chromatic shift. Rotates the aberration axis 0–360°.' },
+      { key: 'spread', label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.0,  tip: '0 = R/B split only (classic chroma aberration). 1 = full R/G/B tri-split (prismatic).' },
+    ],
+    toggles: [],
+    order: ['amount', 'radial', 'angle', 'spread'],
+  },
+  sharpen: {
+    knobs: [
+      { key: 'strength', label: 'Strength', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Sharpening amount. Higher = more edge detail pulled.' },
+      { key: 'radius',   label: 'Radius',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Kernel blur radius. Wider radius = larger-scale detail enhanced.' },
+      { key: 'clamp',    label: 'Clamp',    min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Anti-halo detail clamp. Higher = tighter clamp prevents ringing artifacts.' },
+      { key: 'luma',     label: 'Luma',     min: 0, max: 1, step: 0.01, default: 0.0, tip: '0 = sharpen all RGB channels. 1 = sharpen luma only (preserves hue, avoids chroma noise).' },
+    ],
+    toggles: [],
+    order: ['strength', 'radius', 'clamp', 'luma'],
+  },
+  edgedet: {
+    knobs: [
+      { key: 'thresh', label: 'Thresh', min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Edge detection threshold. Lower = more edges found. Higher = only strong edges.' },
+      { key: 'glow',   label: 'Glow',   min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Edge line softness. 0 = wide diffuse glow. 1 = sharp fine lines.' },
+      { key: 'hue',    label: 'Hue',    min: 0, max: 1, step: 0.01, default: 0.15, tip: 'Edge color hue (0–1 = 0–360°). Sweep for neon green, electric blue, hot pink edges.' },
+      { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.1,  tip: '0 = neon edges overlaid on source. 1 = edges only on black (wireframe look).' },
+    ],
+    toggles: [],
+    order: ['thresh', 'glow', 'hue', 'blend'],
+  },
+  bokeh: {
+    knobs: [
+      { key: 'radius', label: 'Radius', min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Blur radius 0–12px. Larger = more pronounced bokeh blur.' },
+      { key: 'bright', label: 'Bright', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Bokeh highlight boost. Higher = bright highlights bloom as large luminous circles.' },
+      { key: 'blades', label: 'Blades', min: 0, max: 1, step: 0.01, default: 0.0, tip: '0 = circular aperture bokeh. 1 = hexagonal blades (like a 6-blade lens iris).' },
+      { key: 'chroma', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.0, tip: 'Chromatic fringe on bokeh circles. Adds lens-style R/B edge color separation.' },
+    ],
+    toggles: [],
+    order: ['radius', 'bright', 'blades', 'chroma'],
+  },
+  filmgrain: {
+    knobs: [
+      { key: 'amount',   label: 'Amount',   min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Grain intensity. Higher = more visible film grain texture.' },
+      { key: 'size',     label: 'Size',     min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Grain clump size 1–4px. Low = fine silver-halide grain. High = chunky push-process look.' },
+      { key: 'shadow',   label: 'Shadow',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Shadow grain bias. 0 = uniform grain. 1 = grain concentrates in dark areas (shadow noise).' },
+      { key: 'halation', label: 'Halation', min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Film halation glow. Bright areas spread softly as if light bled through the film backing.' },
+    ],
+    toggles: [],
+    order: ['amount', 'size', 'shadow', 'halation'],
+  },
+  autoexp: {
+    feedback: true,
+    knobs: [
+      { key: 'range',  label: 'Range',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Max exposure correction range (0.5–4 EV). Higher = stronger auto-correction.' },
+      { key: 'target', label: 'Target', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Target brightness (18%–72% grey). Higher = auto-exposes for a brighter image.' },
+      { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Adaptation speed. Low = slow eye adaptation. High = snappy frame-to-frame correction.' },
+      { key: 'gain',   label: 'Gain',   min: 0, max: 1, step: 0.01, default: 0.0, tip: 'Pre-boost gain on top of auto-correction. Adds extra brightness beyond what auto sets.' },
+    ],
+    toggles: [],
+    order: ['range', 'target', 'speed', 'gain'],
+  },
 };
 
 export const FX_SECTIONS = [
   'rgbdelay', 'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
   'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise', 'okband',
+  'vignette', 'tonemap', 'chromab', 'sharpen', 'edgedet', 'bokeh', 'filmgrain', 'autoexp',
 ];
 
 // ============================================================
@@ -748,6 +873,7 @@ export const COLOR_MAP_SECTIONS = [
   'acidwash','xray','solarize','cyanotype','infrared',
   'blackbody','hubble',
   'surveil','polaroid','blacklight',
+  'palswap','csadjust',
 ];
 // The UNIQUE tab — effects that BUILD something: they sample neighbors, add
 // elements (stars, halos, streaks), displace, or glow. Grouped into labeled
@@ -761,8 +887,9 @@ export const COLOR_UNIQUE_SECTIONS = [
   { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin', 'hologram'] },
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
   { key: 'deepsea',    label: 'Deep Sea',   effects: ['octopus'] },
-  { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint', 'sketch', 'okband'] },
+  { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint', 'sketch', 'okband', 'halftone'] },
   { key: 'motion',     label: 'Motion',     effects: ['predator'] },
+  { key: 'painterly',  label: 'Painterly',  effects: ['kuwahara'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
 // Every valid value of state.color (except 'none'): maps + unique effects +
@@ -835,6 +962,18 @@ export const BLEND_MODES = {
   crt:          'source-over',
   okband:       'source-over',
   chroma:       'source-over',
+  vignette:     'source-over',
+  tonemap:      'source-over',
+  chromab:      'source-over',
+  sharpen:      'source-over',
+  edgedet:      'source-over',
+  bokeh:        'source-over',
+  filmgrain:    'source-over',
+  autoexp:      'source-over',
+  palswap:      'source-over',
+  csadjust:     'source-over',
+  halftone:     'source-over',
+  kuwahara:     'source-over',
   // Internal GRADE pass (hue rotate + saturation) — auto-appended after the
   // COLOR stage by resolveActivePipeline; never appears in any picker.
   grade:        'source-over',
