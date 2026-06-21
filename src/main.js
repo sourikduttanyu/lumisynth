@@ -2504,7 +2504,7 @@ const FX_LABEL = {
   crt: 'CRT', crtrolling: 'CRT Roll', scanlines: 'Scanlines', degrade: 'Degrade', noise: 'Noise',
   okband: 'OKBand',
   vignette: 'Vignette', tonemap: 'Tonemap', chromab: 'ChromAb', sharpen: 'Sharpen',
-  bokeh: 'Bokeh', filmgrain: 'FilmGrain', autoexp: 'AutoExp',
+  bokeh: 'Bokeh', filmgrain: 'FilmGrain', ign: 'IGN', autoexp: 'AutoExp',
 };
 const FX_SWATCH_GRADIENTS = {
   rgbdelay:   'linear-gradient(90deg, #080010, #cc0033 28%, #00cc55 52%, #0033cc 76%, #080010)',
@@ -2530,6 +2530,7 @@ const FX_SWATCH_GRADIENTS = {
   sharpen:    'linear-gradient(90deg, #0a0a10, #2a3860, #9ab4d8, #e8f4ff)',
   bokeh:      'radial-gradient(ellipse at 50% 50%, #fff8e0 0%, #ddb040 18%, #cc4400 38%, #080010 65%)',
   filmgrain:  'linear-gradient(90deg, #111, #554433, #887766, #aaa, #777, #333)',
+  ign:        'linear-gradient(90deg, #070709 0 12%, #13141a 12% 24%, #070709 24% 36%, #1a1b22 36% 48%, #0b0c10 48% 60%, #141520 60% 72%, #070709 72% 84%, #111219 84%)',
   autoexp:    'linear-gradient(90deg, #020202, #1a2a10, #446038, #aad870, #fdfff8)',
 };
 const FX_CHIP_TIP = {
@@ -2556,6 +2557,7 @@ const FX_CHIP_TIP = {
   sharpen:    'Unsharp mask sharpening. Detail = center minus blurred neighbor average, added back at Strength. Clamp prevents ringing halos. Luma-only mode preserves hue. Click to swap.',
   bokeh:      'Ring-sample defocus blur. Bright spots bloom as circular (or hexagonal) bokeh highlights. Chroma adds lens fringe. Click to swap.',
   filmgrain:  'Analogue film grain. Animated per-frame, shadow-biased, spatially clumped. Halation adds a soft glow on bright areas like real film halation. Click to swap.',
+  ign:        'Interleaved Gradient Noise — temporally animated with golden-ratio offset for blue-noise-quality grain. Scale controls block size (1–8px). Posterize quantises to N colour levels using IGN as the dither matrix — minimal clumping, no banding. Chroma splits R/G/B channels for colour-fringe grain. Click to swap.',
   autoexp:    'Auto exposure. Samples current frame brightness, exponentially adapts toward Target over time, applies EV correction. Corner-pixel feedback state storage. Click to swap.',
 };
 

@@ -820,6 +820,16 @@ export const FX_PARAM_SCHEMAS = {
     toggles: [],
     order: ['amount', 'size', 'shadow', 'halation'],
   },
+  ign: {
+    knobs: [
+      { key: 'amount',    label: 'Amount', min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Noise intensity. In grain mode: overlay strength. In posterize mode: dither amplitude (1 = full ordered dither).' },
+      { key: 'scale',     label: 'Scale',  min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Grain block size 1–8px. 0 = per-pixel grain. Higher = chunky dithered blocks.' },
+      { key: 'posterize', label: 'Poster', min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Posterize + IGN dither. 0 = grain overlay only. Higher = quantise to fewer colour levels using IGN as the dither matrix. 1 = 1-bit with dithering.' },
+      { key: 'chromatic', label: 'Chroma', min: 0, max: 1, step: 0.01, default: 0.0,  tip: '0 = monochrome grain. 1 = independent R/G/B channel noise for colour-fringe grain.' },
+    ],
+    toggles: [],
+    order: ['amount', 'scale', 'posterize', 'chromatic'],
+  },
   autoexp: {
     feedback: true,
     knobs: [
@@ -837,7 +847,7 @@ export const FX_SECTIONS = [
   'rgbdelay', 'drag', 'lumadrag', 'flowfield', 'tunnel', 'burnin', 'wobbletape',
   'bloom', 'godrays', 'decayflow', 'feedbackwarp',
   'crt', 'crtrolling', 'scanlines', 'degrade', 'noise', 'okband',
-  'vignette', 'tonemap', 'chromab', 'sharpen', 'bokeh', 'filmgrain', 'autoexp',
+  'vignette', 'tonemap', 'chromab', 'sharpen', 'bokeh', 'filmgrain', 'ign', 'autoexp',
 ];
 
 // ============================================================

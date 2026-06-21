@@ -2293,6 +2293,47 @@ void main() {
   fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
 
+// IGN — Interleaved Gradient Noise (Jorge Jimenez). Temporally animated with
+// golden-ratio offset for blue-noise temporal distribution. Posterize mode
+// uses IGN as the ordered dither matrix to break banding with minimal clumping.
+// uParams: x=amount, y=scale(1–8px blocks), z=posterize(0–1), w=chromatic(0–1)
+const FRAG_IGN = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+uniform float uTime;
+out vec4 fragColor;
+float ign(vec2 p) {
+  return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
+}
+void main() {
+  vec3  col    = texture(u_video, vUV).rgb;
+  float amount = uParams.x;
+  float scale  = max(1.0, round(mix(1.0, 8.0, uParams.y)));
+  float post   = uParams.z;
+  float chroma = uParams.w;
+  vec2  res    = vec2(textureSize(u_video, 0));
+  vec2  px     = floor(vUV * res / scale);
+  // Golden-ratio temporal offset — each frame shifts by phi, giving good
+  // temporal distribution without repeating for hundreds of seconds.
+  float t = fract(uTime * 1.61803398875);
+  float n0 = fract(ign(px)                    + t);
+  float n1 = fract(ign(px + vec2(31.0, 17.0)) + t);
+  float n2 = fract(ign(px + vec2(67.0, 53.0)) + t);
+  if (post > 0.01) {
+    // IGN ordered dithering: add noise before quantisation — unbiased, minimal clumping
+    float levels = max(2.0, round(mix(16.0, 2.0, post)));
+    vec3  d      = mix(vec3(n0), vec3(n0, n1, n2), chroma) * amount;
+    col = floor(col * levels + d) / levels;
+  } else {
+    // Plain grain overlay — noise centered at 0
+    vec3 grain = mix(vec3(n0 - 0.5), vec3(n0, n1, n2) - 0.5, chroma);
+    col += grain * (amount * 0.25);
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 // ---- AcerolaFX-inspired COLOR effects (MAP and UNIQUE) ----
 
 // PALSWAP — OKLCH Palette Swap: maps scene luma to a hue gradient in perceptual color space.
@@ -2587,6 +2628,7 @@ export const FRAGS = {
   edgedet:      FRAG_EDGEDET,
   bokeh:        FRAG_BOKEH,
   filmgrain:    FRAG_FILMGRAIN,
+    ign:          FRAG_IGN,
   // AcerolaFX-inspired COLOR
   palswap:      FRAG_PALSWAP,
   csadjust:     FRAG_CSADJUST,
