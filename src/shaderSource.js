@@ -43,87 +43,6 @@ void main() {
   gl_Position = vec4(a_pos, 0.0, 1.0);
 }`;
 
-// DIVE CLOUDS — POV diving through a vast layer of sunlit cumulus, banking on
-// a sweeping flight path with a low sun burning through. Front-to-back
-// volumetric march over an FBM cloud field. Ported from Shadertoy 4sXGRM
-// (referenced). iTime → uTime; an early-out on opacity tames the long march.
-const FRAG_DIVECLOUDS = `#version 300 es
-precision highp float;
-in vec2 vUV;
-uniform float uTime;
-uniform vec2 uRes;
-uniform float uParams[8];   // [0] Coverage, [1] Zoom, [2] Sun, [3] Tint
-out vec4 fragColor;
-
-float hash(float n) { return fract(cos(n) * 114514.1919); }
-float noise(vec3 x) {
-  vec3 p = floor(x);
-  vec3 f = smoothstep(0.0, 1.0, fract(x));
-  float n = p.x + p.y * 10.0 + p.z * 100.0;
-  return mix(
-    mix(mix(hash(n + 0.0),   hash(n + 1.0),   f.x), mix(hash(n + 10.0),  hash(n + 11.0),  f.x), f.y),
-    mix(mix(hash(n + 100.0), hash(n + 101.0), f.x), mix(hash(n + 110.0), hash(n + 111.0), f.x), f.y), f.z);
-}
-const mat3 m = mat3(0.00, 1.60, 1.20, -1.60, 0.72, -0.96, -1.20, -0.96, 1.28);
-float fbm(vec3 p) {
-  float f = 0.5000 * noise(p); p = m * p;
-  f += 0.2500 * noise(p);     p = m * p;
-  f += 0.1666 * noise(p);     p = m * p;
-  f += 0.0834 * noise(p);
-  return f;
-}
-vec3 camera(float t) {
-  return vec3(5000.0 * sin(t), 5000.0 + 1500.0 * sin(0.5 * t), 6000.0 * t);
-}
-
-void main() {
-  float coverage = uParams[0];
-  float zoom     = max(uParams[1], 0.05);
-  float sunAmt   = uParams[2];
-  float tint     = uParams[3];
-
-  vec2 uv = 2.0 * vUV - 1.0;
-  uv.x *= uRes.x / uRes.y;
-
-  float time = uTime + 57.5;
-  vec3 campos = camera(time);
-  vec3 camtar = camera(time + 0.4);
-  vec3 front = normalize(camtar - campos);
-  vec3 right = normalize(cross(front, vec3(0.0, 1.0, 0.0)));
-  vec3 up    = normalize(cross(right, front));
-  vec3 fragAt = normalize((uv.x * right + uv.y * up) / zoom + front);
-
-  vec3 light = normalize(vec3(0.1, 0.25, 0.9));
-  vec2 cloudrange = vec2(0.0, 10000.0);
-  float cloudLo = mix(0.75, 0.30, coverage);   // Coverage slides the cloud threshold
-
-  vec4 sum = vec4(0.0);
-  for (float depth = 0.0; depth < 100000.0; depth += 380.0) {
-    vec3 ray = campos + fragAt * depth;
-    if (cloudrange.x < ray.y && ray.y < cloudrange.y) {
-      float alpha = smoothstep(cloudLo, 1.0, fbm(ray * 0.00025));
-      vec3 localcolor = mix(vec3(1.1, 1.05, 1.0), vec3(0.3, 0.3, 0.2), alpha);
-      alpha = (1.0 - sum.a) * alpha;
-      sum += vec4(localcolor * alpha, alpha);
-    }
-    if (sum.a > 0.97) break;
-  }
-
-  float alpha = smoothstep(0.7, 1.0, sum.a);
-  sum.rgb /= sum.a + 0.0001;
-
-  vec3 skytop = mix(vec3(0.05, 0.2, 0.5), vec3(0.5, 0.32, 0.16), tint);
-  float sundot = clamp(dot(fragAt, light), 0.0, 1.0);
-  vec3 col = 0.8 * skytop;
-  col += 0.47 * vec3(1.6, 1.4, 1.0) * pow(sundot, 350.0) * sunAmt;
-  col += 0.40 * vec3(0.8, 0.9, 1.0) * pow(sundot, 2.0);
-  sum.rgb -= 0.6 * vec3(0.8, 0.75, 0.7) * pow(sundot, 13.0) * alpha;
-  sum.rgb += 0.2 * vec3(1.3, 1.2, 1.0) * pow(sundot, 5.0) * (1.0 - alpha) * sunAmt;
-  col = mix(col, sum.rgb, sum.a);
-
-  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
-}`;
-
 // PHANTOM STAR — kaleidoscopic IFS-fractal flythrough. A folded box fractal
 // (abs-fold + rotations) is domain-repeated and mirrored into N-fold radial
 // symmetry, then volumetrically accumulated as a glowing neon star tunnel
@@ -378,7 +297,6 @@ void main() {
 }`;
 
 const SHADER_FRAGS = {
-  diveclouds:  FRAG_DIVECLOUDS,
   phantomstar: FRAG_PHANTOMSTAR,
   starnest:    FRAG_STARNEST,
   hyperkart:   FRAG_HYPERKART,
@@ -386,24 +304,6 @@ const SHADER_FRAGS = {
 
 // Library metadata — the source picker grid builds itself from this.
 export const SHADER_SOURCES = [
-  {
-    slug: 'diveclouds',
-    label: 'Dive Clouds',
-    tip: 'POV diving through a vast sunlit cumulus layer on a sweeping banked flight, low sun burning through. Volumetric FBM clouds. After Shadertoy 4sXGRM.',
-    gradient: 'linear-gradient(160deg, #0d3a86, #4a90d9 35%, #eaf2ff 60%, #fff3d8 80%, #f0c060)',
-    knobs: [
-      { key: 'speed',    label: 'Speed',    min: 0,   max: 2.5, step: 0.01, default: 1,
-        tip: 'Flight speed. How fast the camera sweeps through the cloud layer. 0 = hover frozen mid-sky.' },
-      { key: 'coverage', label: 'Cover',    min: 0,   max: 1,   step: 0.01, default: 0.5,
-        tip: 'Cloud coverage. Low = thin scattered wisps with open blue sky. High = dense overcast you plough straight into.' },
-      { key: 'zoom',     label: 'Zoom',     min: 0.3, max: 3,   step: 0.01, default: 1,
-        tip: 'Field of view. Low = wide horizon vista. High = telephoto dive into the billows.' },
-      { key: 'sun',      label: 'Sun',      min: 0,   max: 2,   step: 0.01, default: 1,
-        tip: 'Sun intensity. The glare disc and the light scattering through the clouds. 0 = flat overcast, high = blazing god-ray burn.' },
-      { key: 'tint',     label: 'Tint',     min: 0,   max: 1,   step: 0.01, default: 0,
-        tip: 'Sky color. 0 = cool daytime blue. 1 = warm golden-hour haze.' },
-    ],
-  },
   {
     slug: 'phantomstar',
     label: 'Phantom Star',
@@ -436,7 +336,7 @@ export const SHADER_SOURCES = [
     knobs: [
       { key: 'speed', label: 'Speed', min: 0,    max: 2.5,  step: 0.01,  default: 1,
         tip: 'Master clock. Scales the drift through the starfield and the auto-tumble. 0 = frozen frame.' },
-      { key: 'zoom',  label: 'Zoom',  min: 0,    max: 50,   step: 0.1,   default: 0.8,
+      { key: 'zoom',  label: 'Zoom',  min: 0,    max: 50,   step: 0.1,   default: 10,
         tip: 'Field of view. Low = wide cosmic vista. High = extreme fisheye plunge that wraps the whole starfield around you.' },
       { key: 'warp',  label: 'Warp',  min: 0.40, max: 0.62, step: 0.005, default: 0.53,
         tip: 'The fractal "magic formula" constant — the heart of the look. Tiny moves completely restructure the nebula. Sensitive; sweep slowly.' },
@@ -448,7 +348,7 @@ export const SHADER_SOURCES = [
         tip: 'Dark matter. Carves shadowed voids into the cloud so bright clusters read against black. 0 = even haze, high = deep negative space.' },
       { key: 'sat',   label: 'Sat',   min: 0,    max: 1,    step: 0.01,  default: 0.85,
         tip: 'Color saturation. 0 = silvery monochrome starfield, 1 = full nebula color.' },
-      { key: 'spin',  label: 'Spin',  min: 0,    max: 1,    step: 0.01,  default: 0.2,
+      { key: 'spin',  label: 'Spin',  min: 0,    max: 1,    step: 0.01,  default: 0.3,
         tip: 'Auto-tumble rate (replaces the original mouse look). 0 = fixed orientation, just drifting forward. High = slow rolling tumble through space.' },
     ],
   },

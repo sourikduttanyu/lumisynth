@@ -4,7 +4,7 @@ import { applyFilterToSubregion } from './filters.js';
 import { drawTrackOverlay, resetTrackOverlay } from './overlays.js';
 import { trackBlobs, resetTracker } from './kalman.js';
 import { applyASCII } from './ascii.js';
-import { applyGLFilter } from './glFilters.js';
+import { applyGLFilter, applyStructureMode } from './glFilters.js';
 import { applyFxEffect, resetFxFeedback } from './glFx.js';
 import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs, captureFrameHistory, resetMotionHistory } from './glContext.js';
 import { SHADER_SOURCES, SHADER_RES, setShaderSource, renderShaderSourceFrame, getShaderSourceCanvas, getShaderSourceParams, setShaderSourceParam } from './shaderSource.js';
@@ -1121,32 +1121,29 @@ _hiddenCards.forEach(c => c.classList.add('hidden'));
 // runColorEffect (each color slot owns its own params).
 function runEffect(name, opts) {
   const look = currentLook();
-  const outputMode = structureOutputModeValue(look);
-  const inkColors = inkColorUniforms(look);
   switch (name) {
     case 'ascii':
       return applyASCII(canvas.width, canvas.height, {
         cellSize: look.asciiCellSize, contrast: look.asciiContrast,
         blackThreshold: look.asciiBlackThresh, glyphStrength: look.asciiGlyphStrength,
         edgeThreshold: look.asciiEdgeThreshold ?? 0.0,
-        outputMode, ...inkColors,
       }, opts);
     case 'erode':
-      return applyGLFilter('erode', canvas.width, canvas.height, [look.erodeMode, look.erodeRadius, look.erodeStrength, look.erodeEdge], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('erode', canvas.width, canvas.height, [look.erodeMode, look.erodeRadius, look.erodeStrength, look.erodeEdge], opts);
     case 'pixelsort':
-      return applyGLFilter('pixelsort', canvas.width, canvas.height, [look.pixelsortThresh, look.pixelsortLength, look.pixelsortOpacity, look.pixelsortDir], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('pixelsort', canvas.width, canvas.height, [look.pixelsortThresh, look.pixelsortLength, look.pixelsortOpacity, look.pixelsortDir], opts);
     case 'melt':
-      return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('melt', canvas.width, canvas.height, [look.meltAmount, look.meltDrip, look.meltViscosity, look.meltDir], opts);
     case 'motionedge':
-      return applyGLFilter('motionedge', canvas.width, canvas.height, [look.motionedgeEdge, look.motionedgeMotion, look.motionedgeThresh, look.motionedgeBoost], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('motionedge', canvas.width, canvas.height, [look.motionedgeEdge, look.motionedgeMotion, look.motionedgeThresh, look.motionedgeBoost], opts);
     case 'edgedet':
-      return applyGLFilter('edgedet', canvas.width, canvas.height, [look.edgedetThresh, look.edgedetGlow, look.edgedetHue, look.edgedetBlend], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('edgedet', canvas.width, canvas.height, [look.edgedetThresh, look.edgedetGlow, look.edgedetHue, look.edgedetBlend], opts);
     case 'dither':
-      return applyGLFilter('dither', canvas.width, canvas.height, [look.ditherScale, look.ditherLevels, look.ditherContrast, look.ditherBias], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('dither', canvas.width, canvas.height, [look.ditherScale, look.ditherLevels, look.ditherContrast, look.ditherBias], opts);
     case 'freqmod':
-      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodCarrier, look.freqmodSpread, look.freqmodQtz, look.freqmodAlpha, look.freqmodBlack ?? 0], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodCarrier, look.freqmodSpread, look.freqmodQtz, look.freqmodAlpha, look.freqmodBlack ?? 0], opts);
     case 'moddiff':
-      return applyGLFilter('moddiff', canvas.width, canvas.height, [look.moddiffFreq, look.moddiffMod, look.moddiffBlack, look.moddiffAxis ?? 0, look.moddiffDrift ?? 0], { ...opts, outputMode, ...inkColors });
+      return applyGLFilter('moddiff', canvas.width, canvas.height, [look.moddiffFreq, look.moddiffMod, look.moddiffBlack, look.moddiffAxis ?? 0, look.moddiffDrift ?? 0], opts);
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -5343,7 +5340,13 @@ function renderFrame(nowDOMHi) {
       // Standalone single-stage fast path. No chain FBO allocation, no
       // ping-pong. Identical pixel output to the pre-rack standalone path.
       if (pipe.structure) {
-        runEffect(pipe.structure);
+        const chain = getChainFBOs();
+        // Run structure shader to chain.a (raw mono output)
+        runEffect(pipe.structure, { outputFBO: chain.a.fb });
+        // Structure output-mode conversion: raw mono → Source/Mono/Ink/Invert
+        const structModeVal = structureOutputModeValue(look);
+        const inkColors = inkColorUniforms(look);
+        applyStructureMode(cw, ch, chain.a.tex, structModeVal, inkColors.inkLow, inkColors.inkHigh, null);
         compositeToCanvas2D(ctx, cw, ch, BLEND_MODES[pipe.structure] || 'source-over');
       } else {
         const stage = chained[0];
@@ -5361,6 +5364,13 @@ function renderFrame(nowDOMHi) {
       // STRUCTURE (if present) — always reads raw video; writes to chain.
       if (pipe.structure) {
         runEffect(pipe.structure, { outputFBO: writeFBOs[writeIdx] });
+        currentTex = readTexs[writeIdx];
+        writeIdx ^= 1;
+
+        // Structure output-mode conversion: raw mono → Source/Mono/Ink/Invert
+        const structModeVal = structureOutputModeValue(look);
+        const inkColors = inkColorUniforms(look);
+        applyStructureMode(cw, ch, currentTex, structModeVal, inkColors.inkLow, inkColors.inkHigh, writeFBOs[writeIdx]);
         currentTex = readTexs[writeIdx];
         writeIdx ^= 1;
 

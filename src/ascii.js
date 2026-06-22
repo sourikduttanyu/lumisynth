@@ -22,29 +22,11 @@ precision highp int;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 uniform float uEdgeThreshold;
 out vec4 fragColor;
 
 float luma(vec3 rgb) {
   return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
-}
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) {
-    float srcLum = max(luma(src), 0.001);
-    float targetLum = mix(srcLum, structure, 0.55);
-    return clamp(src * (targetLum / srcLum), 0.0, 1.0);
-  }
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark glyphs on light)
 }
 
 float hash12(vec2 p) {
@@ -141,7 +123,7 @@ void main() {
 
   float blackCutoff = uParams.z * 0.8;
   if (val < blackCutoff) {
-    fragColor = vec4(applyStructureOutput(0.0, src, uOutputMode), 1.0);
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
     return;
   }
 
@@ -181,7 +163,7 @@ void main() {
   float blockTone  = clamp(val + detail * 0.5, 0.0, 1.0);
   float result     = mix(blockTone, glyphBrite, uParams.w);
 
-  fragColor = vec4(applyStructureOutput(result, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(result), 1.0);
 }`;
 
 // ---- WebGL helpers ----
@@ -234,9 +216,6 @@ function initProgram() {
     u: {
       video:         gl.getUniformLocation(prog, 'u_video'),
       params:        gl.getUniformLocation(prog, 'uParams'),
-      outputMode:    gl.getUniformLocation(prog, 'uOutputMode'),
-      inkLow:        gl.getUniformLocation(prog, 'uInkLow'),
-      inkHigh:       gl.getUniformLocation(prog, 'uInkHigh'),
       edgeThreshold: gl.getUniformLocation(prog, 'uEdgeThreshold'),
     },
   };
@@ -260,9 +239,6 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   const blackThresh   = params.blackThreshold ?? 0.2;
   const glyphStrength = params.glyphStrength  ?? 0.9;
   const edgeThreshold = params.edgeThreshold  ?? 0.0;
-  const outputMode    = params.outputMode     ?? 0;
-  const inkLow        = params.inkLow         ?? [0.04, 0.035, 0.03];
-  const inkHigh       = params.inkHigh        ?? [0.92, 0.88, 0.78];
 
   const S = ensureContext(cw, ch);
   if (!S) return;
@@ -283,9 +259,6 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
   gl.useProgram(prog);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, inTex); gl.uniform1i(u.video, 0);
   gl.uniform4f(u.params, cellSize, contrast, blackThresh, glyphStrength);
-  gl.uniform1f(u.outputMode, outputMode);
-  gl.uniform3f(u.inkLow, inkLow[0], inkLow[1], inkLow[2]);
-  gl.uniform3f(u.inkHigh, inkHigh[0], inkHigh[1], inkHigh[2]);
   gl.uniform1f(u.edgeThreshold, edgeThreshold);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

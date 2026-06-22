@@ -26,21 +26,7 @@ precision highp int;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
-}
 
 void main() {
   vec2 uv = vUV;
@@ -64,7 +50,7 @@ void main() {
   float morphed  = mix(val, morphVal, strength);
   float edgeRing = abs(val - morphVal) * 3.0;
   float out_v    = mix(morphed, clamp(edgeRing, 0.0, 1.0), uParams.w);
-  fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(out_v), 1.0);
 }`;
 
 // FREQMOD — FM demodulation. Treats each image row as a 1D FM-modulated
@@ -81,21 +67,7 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uParam4;   // black level — luma below this is crushed to 0 before FM encoding
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float t = step(0.5, structure);
-    return mix(uInkLow, uInkHigh, t);
-  }
-  return vec3(1.0 - structure);
-}
 
 void main() {
   const float PI   = 3.14159265358979;
@@ -140,9 +112,8 @@ void main() {
     dem_filt = alpha * abs(sam) + (1.0 - alpha) * dem_filt;
   }
 
-  vec3  src       = texture(u_video, vUV).rgb;
   float structure = clamp(dem_filt, 0.0, 1.0);
-  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(structure), 1.0);
 }`;
 
 // MOTIONEDGE — STRUCTURE. Spatial edges + temporal motion (current frame vs
@@ -155,21 +126,7 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform sampler2D u_prev;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
-}
 
 float lumC(vec2 uv) { return dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114)); }
 float lumP(vec2 uv) { return dot(texture(u_prev,  uv).rgb, vec3(0.299, 0.587, 0.114)); }
@@ -193,7 +150,7 @@ void main() {
 
   float sig = max(edge, motion);
   float structure = smoothstep(uParams.z, uParams.z + 0.22, sig) * mix(0.55, 1.6, uParams.w);
-  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(structure), 1.0);
 }`;
 
 // PREDATOR — COLOR UNIQUE (Motion). Motion-as-heat thermal vision: pixels
@@ -407,21 +364,7 @@ precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
-}
 
 void main() {
   vec2 uv = vUV;
@@ -455,7 +398,7 @@ void main() {
   interior *= mix(1.0, 0.5 + basinVal * 0.5, uParams.w);
   float result = interior + boundary * 0.6;
   result = clamp(result, 0.0, 1.0);
-  fragColor = vec4(applyStructureOutput(result, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(result), 1.0);
 }`;
 
 const FRAG_PIXELSORT = `#version 300 es
@@ -463,21 +406,7 @@ precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
-}
 
 void main() {
   vec2 uv = vUV;
@@ -501,13 +430,13 @@ void main() {
     if (sv >= threshold && sv > bestVal) { bestVal = sv; bestDist = float(i); }
   }
   if (bestDist < 0.0) {
-    fragColor = vec4(applyStructureOutput(srcVal, src, uOutputMode), 1.0);
+    fragColor = vec4(vec3(srcVal), 1.0);
     return;
   }
   float fade = clamp(1.0 - (bestDist / float(max(maxLen, 1))), 0.0, 1.0);
   float streakVal = bestVal * fade;
   float out_v = max(srcVal, streakVal * opacity);
-  fragColor = vec4(applyStructureOutput(out_v, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(out_v), 1.0);
 }`;
 
 const FRAG_MELT = `#version 300 es
@@ -515,21 +444,7 @@ precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);   // invert: negative of mono (dark traces on light)
-}
 
 void main() {
   vec2 uv = vUV;
@@ -554,7 +469,7 @@ void main() {
       if (drippedVal > bestVal) bestVal = drippedVal;
     }
   }
-  fragColor = vec4(applyStructureOutput(bestVal, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(bestVal), 1.0);
 }`;
 
 // ---- COLOR additions ----
@@ -1308,9 +1223,10 @@ void main() {
 }`;
 
 // NEWSPRINT — pop-art CMYK-style halftone duotone. Two rotated dot screens
-// (shadow ink + midtone ink) over warm paper with registration drift — the
-// TV Girl album-cover print technique, punchier than risograph.
-// uParams: x=Dot scale, y=Ink A hue, z=Ink B hue, w=Drift
+// (shadow ink + midtone ink) over warm paper. Threshold controls where dots
+// appear: low = dots even in lights (heavy coverage), high = dots only in
+// deep shadows (sparse, open paper). TV Girl album-cover print technique.
+// uParams: x=Dot scale, y=Ink A hue, z=Ink B hue, w=Threshold
 const FRAG_NEWSPRINT = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -1329,9 +1245,12 @@ void main() {
   vec2 uv = vUV;
   float L = dot(texture(u_video, uv).rgb, vec3(0.299, 0.587, 0.114));
   float scale = mix(220.0, 60.0, uParams.x);
-  vec2 off = vec2(0.010, -0.006) * uParams.w;
-  float aA = dotMask(uv + off * 0.5, 0.262, scale, 1.0 - L);
-  float aB = dotMask(uv - off * 0.5, 0.785, scale, L * (1.0 - L) * 3.2);
+  // threshold: 0 = heavy (all tones get dots), 1 = sparse (only deep darks)
+  float thresh = uParams.w;
+  float biasA = clamp((1.0 - L) - thresh * 0.8, 0.0, 1.0);
+  float biasB = clamp(L * (1.0 - L) * 3.2 * (1.0 - thresh * 0.7), 0.0, 1.0);
+  float aA = dotMask(uv, 0.262, scale, biasA);
+  float aB = dotMask(uv, 0.785, scale, biasB);
   vec3 colA = hsv2rgb(vec3(uParams.y, 0.80, 0.85));
   vec3 colB = hsv2rgb(vec3(uParams.z, 0.75, 0.95));
   vec3 col = vec3(0.97, 0.95, 0.90);
@@ -1981,21 +1900,7 @@ precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float t = step(0.5, structure);
-    return mix(uInkLow, uInkHigh, t);
-  }
-  return vec3(1.0 - structure);
-}
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
@@ -2024,8 +1929,7 @@ void main() {
   float sharp  = mix(4.0, 20.0, uParams.z);
   float edge   = smoothstep(thresh, thresh + 1.0 / sharp, dog);
 
-  vec3 src = texture(u_video, vUV).rgb;
-  fragColor = vec4(applyStructureOutput(edge, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(edge), 1.0);
 }`;
 
 // DITHER — STRUCTURE. Bayer 4×4 ordered dithering: quantizes luma to N
@@ -2038,21 +1942,7 @@ precision highp int;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float t = step(0.5, structure);
-    return mix(uInkLow, uInkHigh, t);
-  }
-  return vec3(1.0 - structure);
-}
 
 float bayerThreshold(ivec2 coord) {
   int[16] bm = int[16](0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5);
@@ -2077,7 +1967,7 @@ void main() {
   float frac    = l * levels - floor(l * levels);
   float structure = clamp(qLuma + (frac > thresh ? 1.0 / (levels - 1.0) : 0.0), 0.0, 1.0);
 
-  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(structure), 1.0);
 }`;
 
 // MODDIFF — Modulated Diffuse. Sine-wave dithering where pixel luminance
@@ -2096,21 +1986,7 @@ uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uParam4;
 uniform float uTime;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
-
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return mix(src * 0.1, src, structure);
-  if (mode < 2.5) {
-    float t = step(0.5, structure);
-    return mix(uInkLow, uInkHigh, t);
-  }
-  return vec3(1.0 - structure);
-}
 
 void main() {
   const float TAU = 6.28318530718;
@@ -2133,7 +2009,7 @@ void main() {
 
   float structure = luma > thresh ? 1.0 : 0.0;
 
-  fragColor = vec4(applyStructureOutput(structure, col.rgb, uOutputMode), 1.0);
+  fragColor = vec4(vec3(structure), 1.0);
 }`;
 
 // ---- AcerolaFX-inspired FX RACK (stateless) ----
@@ -2262,21 +2138,8 @@ precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
-uniform float uOutputMode;
-uniform vec3 uInkLow;
-uniform vec3 uInkHigh;
 out vec4 fragColor;
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
-vec3 applyStructureOutput(float structure, vec3 src, float mode) {
-  structure = clamp(structure, 0.0, 1.0);
-  if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
-  if (mode < 2.5) {
-    float poster = smoothstep(0.42, 0.58, structure);
-    return mix(uInkLow, uInkHigh, poster);
-  }
-  return vec3(1.0 - structure);
-}
 void main() {
   vec2 px = 1.0 / vec2(textureSize(u_video, 0));
   float tl = luma(texture(u_video, vUV + vec2(-px.x,  px.y)).rgb);
@@ -2292,8 +2155,7 @@ void main() {
   float mag = length(vec2(gx, gy));
   float hard = mix(8.0, 40.0, uParams.y);
   float edge = smoothstep(uParams.x * 0.5, uParams.x * 0.5 + 1.0 / hard, mag);
-  vec3 src = texture(u_video, vUV).rgb;
-  fragColor = vec4(applyStructureOutput(edge, src, uOutputMode), 1.0);
+  fragColor = vec4(vec3(edge), 1.0);
 }`;
 
 // EDGEDET — Sobel edge detection overlaid as colored glow on the source.
@@ -2676,6 +2538,40 @@ void main() {
   fragColor = vec4(mix(c0, c1, fract(pos)), 1.0);
 }`;
 
+// ---- Structure output-mode conversion pass ----
+// Runs after the structure shader outputs raw mono, converts to the
+// selected output mode: 0=mono, 1=source, 2=ink, 3=invert.
+const FRAG_STRUCT_MODE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform sampler2D u_struct;
+uniform float uOutputMode;
+uniform vec3 uInkLow;
+uniform vec3 uInkHigh;
+out vec4 fragColor;
+float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+void main() {
+  float s   = clamp(texture(u_struct, vUV).r, 0.0, 1.0);
+  vec3  src = texture(u_video,  vUV).rgb;
+  vec3  col;
+  if (uOutputMode < 0.5) {
+    col = vec3(s);
+  } else if (uOutputMode < 1.5) {
+    float srcLum = max(luma(src), 0.001);
+    float tgt    = mix(srcLum, s, 0.55);
+    col = clamp(src * (tgt / srcLum), 0.0, 1.0);
+  } else if (uOutputMode < 2.5) {
+    float poster = smoothstep(0.42, 0.58, s);
+    col = mix(uInkLow, uInkHigh, poster);
+  } else {
+    col = vec3(1.0 - s);
+  }
+  fragColor = vec4(col, 1.0);
+}`;
+
+let _structModeProgram = null;
+
 export const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
@@ -2868,4 +2764,29 @@ export function applyGLFilter(name, cw, ch, params = [0.5, 0.5, 0.5, 0.5], opts 
     }
   }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+export function applyStructureMode(cw, ch, structTex, outputMode, inkLow, inkHigh, outputFBO) {
+  const { gl, vao } = ensureContext(cw, ch);
+  const videoTex = getVideoTex();
+  if (!_structModeProgram) {
+    _structModeProgram = createProgram(gl, VERT, FRAG_STRUCT_MODE);
+  }
+  const prog = _structModeProgram;
+  gl.useProgram(prog);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, videoTex);
+  gl.uniform1i(gl.getUniformLocation(prog, 'u_video'), 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, structTex);
+  gl.uniform1i(gl.getUniformLocation(prog, 'u_struct'), 1);
+  gl.uniform1f(gl.getUniformLocation(prog, 'uOutputMode'), outputMode);
+  if (inkLow)  gl.uniform3fv(gl.getUniformLocation(prog, 'uInkLow'),  inkLow);
+  if (inkHigh) gl.uniform3fv(gl.getUniformLocation(prog, 'uInkHigh'), inkHigh);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, outputFBO);
+  gl.viewport(0, 0, cw, ch);
+  gl.bindVertexArray(vao);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.bindVertexArray(null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
