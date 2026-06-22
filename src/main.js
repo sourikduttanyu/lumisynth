@@ -139,8 +139,10 @@ const inkHighInput    = document.getElementById('ink-high-input');
 const blobColorTabGroup     = document.getElementById('blob-color-tab-group');
 const blobColorMapsGrid     = document.getElementById('blob-color-maps-grid');
 const blobColorUniqueGrid   = document.getElementById('blob-color-unique-grid');
+const blobColorProcGrid     = document.getElementById('blob-color-proc-grid');
 const blobColorMapsPanel    = document.getElementById('blob-color-maps-knob-panel');
 const blobColorUniquePanel  = document.getElementById('blob-color-unique-knob-panel');
+const blobColorProcPanel    = document.getElementById('blob-color-proc-knob-panel');
 const blobChromaDriverGroup = document.getElementById('blob-chroma-driver-group');
 const blobChromaStopRow     = document.getElementById('blob-chroma-stop-row');
 const blobChromaKnobPanel   = document.getElementById('blob-chroma-knob-panel');
@@ -1266,7 +1268,7 @@ function resolveBlobPipeline(look) {
       case 'erode':     structureParams = [p.mode ?? 0, p.radius ?? 0.3, p.strength ?? 0.7, p.edge ?? 0]; break;
       case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.3, p.opacity ?? 0.8, p.dir ?? 0.5]; break;
       case 'melt':      structureParams = [p.amount ?? 0.5, p.drip ?? 0.4, p.viscosity ?? 0.5, p.dir ?? 0]; break;
-      case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9]; break;
+      case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9, p.edges ?? 0]; break;
       case 'motionedge':structureParams = [p.edge ?? 0.5, p.motion ?? 0.6, p.thresh ?? 0.15, p.boost ?? 0.5, p.rate ?? 0]; break;
       case 'edgedet':   structureParams = [p.thresh ?? 0.3, p.glow ?? 0.5, p.hue ?? 0.15, p.blend ?? 0.1]; break;
       case 'dither':    structureParams = [p.scale ?? 0.4, p.levels ?? 0.3, p.contrast ?? 0.5, p.bias ?? 0.5]; break;
@@ -2138,7 +2140,7 @@ function activateBlobColor(type) {
 }
 
 function updateBlobColorActiveStates() {
-  for (const grid of [blobColorMapsGrid, blobColorUniqueGrid]) {
+  for (const grid of [blobColorMapsGrid, blobColorUniqueGrid, blobColorProcGrid]) {
     if (!grid) continue;
     for (const btn of grid.querySelectorAll('.toggle-btn')) {
       const active = btn.dataset.value === state.blobColor;
@@ -2160,6 +2162,7 @@ function setBlobColorTab(tab) {
   document.getElementById('blob-color-tab-maps')?.classList.toggle('hidden', tab !== 'maps');
   document.getElementById('blob-color-tab-unique')?.classList.toggle('hidden', tab !== 'unique');
   document.getElementById('blob-color-tab-custom')?.classList.toggle('hidden', tab !== 'custom');
+  document.getElementById('blob-color-tab-proc')?.classList.toggle('hidden', tab !== 'proc');
 }
 
 function makeBlobColorSwatchButton(name) {
@@ -2203,6 +2206,13 @@ function buildBlobColorUniqueGrid() {
     for (const name of category.effects) grid.appendChild(makeBlobColorSwatchButton(name));
     blobColorUniqueGrid.appendChild(grid);
   }
+}
+
+function buildBlobColorProcGrid() {
+  if (!blobColorProcGrid) return;
+  blobColorProcGrid.innerHTML = '';
+  blobColorProcGrid.appendChild(makeBlobColorSwatchButton('none'));
+  for (const name of COLOR_PROC_SECTIONS) blobColorProcGrid.appendChild(makeBlobColorSwatchButton(name));
 }
 
 function buildBlobColorKnobs(container, type, idPrefix) {
@@ -2333,6 +2343,12 @@ function renderBlobColorPanel() {
         buildBlobColorKnobs(blobColorUniquePanel, state.blobColor, `blob-unique-${state.blobColor}`);
       }
     }
+    if (blobColorProcPanel) {
+      blobColorProcPanel.innerHTML = '';
+      if (COLOR_PROC_SECTIONS.includes(state.blobColor)) {
+        buildBlobColorKnobs(blobColorProcPanel, state.blobColor, `blob-proc-${state.blobColor}`);
+      }
+    }
     buildBlobChromaControls();
     updateBlobColorActiveStates();
   } finally {
@@ -2375,8 +2391,14 @@ blobColorUniqueGrid?.addEventListener('click', (e) => {
   if (btn) setBlobColor(btn.dataset.value);
 });
 
+blobColorProcGrid?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.toggle-btn');
+  if (btn) setBlobColor(btn.dataset.value);
+});
+
 buildBlobColorMapsGrid();
 buildBlobColorUniqueGrid();
+buildBlobColorProcGrid();
 
 // ---- Blob structure knob panel ----
 

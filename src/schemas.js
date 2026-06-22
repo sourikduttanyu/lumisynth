@@ -1105,6 +1105,7 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'contrast',  label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Gamma contrast on per-cell luma.' },
       { key: 'blackThresh',label: 'Black',  min: 0, max: 1, step: 0.01, default: 0.2, tip: 'Cells darker than this render as solid black.' },
       { key: 'glyph',     label: 'Glyph',   min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Blend luma blocks→glyphs. 1 = full ASCII characters.' },
+      { key: 'edges',     label: 'Edges',   min: 0, max: 1, step: 0.01, default: 0.0, tip: 'Sobel edge sensitivity — overlays _/|\\ direction glyphs on density glyphs when > 0.' },
     ],
   },
   motionedge: {

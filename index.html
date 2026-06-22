@@ -450,6 +450,8 @@
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="motionedge" data-tip="BLOB STRUCT. Spatial edge extraction inside blob region. (Motion component unavailable in blob mode.)">Edges</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="edgedet"    data-tip="BLOB STRUCT. Sobel edge detection with color hue inside blob region.">EdgeDet</button>
             <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="dither"     data-tip="BLOB STRUCT. Bayer dithering inside blob region.">Dither</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="freqmod"    data-tip="BLOB STRUCT. FM oscillography inside blob region.">FreqMod</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="moddiff"    data-tip="BLOB STRUCT. Modulated Diffuse sine-wave dithering inside blob region.">ModDiff</button>
           </div>
         </section>
 
@@ -489,6 +491,7 @@
             <button class="toggle-btn active" type="button" role="tab" aria-selected="true"  data-value="maps"   id="blob-tab-btn-maps"   data-tip="Color map library for blob regions.">Maps</button>
             <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="unique" id="blob-tab-btn-unique" data-tip="Unique effects for blob regions.">Unique</button>
             <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="custom" id="blob-tab-btn-custom" data-tip="ChromaEngine for blob regions.">Custom</button>
+            <button class="toggle-btn"        type="button" role="tab" aria-selected="false" data-value="proc"   id="blob-tab-btn-proc"   data-tip="Procedural animated color for blob regions.">Proc</button>
           </div>
 
           <div id="blob-color-tab-maps" role="tabpanel" aria-labelledby="blob-tab-btn-maps" tabindex="0">
@@ -509,6 +512,11 @@
             <div id="blob-chroma-knob-panel"></div>
           </div>
 
+          <div id="blob-color-tab-proc" class="hidden color-source-tab" role="tabpanel" aria-labelledby="blob-tab-btn-proc" tabindex="0">
+            <div class="toggle-group filter-swatch-group color-maps-grid" id="blob-color-proc-grid" role="radiogroup" aria-label="Blob procedural color effects"></div>
+            <div id="blob-color-proc-knob-panel"></div>
+          </div>
+
           <div class="section-label" id="lbl-blob-grade">Grade</div>
           <div class="knob-cluster" aria-labelledby="lbl-blob-grade">
             <div class="knob" id="blob-color-hue" data-knob data-min="0" data-max="1" data-step="0.01" data-default="0"   aria-label="Blob Grade Hue Rotate" data-tip="Hue rotation on blob output (0–360°)." tabindex="0"><span class="knob-label">Hue</span><span class="knob-val" id="blob-color-hue-val">0</span></div>
@@ -518,13 +526,13 @@
           </div>
         </section>
 
-        <!-- BLOB FX RACK (stateless effects only) -->
-        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-fx" data-mode-section="track">BLOB FX <span class="stage-sub">stateless chain · 0–3</span></div>
+        <!-- BLOB FX RACK -->
+        <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-fx" data-mode-section="track">BLOB FX <span class="stage-sub">3 slots · stateless + feedback</span></div>
 
         <section class="control-section" data-mode-section="track">
           <div class="section-label" id="lbl-blob-fx">Slots</div>
           <div class="color-rack" id="blob-fx-rack" role="list" aria-labelledby="lbl-blob-fx"
-               data-tip="Up to 3 stateless FX stages applied to each blob's synth output. Feedback effects are not available (no per-blob frame history).">
+               data-tip="Up to 3 FX stages applied to each blob's synth output. Stateless and feedback effects both supported.">
           </div>
         </section>
 
