@@ -1108,7 +1108,7 @@ label.section-label { cursor: pointer; }
 .filter-swatch-group .toggle-btn[data-value="melt"]       { background: linear-gradient(180deg, #f0ede8, #b89669 35%, #ff5722 70%, #100f0d); }
 .filter-swatch-group .toggle-btn[data-value="freqmod"]    { background: repeating-linear-gradient(90deg, #05050a 0 3px, #e8e4d8 3px 4px, #05050a 4px 6px, #b8c4e8 6px 7px, #05050a 7px 12px, #e0dcd0 12px 13px, #05050a 13px 14px, #90a8d0 14px 15px, #05050a 15px 21px); }
 .filter-swatch-group .toggle-btn[data-value="motionedge"] { background: linear-gradient(135deg, #04040a, #0a2a3a 40%, #2fdfff 50%, #0a2a3a 60%, #04040a), linear-gradient(45deg, #000, #fff); }
-.filter-swatch-group .toggle-btn[data-value="orbdiff"]    { background: radial-gradient(circle at 28% 38%, rgba(140,200,255,0.95) 2px, rgba(80,150,255,0.4) 6px, transparent 11px), radial-gradient(circle at 65% 28%, rgba(120,180,255,0.85) 2px, rgba(70,140,255,0.3) 5px, transparent 9px), radial-gradient(circle at 48% 68%, rgba(100,170,255,0.9) 1px, rgba(60,130,255,0.35) 5px, transparent 9px), radial-gradient(circle at 75% 62%, rgba(130,190,255,0.8) 1px, rgba(90,150,255,0.3) 4px, transparent 8px), #04040c; }
+.filter-swatch-group .toggle-btn[data-value="moddiff"]    { background: repeating-linear-gradient(180deg, #040c06 0px 3px, #1a6632 3px 4px, #040c06 4px 9px, #0f4020 9px 10px, #040c06 10px 16px, #1d7038 16px 17px, #040c06 17px 20px, #0a3018 20px 21px); }
 
 /* Active = 2px orange border + white inner ring (shape affordance). */
 .filter-swatch-group .toggle-btn.active,

@@ -2077,13 +2077,13 @@ void main() {
   fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
 }`;
 
-// ORBDIFF — Orb Diffuse Y. Divides the frame into square cells; each cell
-// places a soft glowing orb at its center weighted by luminance. A per-cell
-// pseudo-random Y-drift spreads the orbs vertically (the "diffuse Y" look).
-// The shader accumulates a 3×3 neighborhood so adjacent bright-cell orbs
-// blend additively, creating the dense cluster glow in bright regions.
-// uParams: x=scale(cell px 4–32), y=sharp(orb tightness), z=diffuse(Y drift), w=thresh(black cutoff)
-const FRAG_ORBDIFF = `#version 300 es
+// MODDIFF — Modulated Diffuse. Sine-wave dithering where pixel luminance
+// phase-shifts the threshold: bright areas shift the sine further →
+// more crossings per unit distance → denser lines; dark areas → sparse.
+// Axis=0 produces horizontal lines (Y modulation, the Marathon/Bungie look);
+// Axis=1 produces vertical lines (X modulation). Pure per-pixel, no scan.
+// uParams: x=freq(2–50 cycles), y=mod(phase depth 0–8), z=black(luma crush), w=axis(0=Y/1=X)
+const FRAG_MODDIFF = `#version 300 es
 precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
@@ -2104,43 +2104,31 @@ vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   return vec3(1.0 - structure);
 }
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
 void main() {
-  vec2  res      = vec2(textureSize(u_video, 0));
-  vec2  px       = vUV * res;
+  const float TAU = 6.28318530718;
 
-  float scale    = max(4.0, floor(mix(4.0, 32.0, uParams.x)));
-  float sharp    = mix(1.5, 18.0, uParams.y);
-  float diffuseY = uParams.z * scale * 0.9;
-  float thresh   = uParams.w;
+  vec4  col  = texture(u_video, vUV);
+  float luma = dot(col.rgb, vec3(0.299, 0.587, 0.114));
 
-  vec2 cell0 = floor(px / scale);
-  float acc  = 0.0;
+  float freq  = mix(2.0,  50.0, uParams.x);
+  float mod   = mix(0.0,   8.0, uParams.y);
+  float bl    = uParams.z;
+  bool  axisX = uParams.w > 0.5;
 
-  // 3×3 neighborhood — uniform 9-iter loop, all threads identical, no divergence
-  for (int dy = -1; dy <= 1; dy++) {
-    for (int dx = -1; dx <= 1; dx++) {
-      vec2  cell      = cell0 + vec2(float(dx), float(dy));
-      ivec2 samplePx  = ivec2(clamp((cell + 0.5) * scale, vec2(0.0), res - 1.0));
-      float luma      = dot(texelFetch(u_video, samplePx, 0).rgb, vec3(0.299, 0.587, 0.114));
+  // Black level crush
+  luma = max(0.0, (luma - bl) / max(0.001, 1.0 - bl));
 
-      float gain = max(0.0, (luma - thresh) / max(0.001, 1.0 - thresh));
+  // Axis coord: Y for horizontal lines, X for vertical lines
+  float axCoord = axisX ? vUV.x : vUV.y;
 
-      // Y-drift: pseudo-random per cell, scaled by diffuse param
-      float drift      = (hash(cell) * 2.0 - 1.0) * diffuseY;
-      vec2  orbCenter  = (cell + 0.5) * scale + vec2(0.0, drift);
+  // Modulated threshold: sine along axis, phase-shifted by luma
+  // High luma → more phase → crosses threshold more often → denser lines
+  float phase  = axCoord * freq * TAU + luma * mod * TAU;
+  float thresh = 0.5 + 0.45 * sin(phase);
 
-      float d    = length(px - orbCenter) / scale;
-      acc       += exp(-d * d * sharp) * gain;
-    }
-  }
+  float structure = luma > thresh ? 1.0 : 0.0;
 
-  vec3  src       = texture(u_video, vUV).rgb;
-  float structure = clamp(acc, 0.0, 1.0);
-  fragColor = vec4(applyStructureOutput(structure, src, uOutputMode), 1.0);
+  fragColor = vec4(applyStructureOutput(structure, col.rgb, uOutputMode), 1.0);
 }`;
 
 // ---- AcerolaFX-inspired FX RACK (stateless) ----
@@ -2690,7 +2678,7 @@ export const FRAGS = {
   pixelsort:    FRAG_PIXELSORT,
   melt:         FRAG_MELT,
   freqmod:      FRAG_FREQMOD,
-  orbdiff:      FRAG_ORBDIFF,
+  moddiff:      FRAG_MODDIFF,
   motionedge:   FRAG_MOTIONEDGE,
   dog:          FRAG_DOG,
   dither:       FRAG_DITHER,

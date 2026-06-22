@@ -1143,8 +1143,8 @@ function runEffect(name, opts) {
       return applyGLFilter('dither', canvas.width, canvas.height, [look.ditherScale, look.ditherLevels, look.ditherContrast, look.ditherBias], { ...opts, outputMode, ...inkColors });
     case 'freqmod':
       return applyGLFilter('freqmod', canvas.width, canvas.height, [look.freqmodCarrier, look.freqmodSpread, look.freqmodQtz, look.freqmodAlpha, look.freqmodBlack ?? 0], { ...opts, outputMode, ...inkColors });
-    case 'orbdiff':
-      return applyGLFilter('orbdiff', canvas.width, canvas.height, [look.orbdiffScale, look.orbdiffSharp, look.orbdiffDiffuse, look.orbdiffThresh], { ...opts, outputMode, ...inkColors });
+    case 'moddiff':
+      return applyGLFilter('moddiff', canvas.width, canvas.height, [look.moddiffFreq, look.moddiffMod, look.moddiffBlack, look.moddiffAxis ?? 0], { ...opts, outputMode, ...inkColors });
     case 'oxide':
     case 'synth':
     case 'biolum':
@@ -1271,7 +1271,7 @@ function resolveBlobPipeline(look) {
       case 'edgedet':   structureParams = [p.thresh ?? 0.3, p.glow ?? 0.5, p.hue ?? 0.15, p.blend ?? 0.1]; break;
       case 'dither':    structureParams = [p.scale ?? 0.4, p.levels ?? 0.3, p.contrast ?? 0.5, p.bias ?? 0.5]; break;
       case 'freqmod':   structureParams = [p.carrier ?? 0.3, p.spread ?? 0.4, p.qtz ?? 0.25, p.alpha ?? 0.2, p.black ?? 0]; break;
-      case 'orbdiff':   structureParams = [p.scale ?? 0.25, p.sharp ?? 0.4, p.diffuse ?? 0.35, p.thresh ?? 0.08]; break;
+      case 'moddiff':   structureParams = [p.freq ?? 0.25, p.mod ?? 0.45, p.black ?? 0.08, p.axis ?? 0]; break;
       default:          structureParams = [0, 0, 0, 0]; break;
     }
   }

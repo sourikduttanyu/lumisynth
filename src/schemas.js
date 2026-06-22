@@ -64,7 +64,7 @@ export const DEFAULTS = Object.freeze({
   edgedetThresh: 0.3,  edgedetGlow: 0.5,      edgedetHue: 0.15,     edgedetBlend: 0.1,
   ditherScale: 0.4, ditherLevels: 0.3, ditherContrast: 0.5, ditherBias: 0.5,
   freqmodCarrier: 0.3, freqmodSpread: 0.4, freqmodQtz: 0.25, freqmodAlpha: 0.2, freqmodBlack: 0.0,
-  orbdiffScale: 0.25, orbdiffSharp: 0.4, orbdiffDiffuse: 0.35, orbdiffThresh: 0.08,
+  moddiffFreq: 0.25, moddiffMod: 0.45, moddiffBlack: 0.08, moddiffAxis: 0.0,
 
   // ============ TRACK-mode state ============
   // Top-level mode + composite selector.
@@ -888,7 +888,7 @@ export const TRACK_FX_PARAM_SCHEMAS = {
   },
 };
 
-export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'pixelsort', 'melt', 'motionedge', 'edgedet', 'dither', 'freqmod', 'orbdiff'];
+export const STRUCTURE_SECTIONS = ['ascii', 'erode', 'pixelsort', 'melt', 'motionedge', 'edgedet', 'dither', 'freqmod', 'moddiff'];
 // The MAPS tab of the COLOR picker — pure per-pixel color mapping (ramps,
 // grades, palette swaps; no neighbor sampling, no added elements). Adding a
 // map here (plus its schema/shader/label entries) is all the picker needs;
@@ -938,7 +938,7 @@ export const BLEND_MODES = {
   edgedet:      'source-over',
   dither:       'source-over',
   freqmod:      'source-over',
-  orbdiff:      'source-over',
+  moddiff:      'source-over',
   predator:     'source-over',
   rgbdelay:     'source-over',
   tunnel:       'source-over',
@@ -1135,13 +1135,13 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'blend',  label: 'Blend',  min: 0, max: 1, step: 0.01, default: 0.1,  tip: '0 = edges on source. 1 = wireframe on black.' },
     ],
   },
-  orbdiff: {
+  moddiff: {
     toggles: [],
     knobs: [
-      { key: 'scale',   label: 'Scale',   min: 0, max: 1, step: 0.01, default: 0.25, tip: 'Cell size 4–32px. Controls orb spacing and maximum size.' },
-      { key: 'sharp',   label: 'Sharp',   min: 0, max: 1, step: 0.01, default: 0.4,  tip: 'Orb falloff tightness. Low = soft diffuse blob, high = tight hard point.' },
-      { key: 'diffuse', label: 'Diffuse', min: 0, max: 1, step: 0.01, default: 0.35, tip: 'Y-axis drift — pseudo-random vertical offset per orb. 0 = grid-aligned, 1 = maximum scatter.' },
-      { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.08, tip: 'Black cutoff — luma below this produces no orb. Raise to drop dark regions to pure black.' },
+      { key: 'freq',  label: 'Freq',  min: 0, max: 1, step: 0.01, default: 0.25, tip: 'Line density — sine cycles across the frame (2–50). Low = wide spaced bands, high = fine lines.' },
+      { key: 'mod',   label: 'Mod',   min: 0, max: 1, step: 0.01, default: 0.45, tip: 'Modulation depth — how much luminance phase-shifts the lines. High = lines drift and flow at content edges.' },
+      { key: 'black', label: 'Black', min: 0, max: 1, step: 0.01, default: 0.08, tip: 'Black level — luma below this outputs solid black, keeping dark backgrounds clean.' },
+      { key: 'axis',  label: 'Axis',  min: 0, max: 1, step: 1,    default: 0.0,  tip: '0 = Y axis (horizontal lines, Marathon default). 1 = X axis (vertical lines).' },
     ],
   },
   freqmod: {
