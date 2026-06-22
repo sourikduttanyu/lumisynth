@@ -1191,11 +1191,13 @@ function runColorEffect(name, params, opts = {}) {
     return Number.isFinite(v) ? v : 0;
   });
   while (tuple.length < 4) tuple.push(0);
-  // okdrift packs stops count + relationship type into uParam4: N*10+relType.
+  // okdrift packs blackStops, stops count and relationship type into uParam4:
+  // blackStops*100 + N*10 + relType. blackStops=0 is identical to old format.
   if (name === 'okdrift') {
-    const nStops  = Math.max(4, Math.min(10, Math.round(Number.isFinite(tuple[4]) ? tuple[4] : 6)));
-    const relType = Math.max(0, Math.min(9,  Math.round(params.relType ?? 0)));
-    tuple[4] = nStops * 10 + relType;
+    const nStops     = Math.max(4, Math.min(10, Math.round(Number.isFinite(tuple[4]) ? tuple[4] : 6)));
+    const relType    = Math.max(0, Math.min(9,  Math.round(params.relType    ?? 0)));
+    const blackStops = Math.max(0, Math.min(4,  Math.round(params.blackStops ?? 0)));
+    tuple[4] = blackStops * 100 + nStops * 10 + relType;
   }
   // ChromaEngine ramp stops are hex strings in params — they travel as vec3
   // uniforms via opts.stops (same out-of-band channel as the ink colors),
@@ -1954,8 +1956,9 @@ function buildOkdriftPanel(container) {
 
   // Swatch preview + Rate-driven auto-randomize tick
   function tick() {
-    const N = Math.max(4, Math.min(10, Math.round(params.stops ?? 6)));
-    const relType = Math.max(0, Math.min(9, Math.round(params.relType ?? 0)));
+    const N          = Math.max(4, Math.min(10, Math.round(params.stops      ?? 6)));
+    const relType    = Math.max(0, Math.min(9,  Math.round(params.relType    ?? 0)));
+    const blackStops = Math.max(0, Math.min(4,  Math.round(params.blackStops ?? 0)));
     const rate = params.rate ?? 0;
 
     // Auto-randomize: Rate > 0 fires a new random hue at a log-scaled interval.
@@ -1983,7 +1986,7 @@ function buildOkdriftPanel(container) {
     while (swatchRow.children.length > N) swatchRow.removeChild(swatchRow.lastChild);
 
     for (let i = 0; i < N; i++) {
-      const hex = _srgbToHex(_okdriftStopColor(i, N, relType, params));
+      const hex = (i < blackStops) ? '#000000' : _srgbToHex(_okdriftStopColor(i, N, relType, params));
       swatchRow.children[i].style.background = hex;
       swatchRow.children[i].querySelector('.okdrift-hex').textContent = hex;
     }

@@ -2658,13 +2658,19 @@ vec3 stop_color(int idx, int N, int relType) {
 }
 void main() {
   float luma  = dot(texture(u_video, vUV).rgb, vec3(0.299, 0.587, 0.114));
-  int packed  = int(uParam4);
-  int N       = max(packed / 10, 4);
-  int relType = clamp(packed - N * 10, 0, 9);
+  // Packing: blackStops*100 + N*10 + relType. blackStops=0 is identical to
+  // the old N*10+relType format so old saves decode correctly.
+  int packed     = int(uParam4);
+  int blackStops = packed / 100;
+  int rem        = packed - blackStops * 100;
+  int N          = max(rem / 10, 4);
+  int relType    = clamp(rem - N * 10, 0, 9);
   float pos = luma * float(N - 1);
   int i0 = clamp(int(floor(pos)), 0, N - 1);
   int i1 = min(i0 + 1, N - 1);
-  fragColor = vec4(mix(stop_color(i0, N, relType), stop_color(i1, N, relType), fract(pos)), 1.0);
+  vec3 c0 = (i0 < blackStops) ? vec3(0.0) : stop_color(i0, N, relType);
+  vec3 c1 = (i1 < blackStops) ? vec3(0.0) : stop_color(i1, N, relType);
+  fragColor = vec4(mix(c0, c1, fract(pos)), 1.0);
 }`;
 
 export const FRAGS = {

@@ -426,6 +426,13 @@ export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displa
           return Number.isFinite(v) ? v : 0;
         });
         while (tuple.length < 4) tuple.push(0);
+        // Mirror main.js runColorEffect packing for okdrift: blackStops*100 + N*10 + relType.
+        if (color.type === 'okdrift') {
+          const nStops     = Math.max(4, Math.min(10, Math.round(tuple[4] || 6)));
+          const relType    = Math.max(0, Math.min(9,  Math.round(Number(color.params.relType)    || 0)));
+          const blackStops = Math.max(0, Math.min(4,  Math.round(Number(color.params.blackStops) || 0)));
+          tuple[4] = blackStops * 100 + nStops * 10 + relType;
+        }
         const runOpts = { ...opts };
         if (schema.colors) {
           runOpts.stops = schema.colors.map((c) => hexToRgb01(color.params[c.key], c.default));

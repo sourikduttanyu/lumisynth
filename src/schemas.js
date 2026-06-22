@@ -522,7 +522,8 @@ export const COLOR_PARAM_SCHEMAS = {
       { key: 'chroma', label: 'Chroma', min: 0, max: 1,  step: 0.01, default: 0.65, tip: 'Palette saturation. 0 = greyscale. 1 = maximum OKLCH chroma.' },
       { key: 'hue',    label: 'Hue',    min: 0, max: 1,  step: 0.01, default: 0.0,  tip: 'Base hue offset (0–1 = 0–360°). Rotates the entire palette around the OKLCH wheel.' },
       { key: 'rate',   label: 'Rate',   min: 0, max: 1,  step: 0.01, default: 0.0,  tip: 'Auto-randomize speed. 0 = locked palette. Higher = more frequent switches, from slow cycling to rapid strobe.' },
-      { key: 'stops',  label: 'Stops',  min: 4, max: 10, step: 1,    default: 6,    tip: 'Number of palette stops (4–10). Each stop is an independent hue with its own drift frequency.' },
+      { key: 'stops',      label: 'Stops', min: 4, max: 10, step: 1,    default: 6,    tip: 'Number of palette stops (4–10). Each stop is an independent hue with its own drift frequency.' },
+      { key: 'blackStops', label: 'Dark',  min: 0, max: 4,  step: 1,    default: 0,    tip: 'Force the first N stops to solid black. 0 = off. 1–4 = dark threshold that stays black regardless of palette hue.' },
     ],
     toggles: [
       { key: 'relType', label: 'Harmony', default: 0, options: [
