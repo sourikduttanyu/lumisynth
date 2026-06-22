@@ -2080,14 +2080,19 @@ void main() {
 // MODDIFF — Modulated Diffuse. Sine-wave dithering where pixel luminance
 // phase-shifts the threshold: bright areas shift the sine further →
 // more crossings per unit distance → denser lines; dark areas → sparse.
-// Axis=0 produces horizontal lines (Y modulation, the Marathon/Bungie look);
-// Axis=1 produces vertical lines (X modulation). Pure per-pixel, no scan.
+// Axis=0 = horizontal lines (Y modulation, Marathon/Bungie look);
+// Axis=1 = vertical lines (X modulation). uParam4 (Drift) slowly scrolls
+// the line pattern via uTime so still content can animate.
+// Source mode: dithering as contrast bands on the source video (not a hard mask).
 // uParams: x=freq(2–50 cycles), y=mod(phase depth 0–8), z=black(luma crush), w=axis(0=Y/1=X)
+// uParam4: drift speed (0=static)
 const FRAG_MODDIFF = `#version 300 es
 precision highp float;
 in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
+uniform float uParam4;
+uniform float uTime;
 uniform float uOutputMode;
 uniform vec3 uInkLow;
 uniform vec3 uInkHigh;
@@ -2096,7 +2101,7 @@ out vec4 fragColor;
 vec3 applyStructureOutput(float structure, vec3 src, float mode) {
   structure = clamp(structure, 0.0, 1.0);
   if (mode < 0.5) return vec3(structure);
-  if (mode < 1.5) return src * structure;
+  if (mode < 1.5) return mix(src * 0.1, src, structure);
   if (mode < 2.5) {
     float t = step(0.5, structure);
     return mix(uInkLow, uInkHigh, t);
@@ -2115,15 +2120,12 @@ void main() {
   float bl    = uParams.z;
   bool  axisX = uParams.w > 0.5;
 
-  // Black level crush
   luma = max(0.0, (luma - bl) / max(0.001, 1.0 - bl));
 
-  // Axis coord: Y for horizontal lines, X for vertical lines
   float axCoord = axisX ? vUV.x : vUV.y;
 
-  // Modulated threshold: sine along axis, phase-shifted by luma
-  // High luma → more phase → crosses threshold more often → denser lines
-  float phase  = axCoord * freq * TAU + luma * mod * TAU;
+  // Drift ties scroll speed to freq so visual pace stays consistent across densities
+  float phase  = axCoord * freq * TAU + luma * mod * TAU + uTime * uParam4 * freq * 2.0;
   float thresh = 0.5 + 0.45 * sin(phase);
 
   float structure = luma > thresh ? 1.0 : 0.0;

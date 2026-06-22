@@ -64,7 +64,7 @@ export const DEFAULTS = Object.freeze({
   edgedetThresh: 0.3,  edgedetGlow: 0.5,      edgedetHue: 0.15,     edgedetBlend: 0.1,
   ditherScale: 0.4, ditherLevels: 0.3, ditherContrast: 0.5, ditherBias: 0.5,
   freqmodCarrier: 0.3, freqmodSpread: 0.4, freqmodQtz: 0.25, freqmodAlpha: 0.2, freqmodBlack: 0.0,
-  moddiffFreq: 0.25, moddiffMod: 0.45, moddiffBlack: 0.08, moddiffAxis: 0.0,
+  moddiffFreq: 0.25, moddiffMod: 0.45, moddiffBlack: 0.08, moddiffAxis: 0.0, moddiffDrift: 0.0,
 
   // ============ TRACK-mode state ============
   // Top-level mode + composite selector.
@@ -1142,6 +1142,7 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
       { key: 'mod',   label: 'Mod',   min: 0, max: 1, step: 0.01, default: 0.45, tip: 'Modulation depth — how much luminance phase-shifts the lines. High = lines drift and flow at content edges.' },
       { key: 'black', label: 'Black', min: 0, max: 1, step: 0.01, default: 0.08, tip: 'Black level — luma below this outputs solid black, keeping dark backgrounds clean.' },
       { key: 'axis',  label: 'Axis',  min: 0, max: 1, step: 1,    default: 0.0,  tip: '0 = Y axis (horizontal lines, Marathon default). 1 = X axis (vertical lines).' },
+      { key: 'drift', label: 'Drift', min: 0, max: 1, step: 0.01, default: 0.0,  tip: 'Scroll speed — animates the line pattern over time. 0 = static.' },
     ],
   },
   freqmod: {
