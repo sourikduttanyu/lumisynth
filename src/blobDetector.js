@@ -23,7 +23,10 @@
  * keep producing blobs while video is paused.
  */
 
-let prevLum = null;
+let prevLum    = null;
+let _curLum    = null;   // cached Float32Array — reallocated only on frame size change
+let _strength  = null;
+let _cachedTotal = 0;
 
 export function resetFrameHistory() {
   prevLum = null;
@@ -73,15 +76,23 @@ export function detectBlobs(imageData, threshold, maxBlobs, mode = 'motion', min
   const { width, height, data } = imageData;
   const total = width * height;
 
+  if (total !== _cachedTotal) {
+    _curLum   = new Float32Array(total);
+    _strength = new Float32Array(total);
+    _cachedTotal = total;
+  }
+  const curLum   = _curLum;
+  const strength = _strength;
+
   // Always compute luma — every mode either uses it directly or as the basis
   // for a derived field (Sobel / Laplacian / motion diff).
-  const curLum = new Float32Array(total);
   for (let i = 0; i < total; i++) {
     const p = i * 4;
     curLum[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
   }
 
-  const strength = new Float32Array(total);
+  // Zero strength before filling — reused buffer may have stale values.
+  strength.fill(0);
 
   if (mode === 'luma') {
     for (let i = 0; i < total; i++) {
