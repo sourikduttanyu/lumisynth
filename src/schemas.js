@@ -1136,8 +1136,8 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
   dither: {
     toggles: [],
     knobs: [
-      { key: 'scale',    label: 'Scale',    min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Bayer cell size (1–8px). Larger = coarser halftone.' },
-      { key: 'levels',   label: 'Levels',   min: 0, max: 1, step: 0.01, default: 0.3, tip: 'Quantization levels (2–8). 2 = pure 1-bit B&W. Higher = more gray tones.' },
+      { key: 'scale',    label: 'Scale',    min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Bayer cell size (1–8px). Larger = coarser halftone.' },
+      { key: 'levels',   label: 'Levels',   min: 0, max: 1, step: 0.01, default: 0.25, tip: 'Quantization levels (2–8). 2 = pure 1-bit B&W. Higher = more gray tones.' },
       { key: 'contrast', label: 'Contrast', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Gamma. 0.5 = neutral. Lower = shadow-heavy, higher = highlight-heavy.' },
       { key: 'bias',     label: 'Bias',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Brightness offset. 0.5 = neutral.' },
     ],

@@ -139,7 +139,7 @@ const inkHighInput    = document.getElementById('ink-high-input');
 const blobColorTabGroup     = document.getElementById('blob-color-tab-group');
 const blobColorMapsGrid     = document.getElementById('blob-color-maps-grid');
 const blobColorUniqueGrid   = document.getElementById('blob-color-unique-grid');
-const blobColorProcGrid     = document.getElementById('blob-color-proc-grid');
+const blobColorProcGrid     = null; // removed — proc tab auto-selects okdrift, no swatch grid needed
 const blobColorMapsPanel    = document.getElementById('blob-color-maps-knob-panel');
 const blobColorUniquePanel  = document.getElementById('blob-color-unique-knob-panel');
 const blobColorProcPanel    = document.getElementById('blob-color-proc-knob-panel');
@@ -1624,6 +1624,9 @@ let _colorTab = 'maps';
 let _okdriftAnimId = null;
 // Timestamp of last auto-randomize fire (for Rate-driven palette switching).
 let _okdriftLastRand = 0;
+// Blob-side equivalents for the blob proc tab.
+let _blobOkdriftAnimId = null;
+let _blobOkdriftLastRand = 0;
 
 function colorTabForSelection(color) {
   if (COLOR_UNIQUE_FLAT.includes(color)) return 'unique';
@@ -1998,6 +2001,98 @@ function buildOkdriftPanel(container) {
   tick();
 }
 
+function buildBlobOkdriftPanel(container) {
+  if (!container) return;
+  if (_blobOkdriftAnimId) { cancelAnimationFrame(_blobOkdriftAnimId); _blobOkdriftAnimId = null; }
+  container.innerHTML = '';
+  const params = getBlobColorParams('okdrift');
+
+  const previewWrap = document.createElement('div');
+  previewWrap.className = 'okdrift-preview-wrap';
+  const swatchRow = document.createElement('div');
+  swatchRow.className = 'okdrift-swatch-row';
+  previewWrap.appendChild(swatchRow);
+  container.appendChild(previewWrap);
+
+  const ctrlRow = document.createElement('div');
+  ctrlRow.className = 'okdrift-controls-row';
+
+  const relLabel = document.createElement('span');
+  relLabel.className = 'okdrift-rel-label';
+  relLabel.textContent = 'Harmony';
+
+  const relSelect = document.createElement('select');
+  relSelect.className = 'okdrift-rel-select';
+  for (const [v, lbl] of [[0,'Smart'],[1,'Monochromatic'],[2,'Complementary'],[3,'Analogous'],[4,'Triadic'],[5,'Tetradic'],[6,'Split-Comp'],[7,'Spectral'],[8,'Duotone'],[9,'Pentadic']]) {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = lbl;
+    if (v === (params.relType ?? 0)) opt.selected = true;
+    relSelect.appendChild(opt);
+  }
+  relSelect.addEventListener('change', () => {
+    params.relType = parseInt(relSelect.value, 10);
+    activateBlobColor('okdrift');
+    schedulePersist();
+  });
+
+  const randBtn = document.createElement('button');
+  randBtn.type = 'button';
+  randBtn.className = 'okdrift-rand-btn';
+  randBtn.textContent = 'Randomize';
+  randBtn.addEventListener('click', () => {
+    params.hue = Math.random();
+    activateBlobColor('okdrift');
+    schedulePersist();
+    buildBlobOkdriftPanel(container);
+  });
+
+  ctrlRow.appendChild(relLabel);
+  ctrlRow.appendChild(relSelect);
+  ctrlRow.appendChild(randBtn);
+  container.appendChild(ctrlRow);
+
+  const knobsDiv = document.createElement('div');
+  container.appendChild(knobsDiv);
+  buildBlobColorKnobs(knobsDiv, 'okdrift', 'blob-proc-okdrift');
+
+  function tick() {
+    const N          = Math.max(4, Math.min(10, Math.round(params.stops      ?? 6)));
+    const relType    = Math.max(0, Math.min(9,  Math.round(params.relType    ?? 0)));
+    const blackStops = Math.max(0, Math.min(4,  Math.round(params.blackStops ?? 0)));
+    const rate = params.rate ?? 0;
+
+    if (rate > 0) {
+      const intervalMs = Math.pow(10, 4 - rate * 3);
+      const now = performance.now();
+      if (now - _blobOkdriftLastRand >= intervalMs) {
+        _blobOkdriftLastRand = now;
+        params.hue = Math.random();
+        schedulePersist();
+        const hueValEl = document.getElementById('blob-proc-okdrift-hue-val');
+        if (hueValEl) hueValEl.textContent = params.hue.toFixed(2);
+      }
+    }
+
+    while (swatchRow.children.length < N) {
+      const sw = document.createElement('div');
+      sw.className = 'okdrift-swatch';
+      const hexEl = document.createElement('span');
+      hexEl.className = 'okdrift-hex';
+      sw.appendChild(hexEl);
+      swatchRow.appendChild(sw);
+    }
+    while (swatchRow.children.length > N) swatchRow.removeChild(swatchRow.lastChild);
+
+    for (let i = 0; i < N; i++) {
+      const hex = (i < blackStops) ? '#000000' : _srgbToHex(_okdriftStopColor(i, N, relType, params));
+      swatchRow.children[i].style.background = hex;
+      swatchRow.children[i].querySelector('.okdrift-hex').textContent = hex;
+    }
+    _blobOkdriftAnimId = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
 // ---- CUSTOM tab: ChromaEngine controls ----
 // Driver toggle group + 4 ramp-stop color inputs + shaping knobs, all bound
 // to colorParams.chroma. Any interaction activates 'chroma'.
@@ -2157,6 +2252,10 @@ function updateBlobColorActiveStates() {
 }
 
 function setBlobColorTab(tab) {
+  if (tab !== 'proc' && _blobOkdriftAnimId) {
+    cancelAnimationFrame(_blobOkdriftAnimId);
+    _blobOkdriftAnimId = null;
+  }
   _blobColorTab = tab;
   if (blobColorTabGroup) {
     for (const btn of blobColorTabGroup.querySelectorAll('.toggle-btn')) {
@@ -2169,6 +2268,7 @@ function setBlobColorTab(tab) {
   document.getElementById('blob-color-tab-unique')?.classList.toggle('hidden', tab !== 'unique');
   document.getElementById('blob-color-tab-custom')?.classList.toggle('hidden', tab !== 'custom');
   document.getElementById('blob-color-tab-proc')?.classList.toggle('hidden', tab !== 'proc');
+  if (tab === 'proc') setBlobColor('okdrift');
 }
 
 function makeBlobColorSwatchButton(name) {
@@ -2214,12 +2314,6 @@ function buildBlobColorUniqueGrid() {
   }
 }
 
-function buildBlobColorProcGrid() {
-  if (!blobColorProcGrid) return;
-  blobColorProcGrid.innerHTML = '';
-  blobColorProcGrid.appendChild(makeBlobColorSwatchButton('none'));
-  for (const name of COLOR_PROC_SECTIONS) blobColorProcGrid.appendChild(makeBlobColorSwatchButton(name));
-}
 
 function buildBlobColorKnobs(container, type, idPrefix) {
   if (!container) return;
@@ -2350,9 +2444,11 @@ function renderBlobColorPanel() {
       }
     }
     if (blobColorProcPanel) {
-      blobColorProcPanel.innerHTML = '';
-      if (COLOR_PROC_SECTIONS.includes(state.blobColor)) {
-        buildBlobColorKnobs(blobColorProcPanel, state.blobColor, `blob-proc-${state.blobColor}`);
+      if (_blobOkdriftAnimId) { cancelAnimationFrame(_blobOkdriftAnimId); _blobOkdriftAnimId = null; }
+      if (state.blobColor === 'okdrift') {
+        buildBlobOkdriftPanel(blobColorProcPanel);
+      } else {
+        blobColorProcPanel.innerHTML = '';
       }
     }
     buildBlobChromaControls();
@@ -2404,7 +2500,6 @@ blobColorProcGrid?.addEventListener('click', (e) => {
 
 buildBlobColorMapsGrid();
 buildBlobColorUniqueGrid();
-buildBlobColorProcGrid();
 
 // ---- Blob structure knob panel ----
 
