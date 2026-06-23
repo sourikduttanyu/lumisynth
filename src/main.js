@@ -5505,7 +5505,7 @@ function renderFrame(nowDOMHi) {
         const bw = Math.min(cw - bx, Math.ceil(blob.w));
         const bh = Math.min(ch - by, Math.ceil(blob.h));
         if (bw < 8 || bh < 8) continue;
-        runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, ctx, cw, ch);
+        runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, ctx, cw, ch, blob.presence ?? 1);
       }
     }
   }

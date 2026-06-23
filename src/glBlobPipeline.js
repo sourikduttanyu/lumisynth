@@ -361,8 +361,10 @@ function runFeedbackEffect(name, slotKey, w, h, params, opts = {}) {
 /**
  * Process one blob region through the blob synth pipeline and composite
  * onto displayCtx at (bx, by, bw, bh).
+ * presence (0–1) is applied as globalAlpha so lingering/decaying blobs
+ * fade out their synth output naturally.
  */
-export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displayW, displayH) {
+export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displayW, displayH, presence = 1) {
   if (!ensureBlobContext()) return;
 
   // Crop blob region from srcEl into the crop canvas.
@@ -515,9 +517,11 @@ export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displa
     }
   }
 
-  // Composite blob GL output onto display canvas at blob position
+  // Composite blob GL output onto display canvas at blob position.
+  // globalAlpha = presence so decaying blobs fade out their synth output.
   displayCtx.save();
   displayCtx.globalCompositeOperation = composite || 'source-over';
+  displayCtx.globalAlpha = Math.max(0, Math.min(1, presence));
   displayCtx.drawImage(_canvas, 0, 0, bw, bh, bx, by, bw, bh);
   displayCtx.restore();
 }
