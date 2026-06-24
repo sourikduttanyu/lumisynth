@@ -15,7 +15,7 @@ import { ensureContext, uploadVideoFrame, compositeToCanvas2D, getChainFBOs, cap
 import { SHADER_SOURCES, SHADER_RES, setShaderSource, renderShaderSourceFrame, getShaderSourceCanvas, getShaderSourceParams, setShaderSourceParam } from './shaderSource.js';
 import { applyCompose } from './glCompose.js';
 import { BlobOneEuroFilter } from './oneEuroFilter.js';
-import { initObjectDetector, setObjectDetectorDelegate, detectObjects, isObjectDetectorReady } from './mediapipeTracker.js';
+import { initObjectDetector, resetObjectDetector, setObjectDetectorDelegate, detectObjects, isObjectDetectorReady } from './mediapipeTracker.js';
 import {
   STORAGE_KEY, RACK_SLOTS, DEFAULTS, TIMELINE_DEFAULTS, TIMELINE_MIN_SEGMENT_SECONDS,
   COLOR_PARAM_SCHEMAS, FX_PARAM_SCHEMAS, TRACK_FX_PARAM_SCHEMAS,
@@ -4342,8 +4342,11 @@ async function _exportWebCodecs(fps, totalFrames, cw, ch, bitrate, ts, blobsPerF
       timestamp: Math.round(t * 1_000_000),
       duration:  Math.round(1_000_000 / fps),
     });
-    encoder.encode(frame, { keyFrame: n % (fps * 2) === 0 });
-    frame.close();
+    try {
+      encoder.encode(frame, { keyFrame: n % (fps * 2) === 0 });
+    } finally {
+      frame.close();
+    }
 
     _exportSetProgress(n + 1, totalFrames, 'Rendering…');
     if (n % 10 === 0) await new Promise(r => setTimeout(r, 0));
@@ -4441,6 +4444,18 @@ async function _preDetectAllFrames(fps, totalFrames, cw, ch) {
   const ow = Math.max(1, Math.round(cw * detectScale));
   const oh = Math.max(1, Math.round(ch * detectScale));
   offscreen.width = ow; offscreen.height = oh;
+
+  // MediaPipe's detectForVideo enforces strictly monotonically-increasing
+  // timestamps. The live render loop feeds performance.now() which can be
+  // hundreds of seconds ahead of the synthetic frame timestamps we use
+  // during export (which start at 0). Force-rebuild the detector to reset
+  // its internal timestamp watermark before the export pass begins.
+  const needsObjectDetect = state.timelineSegments.some(
+    (s) => s.look?.mode === 'track' && s.look?.trackBackend === 'object'
+  ) || (state.mode === 'track' && state.trackBackend === 'object' && !state.timelineSegments?.length);
+  if (needsObjectDetect) {
+    await resetObjectDetector(state.mpDelegate);
+  }
 
   const frameDurationMs = 1000 / fps;
   let mpTimestamp = 0;

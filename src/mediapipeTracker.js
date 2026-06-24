@@ -102,3 +102,16 @@ export function disposeObjectDetector() {
   _ready = false;
   _delegate = null;
 }
+
+// Force-rebuild the detector, resetting MediaPipe's internal timestamp
+// watermark. Must be awaited before starting any new detection pass
+// (e.g. export) that will use synthetic timestamps starting from 0,
+// because MediaPipe enforces strict monotonicity and will reject frames
+// whose timestamp is behind the last live-preview performance.now() value.
+export async function resetObjectDetector(delegate = 'GPU') {
+  if (_detector) { _detector.close(); _detector = null; }
+  _ready = false;
+  _delegate = null;
+  _building = null;
+  return initObjectDetector(delegate);
+}
