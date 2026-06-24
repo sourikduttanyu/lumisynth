@@ -1,5 +1,8 @@
 import './style.css';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+
+// v1 deployment flag — keeps all shader logic intact but hides the UI.
+const SHADER_LIB_ENABLED = false;
 import { zipSync, strToU8 } from 'fflate';
 import { detectBlobs, resetFrameHistory, setColorKeyTarget, clearColorKeyTarget } from './blobDetector.js';
 import { applyFilterToSubregion } from './filters.js';
@@ -63,7 +66,7 @@ const state = {
   //   trackBackend: 'blob'   — grid local-maxima (blobDetector.js)
   //               | 'object' — MediaPipe object detection (mediapipeTracker.js)
   //   mpDelegate:   'GPU' | 'CPU' — MediaPipe inference delegate
-  trackBackend: 'blob',
+  trackBackend: 'off',
   mpDelegate: 'GPU',
   // Per-effect knob memory for the single COLOR stage: { [effect]: params }.
   // Lazily seeded with factory defaults on first pick (getColorParams).
@@ -88,7 +91,8 @@ const canvas       = document.getElementById('main-canvas');
 // (see filters.js + renderFrame's batched block). Without this flip every
 // drawImage(video) and drawImage(webglCanvas) would round-trip through CPU.
 const ctx          = canvas.getContext('2d', { willReadFrequently: false });
-const placeholder  = document.getElementById('placeholder');
+const placeholder    = document.getElementById('placeholder');
+const pipelinePanel  = document.getElementById('pipeline-panel');
 const fileInput    = document.getElementById('file-input');
 const canvasArea   = document.getElementById('canvas-area');
 const fileStatus   = document.getElementById('file-status');
@@ -457,7 +461,12 @@ function findTimelineSegmentAt(time) {
 function resolveTimelineLook(time) {
   const segment = findTimelineSegmentAt(time);
   if (segment) return { id: segment.id, look: segment.look };
-  if (state.sourceKind === 'video') return { id: null, look: state };
+  // Outside all segments on a video source: use a clean neutral look (all
+  // effects off) so that selecting a segment and pressing Set cannot bleed
+  // its settings into the inter-segment gaps via the applyLookToState path.
+  if (state.sourceKind === 'video' && state.timelineSegments?.length > 0) {
+    return { id: null, look: makeRawTimelineLook() };
+  }
   return { id: null, look: state };
 }
 
@@ -1394,11 +1403,18 @@ function refreshColorKeyControls(channel) {
 // or color-key controls (those are blob-detector knobs), and the GPU/CPU
 // delegate toggle only matters for the object backend. Hide accordingly.
 function refreshBackendControls(backend) {
+  document.body.dataset.trackBackend = backend;
   const isObj = backend === 'object';
+  const isOff = backend === 'off';
   const lumi = document.getElementById('lumi-channel-section');
-  if (lumi) lumi.style.display = isObj ? 'none' : '';
-  if (isObj) { const ck = document.getElementById('color-key-controls'); if (ck) ck.style.display = 'none'; }
-  else refreshColorKeyControls(state.trackChannel);
+  // Lumi channel is only meaningful for blob mode
+  if (lumi) lumi.style.display = (isObj || isOff) ? 'none' : '';
+  if (isObj || isOff) {
+    const ck = document.getElementById('color-key-controls');
+    if (ck) ck.style.display = 'none';
+  } else {
+    refreshColorKeyControls(state.trackChannel);
+  }
 }
 
 // Lazily build the object detector. Idempotent (initObjectDetector no-ops when
@@ -1415,6 +1431,8 @@ function ensureObjectBackend(notify) {
 function onTrackBackendChange(v) {
   refreshBackendControls(v);
   if (v === 'object') ensureObjectBackend(!_applyingState);
+  // When turning detection off, clear any cached blobs so overlays disappear immediately
+  if (v === 'off') { cachedBlobs = []; }
 }
 
 function onMpDelegateChange(v) {
@@ -3872,7 +3890,7 @@ function loadPersistedState() {
     for (const k of Object.keys(DEFAULTS)) if (k in parsed) state[k] = parsed[k];
     // Detection backend lives outside DEFAULTS (global runtime, not look-scoped),
     // so restore it explicitly with validation.
-    if (parsed.trackBackend === 'blob' || parsed.trackBackend === 'object') state.trackBackend = parsed.trackBackend;
+    if (parsed.trackBackend === 'blob' || parsed.trackBackend === 'object' || parsed.trackBackend === 'off') state.trackBackend = parsed.trackBackend;
     if (parsed.mpDelegate === 'GPU' || parsed.mpDelegate === 'CPU') state.mpDelegate = parsed.mpDelegate;
     if (parsed.colorParams)  state.colorParams  = parsed.colorParams;
     if (parsed.fxRack)       state.fxRack       = parsed.fxRack;
@@ -4003,6 +4021,52 @@ const exportOverlayBarGlow  = document.getElementById('export-overlay-bar-glow')
 const exportOverlayInner    = document.querySelector('.export-overlay-inner');
 const sidebar      = document.getElementById('sidebar');
 const topBar       = document.querySelector('.topbar');
+
+// ---- Collapsible stage dividers ----
+// Toggle a collapse group: find all elements with data-collapse-group matching
+// the divider's group, plus any nested child dividers (data-collapse-parent),
+// and set/remove their data-group-hidden attribute.
+function _setCollapseGroup(groupId, expanded) {
+  // Hide/show all group members EXCEPT the divider itself (the trigger).
+  // The divider owns data-collapse-group so JS can look it up, but it must
+  // never receive data-group-hidden — doing so makes it vanish permanently.
+  document.querySelectorAll(`[data-collapse-group="${groupId}"]`).forEach(el => {
+    if (el.classList.contains('stage-divider')) return; // never hide the header
+    if (expanded) {
+      el.removeAttribute('data-group-hidden');
+    } else {
+      el.setAttribute('data-group-hidden', '');
+    }
+  });
+  // If collapsing, also collapse any child dividers that belong to this group
+  if (!expanded) {
+    document.querySelectorAll(`.stage-divider.collapsible[data-collapse-parent="${groupId}"]`).forEach(childDiv => {
+      childDiv.setAttribute('aria-expanded', 'false');
+      const childGroup = childDiv.dataset.collapseGroup;
+      if (childGroup) _setCollapseGroup(childGroup, false);
+    });
+  }
+}
+
+sidebar?.addEventListener('click', e => {
+  const div = e.target.closest('.stage-divider.collapsible');
+  if (!div) return;
+  const expanded = div.getAttribute('aria-expanded') !== 'true';
+  div.setAttribute('aria-expanded', String(expanded));
+  const chevron = div.querySelector('.stage-chevron');
+  if (chevron) chevron.textContent = expanded ? '▴' : '▾';
+  const groupId = div.dataset.collapseGroup;
+  if (groupId) _setCollapseGroup(groupId, expanded);
+});
+
+// Keyboard: Enter / Space activate collapsible dividers
+sidebar?.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const div = e.target.closest('.stage-divider.collapsible');
+  if (!div) return;
+  e.preventDefault();
+  div.click();
+});
 
 // title drives the phase: titles containing 'Detect' → cyan phase indicator.
 function _exportSetProgress(done, total, title) {
@@ -4391,15 +4455,13 @@ async function _preDetectAllFrames(fps, totalFrames, cw, ch) {
     const sx = cw / ow, sy = ch / oh;
     let rawBlobs;
 
-    if (state.trackBackend === 'object') {
+    if (state.trackBackend === 'object' && isObjectDetectorReady()) {
       mpTimestamp += frameDurationMs;
-      if (!isObjectDetectorReady()) {
-        rawBlobs = [];
-      } else {
-        const scoreThreshold = Math.min(0.9, Math.max(0.05, look.threshold / 100));
-        rawBlobs = detectObjects(offscreen, mpTimestamp, { scoreThreshold, maxResults: cap });
-      }
+      const scoreThreshold = Math.min(0.9, Math.max(0.05, look.threshold / 100));
+      rawBlobs = detectObjects(offscreen, mpTimestamp, { scoreThreshold, maxResults: cap });
     } else {
+      // CPU blob detection: used for 'blob' backend AND for 'off' (export always detects
+      // when a segment's look has mode='track', regardless of live UI backend setting).
       const minSizeDetect = look.trackMinSize * detectScale;
       const offImageData = offCtx.getImageData(0, 0, ow, oh);
       if (look.trackChannel === 'color') {
@@ -4464,13 +4526,19 @@ async function startOfflineExport() {
   const useWebCodecs = await _canWebCodecs();
 
   // Determine if any part of the video requires blob detection.
-  const needsDetection = state.mode === 'track' ||
+  // Check segment looks and the live state look — backend 'off' only means
+  // no live detection during playback, NOT that export should skip track segments.
+  const hasTrackSegment = state.mode === 'track' ||
     state.timelineSegments.some((s) => s.look?.mode === 'track');
+  // For export purposes, if any segment needs track, always use CPU blob detection
+  // as the reliable fallback (object/MediaPipe detection is also used when available).
+  const needsDetection = hasTrackSegment;
 
   // Ensure MediaPipe is initialised before the detection pass if needed.
+  // Only relevant when the user has explicitly selected the object backend.
   if (needsDetection && state.trackBackend === 'object' && !isObjectDetectorReady()) {
-    showToast('Initialising object detector…', 'info', 2000);
-    try { await initObjectDetector('GPU'); } catch { /* fall back to CPU results silently */ }
+    showToast('Initialising object detector… (falling back to CPU detection if unavailable)', 'info', 2500);
+    try { await initObjectDetector('GPU'); } catch { /* CPU blob detection will be used instead */ }
   }
 
   _exportShowOverlay('Detecting…');
@@ -4831,6 +4899,7 @@ function loadShaderSource(slug) {
 }
 
 function renderShaderSourcePicker() {
+  if (!SHADER_LIB_ENABLED) return;
   const group = document.getElementById('shader-source-group');
   if (!group) return;
   group.innerHTML = '';
@@ -4945,6 +5014,7 @@ function updateSourceLabel(text) {
 function setHasSource(val, label) {
   state.hasSource = val;
   placeholder.style.display = val ? 'none' : 'flex';
+  if (pipelinePanel) pipelinePanel.classList.toggle('hidden', !val);
   btnSnapshot.disabled = !val;
   if (btnExport) btnExport.disabled = !val;
   _updatePreviewBtnEnabled();
@@ -5730,7 +5800,7 @@ function renderFrame(nowDOMHi) {
     // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
     // so an image renders without overlays. (One-shot detection on stills is
     // a deliberate v2 follow-up — out of scope for this image-input pass.)
-    if (!activeSourcePaused()) {
+    if (!activeSourcePaused() && state.trackBackend !== 'off') {
       offCtx.drawImage(srcEl, 0, 0, ow, oh);
 
       frameCount++;
