@@ -73,8 +73,13 @@ export const DEFAULTS = Object.freeze({
   //   mode:           'synth' | 'track'  — controls body[data-mode] attr
   //                                         and which sidebar sections show
   //   trackComposite: 'overlay' | 'isolated'
+  //   trackBackend:   'off' | 'blob' | 'object' — detection backend.
+  //                   Lives in DEFAULTS so it is look-scoped (per timeline
+  //                   segment) — each segment independently enables/disables
+  //                   detection and picks the backend.
   mode: 'synth',
   trackComposite: 'overlay',
+  trackBackend: 'off',
 
   // Detection (TRACK mode owns these; SYNTH mode silently uses them too,
   // since the per-blob legacy path needs detected blobs).

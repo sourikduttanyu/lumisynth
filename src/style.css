@@ -483,56 +483,6 @@ html, body {
   text-transform: none;
 }
 
-/* ---- Collapsible stage dividers ---- */
-.stage-divider.collapsible {
-  cursor: pointer;
-  user-select: none;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  font-family: inherit;
-  transition: opacity 0.12s var(--ease-out);
-}
-.stage-divider.collapsible:hover { opacity: 0.75; }
-.stage-divider.collapsible:active { opacity: 0.55; }
-.stage-divider.collapsible:focus-visible {
-  outline: 2px solid var(--orange-signal);
-  outline-offset: 1px;
-  border-radius: 2px;
-}
-/* Chevron sits after the separator line at the far right.
-   JS swaps the glyph (▾ collapsed / ▴ expanded) — no CSS rotation needed. */
-.stage-divider.collapsible::after { order: 2; }
-.stage-divider.collapsible .stage-chevron {
-  font-size: 9px;
-  line-height: 1;
-  color: var(--text-faint);
-  order: 3;
-  flex-shrink: 0;
-  margin-left: var(--space-sm);
-  transition: color 0.12s var(--ease-out);
-}
-.stage-divider.collapsible[aria-expanded="true"] .stage-chevron {
-  color: var(--orange-signal);
-}
-/* Collapsed divider gets a subtle bottom hairline to mark it as a closed unit */
-.stage-divider.collapsible[aria-expanded="false"] {
-  padding-bottom: var(--space-xl);
-  border-bottom: 1px solid var(--border-hairline);
-  margin-bottom: 2px;
-}
-
-/* Collapse groups: hide all members when their parent divider is collapsed.
-   The JS sets data-group-hidden on each member element. */
-[data-group-hidden] {
-  display: none !important;
-}
-
-/* ---- Detection off: hide sections that require detection ---- */
-body[data-track-backend="off"] [data-track-requires-detection] {
-  display: none !important;
-}
 
 /* ============================================================
    CONTROL SECTIONS — quiet inside a stage. Per The Stage-Owns-Staging Rule:

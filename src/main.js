@@ -61,12 +61,9 @@ const state = {
   ...DEFAULTS,
   hasSource: false,
   sourceKind: null,
-  // TRACK detection backend (global runtime, NOT look-scoped — deliberately
-  // kept out of DEFAULTS so it doesn't become per-timeline-segment).
-  //   trackBackend: 'blob'   — grid local-maxima (blobDetector.js)
-  //               | 'object' — MediaPipe object detection (mediapipeTracker.js)
-  //   mpDelegate:   'GPU' | 'CPU' — MediaPipe inference delegate
-  trackBackend: 'off',
+  //   mpDelegate:   'GPU' | 'CPU' — MediaPipe inference delegate (global,
+  //   not look-scoped — the delegate is a hardware capability choice, not
+  //   a creative setting that varies per segment).
   mpDelegate: 'GPU',
   // Per-effect knob memory for the single COLOR stage: { [effect]: params }.
   // Lazily seeded with factory defaults on first pick (getColorParams).
@@ -232,6 +229,28 @@ let _renderLook = null;
 function currentLook() {
   return _renderLook || state;
 }
+
+// Snapshot of the user's global (non-segment) detection + track settings.
+// Updated whenever the user changes a setting while NO segment is selected,
+// or when they deselect all segments. Used by makeRawTimelineLook so that
+// inter-segment gaps show detection with the user's own settings rather than
+// the last selected segment's settings (which contaminate `state` via
+// applyLookToState).
+let _baseLook = null;
+const BASE_LOOK_KEYS = [
+  'mode', 'trackBackend', 'trackChannel', 'threshold', 'trackMaxBlobs',
+  'trackMinSize', 'updateInterval', 'colorKeyHex', 'colorKeyHueTol',
+  'colorKeySatMin', 'trackComposite', 'trackShape', 'trackShapeColor',
+  'trackShapeThickness', 'trackShapePadding', 'trackShapeStyle',
+  'trackLines', 'trackLinesColor', 'trackLinesThickness', 'trackLinesParam',
+  'trackLinesTaper', 'trackLabels', 'trackStability', 'trackAttack',
+  'trackRelease', 'trackFxRack',
+];
+function snapshotBaseLook() {
+  _baseLook = {};
+  for (const k of BASE_LOOK_KEYS) _baseLook[k] = state[k];
+  if (state.trackFxRack) _baseLook.trackFxRack = cloneData(state.trackFxRack);
+}
 function structureOutputModeValue(look = currentLook()) {
   return STRUCTURE_OUTPUT_MODE_VALUE[look.structureOutputMode] ?? STRUCTURE_OUTPUT_MODE_VALUE.mono;
 }
@@ -362,6 +381,7 @@ function sanitizeLook(raw = {}) {
   look.inkBlackHex = normalizeHexColor(look.inkBlackHex, DEFAULTS.inkBlackHex);
   look.inkCreamHex = normalizeHexColor(look.inkCreamHex, DEFAULTS.inkCreamHex);
   look.colorKeyHex = normalizeHexColor(look.colorKeyHex, DEFAULTS.colorKeyHex);
+  if (!['off', 'blob', 'object'].includes(look.trackBackend)) look.trackBackend = 'off';
   if (look.color !== 'none' && !COLOR_SECTIONS.includes(look.color)) look.color = 'none';
   look.colorParams = sanitizeColorParams(raw.colorParams);
   look.fxRack = sanitizeFxRack(raw.fxRack);
@@ -387,10 +407,41 @@ function makeLookSnapshot(source = state) {
   return sanitizeLook(raw);
 }
 
-let _rawTimelineLook = null;
 function makeRawTimelineLook() {
-  if (!_rawTimelineLook) _rawTimelineLook = sanitizeLook({});
-  return _rawTimelineLook;
+  // A neutral look for inter-segment gaps: all GL effects are off to prevent
+  // bleeding from adjacent segments. Detection and track-overlay settings come
+  // from _baseLook (the user's own global settings, snapshotted before the
+  // last segment was applied), so blob detection keeps running between
+  // segments without inheriting the selected segment's settings.
+  const base = _baseLook || {};
+  return sanitizeLook({
+    mode:                base.mode,
+    trackBackend:        base.trackBackend,
+    trackChannel:        base.trackChannel,
+    threshold:           base.threshold,
+    trackMaxBlobs:       base.trackMaxBlobs,
+    trackMinSize:        base.trackMinSize,
+    updateInterval:      base.updateInterval,
+    colorKeyHex:         base.colorKeyHex,
+    colorKeyHueTol:      base.colorKeyHueTol,
+    colorKeySatMin:      base.colorKeySatMin,
+    trackComposite:      base.trackComposite,
+    trackShape:          base.trackShape,
+    trackShapeColor:     base.trackShapeColor,
+    trackShapeThickness: base.trackShapeThickness,
+    trackShapePadding:   base.trackShapePadding,
+    trackShapeStyle:     base.trackShapeStyle,
+    trackLines:          base.trackLines,
+    trackLinesColor:     base.trackLinesColor,
+    trackLinesThickness: base.trackLinesThickness,
+    trackLinesParam:     base.trackLinesParam,
+    trackLinesTaper:     base.trackLinesTaper,
+    trackLabels:         base.trackLabels,
+    trackStability:      base.trackStability,
+    trackAttack:         base.trackAttack,
+    trackRelease:        base.trackRelease,
+    trackFxRack:         base.trackFxRack,
+  });
 }
 
 function applyLookToState(look) {
@@ -473,6 +524,7 @@ function resolveTimelineLook(time) {
 function timelineRuntimeSignature(look) {
   return JSON.stringify({
     mode: look.mode,
+    trackBackend: look.trackBackend,
     perBlob: look.perBlob,
     trackComposite: look.trackComposite,
     trackChannel: look.trackChannel,
@@ -3818,6 +3870,10 @@ function applyStateToUI() {
 let persistTimer = 0;
 function schedulePersist() {
   syncSelectedSegmentFromState();
+  // Keep _baseLook in sync whenever the user tweaks settings outside a
+  // selected segment. This is the "ground truth" that inter-segment gaps use
+  // for detection/track settings (via makeRawTimelineLook).
+  if (!state.selectedTimelineSegmentId) snapshotBaseLook();
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     try {
@@ -3890,7 +3946,6 @@ function loadPersistedState() {
     for (const k of Object.keys(DEFAULTS)) if (k in parsed) state[k] = parsed[k];
     // Detection backend lives outside DEFAULTS (global runtime, not look-scoped),
     // so restore it explicitly with validation.
-    if (parsed.trackBackend === 'blob' || parsed.trackBackend === 'object' || parsed.trackBackend === 'off') state.trackBackend = parsed.trackBackend;
     if (parsed.mpDelegate === 'GPU' || parsed.mpDelegate === 'CPU') state.mpDelegate = parsed.mpDelegate;
     if (parsed.colorParams)  state.colorParams  = parsed.colorParams;
     if (parsed.fxRack)       state.fxRack       = parsed.fxRack;
@@ -4022,51 +4077,6 @@ const exportOverlayInner    = document.querySelector('.export-overlay-inner');
 const sidebar      = document.getElementById('sidebar');
 const topBar       = document.querySelector('.topbar');
 
-// ---- Collapsible stage dividers ----
-// Toggle a collapse group: find all elements with data-collapse-group matching
-// the divider's group, plus any nested child dividers (data-collapse-parent),
-// and set/remove their data-group-hidden attribute.
-function _setCollapseGroup(groupId, expanded) {
-  // Hide/show all group members EXCEPT the divider itself (the trigger).
-  // The divider owns data-collapse-group so JS can look it up, but it must
-  // never receive data-group-hidden — doing so makes it vanish permanently.
-  document.querySelectorAll(`[data-collapse-group="${groupId}"]`).forEach(el => {
-    if (el.classList.contains('stage-divider')) return; // never hide the header
-    if (expanded) {
-      el.removeAttribute('data-group-hidden');
-    } else {
-      el.setAttribute('data-group-hidden', '');
-    }
-  });
-  // If collapsing, also collapse any child dividers that belong to this group
-  if (!expanded) {
-    document.querySelectorAll(`.stage-divider.collapsible[data-collapse-parent="${groupId}"]`).forEach(childDiv => {
-      childDiv.setAttribute('aria-expanded', 'false');
-      const childGroup = childDiv.dataset.collapseGroup;
-      if (childGroup) _setCollapseGroup(childGroup, false);
-    });
-  }
-}
-
-sidebar?.addEventListener('click', e => {
-  const div = e.target.closest('.stage-divider.collapsible');
-  if (!div) return;
-  const expanded = div.getAttribute('aria-expanded') !== 'true';
-  div.setAttribute('aria-expanded', String(expanded));
-  const chevron = div.querySelector('.stage-chevron');
-  if (chevron) chevron.textContent = expanded ? '▴' : '▾';
-  const groupId = div.dataset.collapseGroup;
-  if (groupId) _setCollapseGroup(groupId, expanded);
-});
-
-// Keyboard: Enter / Space activate collapsible dividers
-sidebar?.addEventListener('keydown', e => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  const div = e.target.closest('.stage-divider.collapsible');
-  if (!div) return;
-  e.preventDefault();
-  div.click();
-});
 
 // title drives the phase: titles containing 'Detect' → cyan phase indicator.
 function _exportSetProgress(done, total, title) {
@@ -4441,7 +4451,7 @@ async function _preDetectAllFrames(fps, totalFrames, cw, ch) {
     const t = n / fps;
     const look = resolveTimelineLook(t).look;
 
-    if (look.mode !== 'track') {
+    if (look.mode !== 'track' || look.trackBackend === 'off') {
       blobsPerFrame.set(n, []);
       _exportSetProgress(n + 1, totalFrames, 'Detecting…');
       if (n % 20 === 0) await new Promise(r => setTimeout(r, 0));
@@ -4455,7 +4465,7 @@ async function _preDetectAllFrames(fps, totalFrames, cw, ch) {
     const sx = cw / ow, sy = ch / oh;
     let rawBlobs;
 
-    if (state.trackBackend === 'object' && isObjectDetectorReady()) {
+    if (look.trackBackend === 'object' && isObjectDetectorReady()) {
       mpTimestamp += frameDurationMs;
       const scoreThreshold = Math.min(0.9, Math.max(0.05, look.threshold / 100));
       rawBlobs = detectObjects(offscreen, mpTimestamp, { scoreThreshold, maxResults: cap });
@@ -4526,12 +4536,11 @@ async function startOfflineExport() {
   const useWebCodecs = await _canWebCodecs();
 
   // Determine if any part of the video requires blob detection.
-  // Check segment looks and the live state look — backend 'off' only means
-  // no live detection during playback, NOT that export should skip track segments.
-  const hasTrackSegment = state.mode === 'track' ||
-    state.timelineSegments.some((s) => s.look?.mode === 'track');
-  // For export purposes, if any segment needs track, always use CPU blob detection
-  // as the reliable fallback (object/MediaPipe detection is also used when available).
+  // A segment only needs detection if it is track mode AND its backend is not 'off'.
+  // The global state.mode='track' similarly only matters if its backend is not 'off'.
+  const hasTrackSegment =
+    (state.mode === 'track' && state.trackBackend !== 'off' && !state.timelineSegments?.length) ||
+    state.timelineSegments.some((s) => s.look?.mode === 'track' && s.look?.trackBackend !== 'off');
   const needsDetection = hasTrackSegment;
 
   // Ensure MediaPipe is initialised before the detection pass if needed.
@@ -5259,6 +5268,9 @@ function sanitizeTimelineForCurrentDuration() {
 function selectTimelineSegment(id, { applyLook = true } = {}) {
   const seg = state.timelineSegments.find((s) => s.id === id);
   if (!seg) return;
+  // Snapshot the user's global settings before overwriting state with the
+  // segment's look, so inter-segment gaps can restore from _baseLook.
+  if (!state.selectedTimelineSegmentId) snapshotBaseLook();
   state.selectedTimelineSegmentId = id;
   if (applyLook) {
     _timelineApplyingLook = true;
@@ -5320,7 +5332,12 @@ function deleteTimelineSegment() {
 function captureSelectedTimelineLook() {
   const selected = selectedTimelineSegment();
   if (!selected) return;
-  selected.look = makeLookSnapshot(state);
+  const snap = makeLookSnapshot(state);
+  // Preserve the segment's mode — the topbar mode toggle is a panel-view
+  // switcher when a segment is selected; it must not overwrite the segment's
+  // track/synth identity when the user presses SET.
+  snap.mode = selected.look.mode;
+  selected.look = snap;
   renderTimelinePanel();
   schedulePersist();
   showToast('Timeline segment updated from current look', 'ok', 1800);
@@ -5800,7 +5817,7 @@ function renderFrame(nowDOMHi) {
     // is skipped entirely — cachedBlobs is wiped at load via resetAllState(),
     // so an image renders without overlays. (One-shot detection on stills is
     // a deliberate v2 follow-up — out of scope for this image-input pass.)
-    if (!activeSourcePaused() && state.trackBackend !== 'off') {
+    if (!activeSourcePaused() && look.trackBackend !== 'off') {
       offCtx.drawImage(srcEl, 0, 0, ow, oh);
 
       frameCount++;
@@ -5808,7 +5825,7 @@ function renderFrame(nowDOMHi) {
         const cap = Math.min(30, look.trackMaxBlobs);
         const sx = cw / ow, sy = ch / oh;
         let rawBlobs;
-        if (state.trackBackend === 'object') {
+        if (look.trackBackend === 'object') {
           // MediaPipe object detection on the same downscaled frame. Maps to
           // the blob shape; reuses look.threshold (→ scoreThreshold) and
           // trackMaxBlobs (→ maxResults) so no new knobs are needed.
@@ -6369,6 +6386,7 @@ if (projectNameEl) {
 // ---- Init ----
 loadProjectName();
 loadPersistedState();
+snapshotBaseLook(); // capture global settings before any segment is applied
 applyStateToUI();
 showIntroIfNeeded();
 renderAccountUi();
