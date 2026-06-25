@@ -1548,6 +1548,7 @@ function ensureObjectBackend(notify) {
 }
 
 function onTrackBackendChange(v) {
+  document.body.dataset.trackBackend = v;
   refreshBackendControls(v);
   if (v === 'object') ensureObjectBackend(!_applyingState);
   // When turning detection off, clear any cached blobs so overlays disappear immediately
@@ -3900,7 +3901,7 @@ function applyStateToUI() {
       setToggleGroupValue(groupId, state[key]);
       if (onChange) onChange(state[key]);
     }
-    video.playbackRate = 1;
+    if (video.playbackRate !== 1) video.playbackRate = 1;
     document.body.setAttribute('data-mode', state.mode);
     // COLOR stage + FX/track racks are custom widgets (not toggle groups),
     // so they have to render themselves rather than ride the TOGGLE_CONFIG
@@ -4957,7 +4958,13 @@ function activeSourceReady() {
   if (state.sourceKind === 'image') {
     return imageEl.complete && imageEl.naturalWidth > 0;
   }
-  return video.readyState >= 2 && video.videoWidth > 0;
+  // readyState >= 2 (HAVE_CURRENT_DATA) is the normal gate. Safari sometimes
+  // drops to readyState=1 during/after a seek while paused (segment select,
+  // scrub), causing a persistent black canvas. When seeking we relax to >= 1
+  // so the render loop keeps drawing the last available frame rather than
+  // going black and waiting for the seek to settle.
+  const minReady = video.seeking ? 1 : 2;
+  return video.readyState >= minReady && video.videoWidth > 0;
 }
 // For images we treat the source as "always paused" — there's no temporal
 // dimension. The detection block guards on this so motion-mode doesn't
@@ -6576,6 +6583,24 @@ function updateSegmentIndicators() {
     if (trackText) trackText.textContent = label;
   }
 }
+
+// ---- Browser recommendation banner ----
+(function initBrowserBanner() {
+  const BANNER_KEY = 'lumisynth-browser-banner-dismissed';
+  // Detect Safari: has WebKit but is not Chrome/Brave/Edge
+  const ua = navigator.userAgent;
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|Chromium|EdgA?/.test(ua);
+  if (!isSafari) return;
+  try { if (localStorage.getItem(BANNER_KEY)) return; } catch { /* ignore */ }
+  const banner = document.getElementById('browser-banner');
+  const dismiss = document.getElementById('browser-banner-dismiss');
+  if (!banner || !dismiss) return;
+  banner.classList.remove('hidden');
+  dismiss.addEventListener('click', () => {
+    banner.classList.add('hidden');
+    try { localStorage.setItem(BANNER_KEY, '1'); } catch { /* ignore */ }
+  });
+})();
 
 // ---- Init ----
 loadProjectName();

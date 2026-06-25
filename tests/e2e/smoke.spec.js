@@ -85,6 +85,8 @@ test('track mode reveals tracking controls', async ({ page }) => {
 
   await page.locator(byValue('#mode-group', 'track')).click();
   await expect(page.locator('body')).toHaveAttribute('data-mode', 'track');
+  // composite toggle now visible when a detection backend is active
+  await page.locator(byValue('#track-backend-group', 'blob')).click();
   await expect(page.locator('#track-composite-group')).toBeVisible();
 
   // Detection backend: switch to blob to reveal lumi-channel section

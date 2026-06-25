@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Doto:DOTF,ROND@1,0..1&display=swap" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body data-mode="synth" data-has-source="false">
+  <body data-mode="synth" data-has-source="false" data-track-backend="off">
     <a href="#sidebar" class="skip-link">Skip to controls</a>
     <a href="#canvas-area" class="skip-link">Skip to canvas</a>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -583,7 +583,7 @@
               <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="synth" data-tip="Show the SYNTH panel (left sidebar). Hides the TRACK panel.">SYNTH</button>
               <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="track" data-tip="Show the TRACK panel (right sidebar). Track detection runs from the Backend setting.">TRACK</button>
             </div>
-            <div class="toggle-group" id="track-composite-group" role="radiogroup" aria-label="Track composite mode" data-mode-section="track">
+            <div class="toggle-group" id="track-composite-group" role="radiogroup" aria-label="Track composite mode">
               <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="overlay"  data-tip="Show BlobTracking on top of the LumiSynth output (or raw source if all stages are off).">OVL</button>
               <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="isolated" data-tip="Show only BlobTracking on a black background. Clean export for VJs and analysts.">ISO</button>
             </div>
@@ -671,6 +671,11 @@
     </div>
 
     <div id="toast-region" role="region" aria-live="polite" aria-atomic="false" aria-label="Notifications"></div>
+
+    <div id="browser-banner" class="browser-banner hidden" role="status">
+      <span class="browser-banner-text">For the best experience, use <strong>Chrome</strong> or <strong>Brave</strong> — Safari has limited WebGL2 &amp; video support.</span>
+      <button id="browser-banner-dismiss" type="button" class="browser-banner-dismiss" aria-label="Dismiss">✕</button>
+    </div>
 
     <div id="intro-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-copy intro-copy2">
       <div id="intro-panel">

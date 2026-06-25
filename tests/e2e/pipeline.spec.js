@@ -660,11 +660,14 @@ test.describe('Track mode — happy paths', () => {
     await expect(page.locator('body')).toHaveAttribute('data-mode', 'track');
   });
 
-  test('TRACK mode shows track-composite toggle', async ({ page }) => {
+  test('TRACK mode shows track-composite toggle when backend is active', async ({ page }) => {
     await gotoDismissed(page);
     await activatePipelinePanel(page);
 
+    // open the track panel so backend buttons are in viewport
     await page.locator(byValue('#mode-group', 'track')).click();
+    // composite toggle is gated on backend being active, not on mode
+    await page.locator(byValue('#track-backend-group', 'blob')).click();
     await expect(page.locator('#track-composite-group')).toBeVisible();
   });
 
@@ -752,7 +755,9 @@ test.describe('Track mode — happy paths', () => {
     await gotoDismissed(page);
     await activatePipelinePanel(page);
 
+    // open track panel, then activate a backend so the composite toggle is visible
     await page.locator(byValue('#mode-group', 'track')).click();
+    await page.locator(byValue('#track-backend-group', 'blob')).click();
     await page.locator(byValue('#track-composite-group', 'isolated')).click();
     await expect(page.locator(byValue('#track-composite-group', 'isolated'))).toHaveAttribute('aria-checked', 'true');
 
