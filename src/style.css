@@ -2591,10 +2591,18 @@ body[data-track-panel="closed"] #track-panel {
   outline: 2px solid var(--orange-signal);
   outline-offset: -2px;
 }
-/* No source — tab is visible but inert: cross cursor, dimmed, no hover */
-body:not([data-has-source="true"]) #track-panel-toggle {
+/* No source — buttons/controls that have no use without a loaded source.
+   Visible but inert: cross cursor, dimmed, pointer-events blocked.
+   Exempt: Upload, Open Camera, FPS, ?, login/auth controls. */
+body:not([data-has-source="true"]) #track-panel-toggle,
+body:not([data-has-source="true"]) #btn-reset,
+body:not([data-has-source="true"]) .topbar-mode {
   cursor: not-allowed;
   opacity: 0.45;
+  pointer-events: none;
+}
+/* Track tab needs pointer-events: auto so the not-allowed cursor still shows */
+body:not([data-has-source="true"]) #track-panel-toggle {
   pointer-events: auto;
 }
 body:not([data-has-source="true"]) #track-panel-toggle:hover {

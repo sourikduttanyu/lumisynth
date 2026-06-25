@@ -49,6 +49,7 @@ async function activatePipelinePanel(page) {
     const panel = document.getElementById('pipeline-panel');
     if (panel) panel.classList.remove('hidden');
     if (window._state) window._state.hasSource = true;
+    document.body.dataset.hasSource = 'true';
   });
 }
 
@@ -582,6 +583,7 @@ test.describe('FX rack — sad paths', () => {
 test.describe('Global reset', () => {
   test('first click shows Confirm? label', async ({ page }) => {
     await gotoDismissed(page);
+    await activatePipelinePanel(page);
     await page.locator('#btn-reset').click();
     await expect(page.locator('#btn-reset')).toHaveText('Confirm?');
   });

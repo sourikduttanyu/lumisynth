@@ -30,6 +30,7 @@ async function activatePipelinePanel(page) {
     const panel = document.getElementById('pipeline-panel');
     if (panel) panel.classList.remove('hidden');
     if (window._state) window._state.hasSource = true;
+    document.body.dataset.hasSource = 'true';
   });
 }
 

@@ -67,32 +67,6 @@
           <div class="knob-grid shader-knob-grid hidden" id="shader-knob-grid"></div>
         </section>
 
-        <section class="control-section account-section" aria-label="Account and cloud presets" hidden>
-          <div class="section-label">Account</div>
-          <div class="account-card" id="account-card">
-            <div class="account-status" id="account-status">Checking session...</div>
-            <div class="account-auth" id="account-auth">
-              <input class="text-field" id="auth-email" type="email" autocomplete="email" placeholder="Email address" aria-label="Email address" />
-              <button class="action-btn mini-action" id="auth-send-code" type="button">Send Code</button>
-              <div class="auth-code-row hidden" id="auth-code-row">
-                <input class="text-field" id="auth-code" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code" aria-label="Login code" />
-                <button class="action-btn mini-action" id="auth-verify-code" type="button">Login</button>
-              </div>
-            </div>
-            <button class="action-btn mini-action hidden" id="auth-logout" type="button">Logout</button>
-          </div>
-
-          <!-- Cloud Presets hidden for v1 — backend not wired yet -->
-          <div class="section-label" hidden>Cloud Presets</div>
-          <div class="preset-card" hidden>
-            <input class="text-field" id="preset-name" type="text" maxlength="80" placeholder="Preset name" aria-label="Preset name" />
-            <div class="preset-actions">
-              <button class="action-btn mini-action" id="preset-save" type="button" disabled>Save</button>
-              <button class="action-btn mini-action" id="preset-refresh" type="button" disabled>Refresh</button>
-            </div>
-            <div id="preset-list" class="preset-list" aria-live="polite">Login to use cloud presets.</div>
-          </div>
-        </section>
 
         <!-- ============================================================
              Pipeline panel — hidden until a source is loaded.
