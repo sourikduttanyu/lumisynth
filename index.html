@@ -7,7 +7,7 @@
     <title>LumiSynth</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Doto:DOTF,ROND@1,0..1&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Doto:DOTF,ROND,wght@1,0..1,400..900&display=swap" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body data-mode="synth" data-has-source="false" data-track-backend="off">
@@ -43,10 +43,7 @@
         </div>
 
         <!-- ============ OSC ============ -->
-        <div class="stage-divider" role="heading" aria-level="3" data-stage="osc">OSC <span class="stage-sub">source</span></div>
-
         <section class="control-section" aria-label="Source input">
-          <div class="section-label">Source</div>
           <button id="btn-upload" class="action-btn" type="button">Upload</button>
           <button id="btn-camera" class="action-btn" type="button">Open Camera</button>
           <input type="file" id="file-input" accept="video/*,image/png,image/jpeg,image/webp" class="hidden" />
@@ -457,7 +454,6 @@
           </section>
 
           <!-- ============ BLOB SYNTH (TRACK only) — independent LumiSynth per blob ============ -->
-          <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-synth">BLOB SYNTH <span class="stage-sub">independent chain · per blob</span></div>
 
           <!-- BLOB STRUCTURE -->
           <div class="stage-divider" role="heading" aria-level="3" data-stage="blob-structure">BLOB STRUCT <span class="stage-sub">geometry · pattern</span></div>
