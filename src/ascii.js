@@ -23,6 +23,7 @@ in vec2 vUV;
 uniform sampler2D u_video;
 uniform vec4 uParams;
 uniform float uEdgeThreshold;
+uniform int uPalette;
 out vec4 fragColor;
 
 float luma(vec3 rgb) {
@@ -84,7 +85,35 @@ bool pix(int c, int cx, int cy) {
     else if (cy==3) row=0x04; else if (cy==4) row=0x02;
     else if (cy==5) row=0x02; else if (cy==6) row=0x01;
   }
+  // ---- Matrix palette glyphs (30–43) ----
+  else if (c == 30) { if (cy==1) row=0x06; else if (cy==2) row=0x04; else if (cy==3) row=0x04; else if (cy==4) row=0x04; else if (cy==5) row=0x04; else if (cy==6) row=0x0E; } // 1
+  else if (c == 31) { if (cy==1) row=0x1F; else if (cy==2) row=0x01; else if (cy==3) row=0x02; else if (cy==4) row=0x04; else if (cy==5) row=0x04; else if (cy==6) row=0x04; } // 7
+  else if (c == 32) { if (cy==1) row=0x0E; else if (cy==2) row=0x11; else if (cy==3) row=0x01; else if (cy==4) row=0x02;                            else if (cy==6) row=0x04; } // ?
+  else if (c == 33) {                            if (cy==1) row=0x02; else if (cy==2) row=0x04; else if (cy==3) row=0x08; else if (cy==4) row=0x04; else if (cy==5) row=0x02; } // <
+  else if (c == 34) {                            if (cy==1) row=0x04; else if (cy==2) row=0x02; else if (cy==3) row=0x01; else if (cy==4) row=0x02; else if (cy==5) row=0x04; } // >
+  else if (c == 35) { if (cy==0) row=0x0E; else if (cy==1) row=0x08; else if (cy==2) row=0x08; else if (cy==3) row=0x08; else if (cy==4) row=0x08; else if (cy==5) row=0x08; else if (cy==6) row=0x0E; } // [
+  else if (c == 36) { if (cy==0) row=0x0E; else if (cy==1) row=0x02; else if (cy==2) row=0x02; else if (cy==3) row=0x02; else if (cy==4) row=0x02; else if (cy==5) row=0x02; else if (cy==6) row=0x0E; } // ]
+  else if (c == 37) { if (cy==0) row=0x04; else if (cy==1) row=0x04; else if (cy==2) row=0x04; else if (cy==3) row=0x04; else if (cy==4) row=0x04;                            else if (cy==6) row=0x04; } // !
+  else if (c == 38) { if (cy==1) row=0x0E; else if (cy==2) row=0x11; else if (cy==3) row=0x01; else if (cy==4) row=0x02; else if (cy==5) row=0x08; else if (cy==6) row=0x1F; } // 2
+  else if (c == 39) { if (cy==1) row=0x0E; else if (cy==2) row=0x11; else if (cy==3) row=0x03; else if (cy==4) row=0x01; else if (cy==5) row=0x11; else if (cy==6) row=0x0E; } // 3
+  else if (c == 40) { if (cy==1) row=0x02; else if (cy==2) row=0x06; else if (cy==3) row=0x0A; else if (cy==4) row=0x1F; else if (cy==5) row=0x02; else if (cy==6) row=0x02; } // 4
+  else if (c == 41) { if (cy==1) row=0x1F; else if (cy==2) row=0x10; else if (cy==3) row=0x1E; else if (cy==4) row=0x01; else if (cy==5) row=0x11; else if (cy==6) row=0x0E; } // 5
+  else if (c == 42) { if (cy==1) row=0x0E; else if (cy==2) row=0x10; else if (cy==3) row=0x1E; else if (cy==4) row=0x11; else if (cy==5) row=0x11; else if (cy==6) row=0x0E; } // 6
+  else if (c == 43) { if (cy==1) row=0x0E; else if (cy==2) row=0x11; else if (cy==3) row=0x11; else if (cy==4) row=0x0F; else if (cy==5) row=0x01; else if (cy==6) row=0x0E; } // 9
   return ((row >> b) & 1) == 1;
+}
+
+int remapGlyph(int g, int p) {
+  if (p == 0) return g;
+  // Palette 1: Matrix — digits + bracket symbols, light→dense
+  if (g ==  0) return  0;  if (g ==  1) return  1;  if (g ==  2) return 30;
+  if (g ==  3) return 31;  if (g ==  4) return 32;  if (g ==  5) return 33;
+  if (g ==  6) return 34;  if (g ==  7) return 35;  if (g ==  8) return 36;
+  if (g ==  9) return 37;  if (g == 10) return 38;  if (g == 11) return 39;
+  if (g == 12) return 40;  if (g == 13) return 41;  if (g == 14) return 42;
+  if (g == 15) return 43;  if (g == 16) return 21;  if (g == 17) return 20;
+  if (g == 18) return 23;  if (g == 19) return 22;  if (g == 20) return 24;
+  return 25;
 }
 
 void main() {
@@ -133,7 +162,7 @@ void main() {
     adj = clamp((adj - 0.5) * c + 0.5, 0.0, 1.0);
   }
 
-  int gid = densityGlyph(adj, detail, cellID);
+  int gid = remapGlyph(densityGlyph(adj, detail, cellID), uPalette);
 
   // Edge overlay: Sobel angle → pick edge character (_  /  |  \)
   // Gradient is perpendicular to the edge; fold to 0..PI to get orientation.
@@ -217,6 +246,7 @@ function initProgram() {
       video:         gl.getUniformLocation(prog, 'u_video'),
       params:        gl.getUniformLocation(prog, 'uParams'),
       edgeThreshold: gl.getUniformLocation(prog, 'uEdgeThreshold'),
+      palette:       gl.getUniformLocation(prog, 'uPalette'),
     },
   };
 }
@@ -258,7 +288,10 @@ export function applyASCII(cw, ch, params = {}, opts = {}) {
 
   gl.useProgram(prog);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, inTex); gl.uniform1i(u.video, 0);
+  const palette       = params.palette       ?? 0;
+
   gl.uniform4f(u.params, cellSize, contrast, blackThresh, glyphStrength);
   gl.uniform1f(u.edgeThreshold, edgeThreshold);
+  gl.uniform1i(u.palette, palette);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

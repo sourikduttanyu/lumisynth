@@ -93,6 +93,15 @@ const fileInput    = document.getElementById('file-input');
 const canvasArea   = document.getElementById('canvas-area');
 const fileStatus   = document.getElementById('file-status');
 const topbarSource = document.getElementById('topbar-source');
+const canvasTopbar = document.getElementById('canvas-topbar');
+
+// Keep --topbar-h in sync so #track-panel (position:fixed) starts below the topbar.
+if (canvasTopbar) {
+  const syncTopbarH = () =>
+    document.documentElement.style.setProperty('--topbar-h', `${canvasTopbar.offsetHeight}px`);
+  syncTopbarH();
+  new ResizeObserver(syncTopbarH).observe(canvasTopbar);
+}
 const toastRegion  = document.getElementById('toast-region');
 const btnSnapshot      = document.getElementById('btn-snapshot');
 const btnPreview       = document.getElementById('btn-preview');
@@ -1259,7 +1268,7 @@ function runEffect(name, opts) {
       return applyASCII(canvas.width, canvas.height, {
         cellSize: look.asciiCellSize, contrast: look.asciiContrast,
         blackThreshold: look.asciiBlackThresh, glyphStrength: look.asciiGlyphStrength,
-        edgeThreshold: look.asciiEdgeThreshold ?? 0.0,
+        edgeThreshold: look.asciiEdgeThreshold ?? 0.0, palette: look.asciiPalette ?? 0,
       }, opts);
     case 'erode':
       return applyGLFilter('erode', canvas.width, canvas.height, [look.erodeMode, look.erodeRadius, look.erodeStrength, look.erodeEdge], opts);
@@ -1370,6 +1379,7 @@ const TOGGLE_CONFIG = [
   ['structure-group',       'structure',      String,     onStructureChange],
   ['structure-output-group', 'structureOutputMode', String, null],
   ['erode-mode-group',      'erodeMode',      parseInt,   null],
+  ['ascii-palette-group',   'asciiPalette',   parseInt,   null],
   // ============ TRACK-mode toggle groups ============
   ['mode-group',            'mode',           String,     onModeChange],
   ['track-backend-group',     'trackBackend',    String,              onTrackBackendChange],
@@ -1401,9 +1411,9 @@ function resolveBlobPipeline(look) {
     const p = (look.blobStructureParams && look.blobStructureParams[structureName]) || makeBlobStructureParams(structureName);
     switch (structureName) {
       case 'erode':     structureParams = [p.mode ?? 0, p.radius ?? 0.3, p.strength ?? 0.7, p.edge ?? 0]; break;
-      case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.3, p.opacity ?? 0.8, p.dir ?? 0.5]; break;
+      case 'pixelsort': structureParams = [p.thresh ?? 0.4, p.length ?? 0.5, p.opacity ?? 1.0, p.dir ?? 0.5]; break;
       case 'melt':      structureParams = [p.amount ?? 0.5, p.drip ?? 0.4, p.viscosity ?? 0.5, p.dir ?? 0]; break;
-      case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9, p.edges ?? 0]; break;
+      case 'ascii':     structureParams = [p.cellSize ?? 0.3, p.contrast ?? 0.3, p.blackThresh ?? 0.2, p.glyph ?? 0.9, p.edges ?? 0, p.palette ?? 0]; break;
       case 'motionedge':structureParams = [p.edge ?? 0.5, p.motion ?? 0.6, p.thresh ?? 0.15, p.boost ?? 0.5, p.rate ?? 0]; break;
       case 'edgedet':   structureParams = [p.thresh ?? 0.3, p.glow ?? 0.5, p.hue ?? 0.15, p.blend ?? 0.1]; break;
       case 'dither':    structureParams = [p.scale ?? 0.4, p.levels ?? 0.3, p.contrast ?? 0.5, p.bias ?? 0.5]; break;
@@ -1680,6 +1690,11 @@ const COLOR_SWATCH_GRADIENTS = {
   csadjust:   'linear-gradient(90deg, #1a1a2a, #2a4470, #7080c8, #d8ddf8)',
   halftone:   'linear-gradient(90deg, #f5f0e8, #c85a5a, #5050b0, #28a040, #f5f0e8)',
   colorfulposter: 'linear-gradient(90deg, #1a0030, #7a1060, #c85a20, #d4c030, #6ab040)',
+  cospalette:     'linear-gradient(90deg, #00aaff, #aa00ff, #ff0088, #ff8800, #aaff00, #00ffcc)',
+  subtleaurora:   'linear-gradient(90deg, #000804, #003820, #26c870, #7040b8, #0a0014)',
+  tokaplasma:     'linear-gradient(90deg, #010108, #1a0d44, #8c1a72, #ff7fcc, #fff8f8)',
+  irishell:       'linear-gradient(90deg, #d0b8ff, #ffb0e0, #b0e8ff, #ffe080, #b8ffdc)',
+  quantumstate:   'linear-gradient(90deg, #0a0318, #6b1080, #b83890, #20c8b0, #d8f8ff)',
   okdrift:    'linear-gradient(90deg, #2d0060, #7b00ff, #00aaff, #00ffaa, #ffaa00, #ff0055)',
 };
 const COLOR_LABEL = {
@@ -1694,7 +1709,8 @@ const COLOR_LABEL = {
   polaroid: 'Polaroid', blacklight: 'Blacklight', dreamstatic: 'DreamStatic', predator: 'Predator',
   okband: 'OKBand',
   chroma: 'ChromaEngine',
-  palswap: 'PalSwap', csadjust: 'CSAdjust', halftone: 'Halftone', colorfulposter: 'Poster',
+  palswap: 'PalSwap', csadjust: 'CSAdjust', halftone: 'Halftone', colorfulposter: 'Poster', cospalette: 'CosPal',
+  subtleaurora: 'SubAurora', tokaplasma: 'Tokamak', irishell: 'IriShell', quantumstate: 'QuantumSt',
   okdrift: 'OKDrift',
 };
 
@@ -1736,6 +1752,11 @@ const COLOR_MAP_TIPS = {
   csadjust:   'OKLCH Color Space Adjust. Direct lightness, chroma, hue-rotation, and warmth knobs in perceptual OKLCH space — for creative grading without hue collisions.',
   halftone:   'CMYK halftone dot screens. Four angled dot-screen channels (C/M/Y/K) simulate offset-print reproduction. Scale controls dot size; Blend mixes with source.',
   colorfulposter: 'Luma posterization with CMYK color layer. Logistic curve quantizes the scene into flat tonal zones; a cyan-tinted hard-light blend adds graphic color. Levels/Slope/Continuity shape the posterization curve.',
+  cospalette:     'Inigo Quilez cosine palette. Maps luminance through a + b·cos(2π(c·t+d)) across 5 color universes: oil slick iridescence, sunset fire, ocean bioluminescence, toxic neon, copper patina. Palette morphs continuously; Freq controls cycle density; Edge adds contour-driven color cycling.',
+  subtleaurora:   'Quiet aurora borealis curtains. Companion to Aurora Storm — calmer and more atmospheric. Soft green or violet streaks appear only on bright structures; the night sky stays pure black. Stars option seeds cell-based sparkle at luminance peaks.',
+  tokaplasma:     'Magnetic confinement fusion plasma. Bright regions become hot pink/white filaments; darks are the deep vacuum chamber. Edge sweeps from blue containment field to magenta magnetic pinch. Glow spreads outward halo energy from bright cores.',
+  irishell:       'Mother-of-pearl iridescence. Hue shifts based on the direction of the luma gradient — not just brightness — creating angle-dependent shimmer like abalone shell or a CD surface. Phase rotates the color ring; Dark deepens the oil-slick base.',
+  quantumstate:   'Quantum probability cloud. Luma collapses into 5 discrete color eigenstates (purple → magenta → cyan → teal → white) with Fuzz adding spatial noise at boundaries. Sharp quantizes zone edges; Phase rotates all hue assignments together.',
   okdrift:    'Procedural OKLCH palette. Generates N color stops spaced by the golden angle and drifts each on an independent sinusoidal frequency. Low Rate = slow flow; High Rate = rapid snapping.',
 };
 
@@ -5351,7 +5372,9 @@ function renderTimelinePanel() {
   _updatePreviewBtnEnabled();
   const selected = selectedTimelineSegment();
   const duration = video.duration;
-  for (const seg of sortedTimelineSegments()) {
+  const _timelineSegs = sortedTimelineSegments();
+  for (let _si = 0; _si < _timelineSegs.length; _si++) {
+    const seg = _timelineSegs[_si];
     const btn = document.createElement('button');
     btn.type = 'button';
     const segIsTrack = seg.look?.mode === 'track';
@@ -5361,6 +5384,7 @@ function renderTimelinePanel() {
     btn.classList.toggle('has-track-mode', segIsTrack);
     btn.style.left = `${(seg.start / duration) * 100}%`;
     btn.style.width = `${Math.max(0.5, ((seg.end - seg.start) / duration) * 100)}%`;
+    btn.style.setProperty('--seg-hue', Math.round((_si * 137.5) % 360));
     btn.dataset.tip = `${seg.name} · ${formatTimePrecise(seg.start)}–${formatTimePrecise(seg.end)}s${segIsTrack ? ' · TRACK' : ''}. Drag to move; drag edges to retime.`;
 
     const segLabel = document.createElement('span');

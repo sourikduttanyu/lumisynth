@@ -272,6 +272,7 @@ function getProgram(name) {
     params:     gl.getUniformLocation(prog, 'uParams'),
     param4:     gl.getUniformLocation(prog, 'uParam4'),
     edgeThresh: gl.getUniformLocation(prog, 'uEdgeThreshold'),
+    uPalette:   gl.getUniformLocation(prog, 'uPalette'),
     uTime:      gl.getUniformLocation(prog, 'uTime'),
     outputMode: gl.getUniformLocation(prog, 'uOutputMode'),
     inkLow:     gl.getUniformLocation(prog, 'uInkLow'),
@@ -363,6 +364,7 @@ function runEffect(name, w, h, params, opts = {}) {
   gl.uniform4f(entry.params, params[0] ?? 0, params[1] ?? 0, params[2] ?? 0, params[3] ?? 0);
   if (entry.param4 != null && params[4] !== undefined) gl.uniform1f(entry.param4, params[4]);
   if (entry.edgeThresh != null) gl.uniform1f(entry.edgeThresh, params[4] ?? 0);
+  if (entry.uPalette != null && params[5] !== undefined) gl.uniform1i(entry.uPalette, Math.round(params[5]));
   if (entry.uTime != null) gl.uniform1f(entry.uTime, performance.now() / 1000);
   if (entry.outputMode != null) gl.uniform1f(entry.outputMode, opts.outputMode ?? 0);
   if (entry.inkLow != null && entry.inkHigh != null) {

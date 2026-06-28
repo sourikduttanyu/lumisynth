@@ -50,41 +50,38 @@
      reads as the same visual distance apart (Oswald's equal-increment harmony,
      which only holds in a perceptually-uniform space). Chroma rises
      monotonically with L (lighter = slightly warmer); hue held constant. */
-  --bg-stage:        oklch(13% 0.008 70);
-  --bg-room:         oklch(18% 0.010 70);
-  --surface-card:    oklch(23% 0.012 70);
-  --surface-raised:  oklch(28% 0.013 70);
-  --surface-hover:   oklch(33% 0.014 70);
-  --border-hairline: oklch(38% 0.015 70);
-  --border-strong:   oklch(48% 0.016 70);   /* deliberate +10 emphasis rung (two ladder steps); used for expanded/active container chrome (e.g. expanded color rack slot) */
+  --bg-stage:        oklch(9%  0.004 245);
+  --bg-room:         oklch(13% 0.005 245);
+  --surface-card:    oklch(18% 0.006 245);
+  --surface-raised:  oklch(22% 0.007 245);
+  --surface-hover:   oklch(27% 0.008 245);
+  --border-hairline: oklch(32% 0.008 245);
+  --border-strong:   oklch(42% 0.010 245);   /* deliberate +10 emphasis rung (two ladder steps); used for expanded/active container chrome (e.g. expanded color rack slot) */
 
-  /* Display surfaces (deep, embedded screen — the dark LCD set into the cream
-     chassis, exactly like TE hardware). Unchanged across the palette flip. */
-  --display-bezel:    oklch(8%  0.005 70);
-  --display-screen:   oklch(5%  0.005 70);
-  --display-hairline: oklch(24% 0.005 70);   /* subtle separators on display surfaces */
+  /* Display surfaces (deep, embedded screen — the dark LCD set into the chassis).
+     Dropped slightly darker alongside the darker chassis. */
+  --display-bezel:    oklch(6%  0.003 245);
+  --display-screen:   oklch(3%  0.002 245);
+  --display-hairline: oklch(20% 0.004 245);   /* subtle separators on display surfaces */
 
-  /* Text on chassis (light legends on dark graphite — Octatrack/Push silkscreen).
-     Perceptually equidistant: OKLCH L descends in even −16 steps and chroma
-     climbs in even +.003 steps (Oswald equal-increment harmony in a uniform
-     space); hue held constant. */
-  --text-key:    oklch(95% 0.005 70);
-  --text-body:   oklch(79% 0.008 70);
-  --text-muted:  oklch(63% 0.011 70);
-  --text-faint:  oklch(47% 0.014 70);
+  /* Text on chassis. Hue shifted to 245 (cool steel-slate) to match chassis.
+     Perceptually equidistant L ladder preserved. */
+  --text-key:    oklch(95% 0.004 245);
+  --text-body:   oklch(79% 0.006 245);
+  --text-muted:  oklch(63% 0.008 245);
+  --text-faint:  oklch(47% 0.009 245);
 
   /* Text on display */
-  --text-on-display: oklch(92% 0.005 70);
+  --text-on-display: oklch(92% 0.004 245);
 
-  /* Signal — orange is the only saturated chrome accent (hex canonical).
+  /* Signal — pastel purple is the only saturated chrome accent.
      red-accent is reserved for danger and rare typographic emphasis. */
-  --orange-signal: #ff5722;
+  --orange-signal: oklch(80% 0.16 295);
   --red-accent:    #e63946;
 
-  /* Hardware caps for the SVG knob — a white plastic cap with a dark notch,
-     the TE volume-knob read. The 1px dark stroke keeps it legible on cream. */
-  --knob-cap-white: oklch(97% 0.005 70);
-  --knob-cap-black: oklch(12% 0.008 70);
+  /* Hardware caps for the SVG knob */
+  --knob-cap-white: oklch(97% 0.003 245);
+  --knob-cap-black: oklch(10% 0.004 245);
 
   /* State (semantic) — all LOW chroma so they don't compete with --orange-signal.
      Lifted for legibility against the dark chassis. */
@@ -95,7 +92,7 @@
   /* Stage flow (signal-flow direction across OSC → FILTER → FX) — LOW chroma,
      lifted so the labels read as silkscreen print on the dark chassis. */
   --stage-osc:    oklch(68% 0.09 65);    /* muted amber: input, source */
-  --stage-filter: oklch(60% 0.13 5);     /* muted plum: transformation */
+  --stage-filter: oklch(65% 0.12 295);   /* muted purple: transformation */
   --stage-fx:     oklch(64% 0.08 220);   /* muted slate-teal: output */
 
   /* Motion */
@@ -208,9 +205,11 @@ html, body {
   min-width: 0;
 }
 .logo {
-  font-size: 13px;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0.4, 'wght' 700;
   font-weight: 700;
-  letter-spacing: 0.10em;
+  font-size: 13px;
+  letter-spacing: 0.12em;
   color: var(--text-key);
 }
 .logo-sub {
@@ -227,9 +226,10 @@ html, body {
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   color: var(--text-key);
-  font-family: inherit;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: var(--space-sm) var(--space-lg);
@@ -257,7 +257,7 @@ html, body {
   border-color: var(--display-hairline);
   color: var(--text-on-display);
 }
-#canvas-topbar .icon-btn:hover { background: oklch(12% 0.005 70); }
+#canvas-topbar .icon-btn:hover { background: oklch(9% 0.004 245); }
 #export-res-select {
   appearance: none;
   -webkit-appearance: none;
@@ -323,7 +323,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: oklch(5% 0.01 85 / 0.92);
+  background: oklch(4% 0.004 245 / 0.92);
   z-index: 60;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
@@ -341,16 +341,16 @@ html, body {
   align-items: center;
   gap: 14px;
   padding: 32px 40px 28px;
-  background: oklch(10% 0.01 85);
-  border: 1px solid oklch(22% 0.01 85);
+  background: oklch(8% 0.004 245);
+  border: 1px solid oklch(19% 0.005 245);
   border-radius: 4px;
   min-width: 300px;
   position: relative;
   overflow: hidden;
   /* Ambient scanner line across the top */
-  box-shadow: 0 0 0 1px oklch(22% 0.01 85),
+  box-shadow: 0 0 0 1px oklch(19% 0.005 245),
               0 16px 48px oklch(0% 0 0 / 0.7),
-              inset 0 1px 0 oklch(28% 0.02 85);
+              inset 0 1px 0 oklch(23% 0.006 245);
 }
 
 /* Animated top scan-line — overdrive "active" indicator */
@@ -372,7 +372,7 @@ html, body {
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: oklch(40% 0.01 85);
+  color: oklch(37% 0.007 245);
 }
 
 .export-overlay-title {
@@ -380,7 +380,7 @@ html, body {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: oklch(96% 0.005 85);
+  color: oklch(95% 0.004 245);
   /* flash on phase change */
   transition: color 0.2s var(--ease-out);
 }
@@ -390,7 +390,7 @@ html, body {
   position: relative;
   width: 100%;
   height: 3px;
-  background: oklch(18% 0.01 85);
+  background: oklch(13% 0.005 245);
   border-radius: 2px;
   overflow: visible;
 }
@@ -437,7 +437,7 @@ html, body {
   font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
   font-weight: 700;
   font-size: 11px;
-  color: oklch(72% 0.01 85);
+  color: oklch(72% 0.006 245);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.06em;
 }
@@ -451,9 +451,9 @@ html, body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: transparent;
-  border: 1px solid oklch(25% 0.01 85);
+  border: 1px solid oklch(21% 0.005 245);
   border-radius: 2px;
-  color: oklch(42% 0.01 85);
+  color: oklch(39% 0.007 245);
   cursor: pointer;
   transition: border-color var(--duration-base) var(--ease-out),
               color var(--duration-base) var(--ease-out);
@@ -475,7 +475,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: oklch(5% 0.01 85 / 0.80);
+  background: oklch(4% 0.004 245 / 0.80);
   z-index: 55;
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
@@ -492,7 +492,7 @@ html, body {
   flex-direction: column;
   gap: var(--space-xl);
   min-width: 280px;
-  box-shadow: 0 8px 40px oklch(2% 0.01 85 / 0.6);
+  box-shadow: 0 8px 40px oklch(2% 0.003 245 / 0.6);
 }
 
 .export-quality-title {
@@ -596,9 +596,11 @@ html, body {
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xl) var(--space-xl) var(--space-sm);
-  font-size: 9px;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
   font-weight: 700;
-  letter-spacing: 0.24em;
+  font-size: 10px;
+  letter-spacing: 0.20em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -643,11 +645,13 @@ html, body {
 
 .section-label {
   display: block;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
+  font-weight: 700;
   font-size: 9px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
-  font-weight: 600;
   cursor: default;
 }
 label.section-label { cursor: pointer; }
@@ -683,7 +687,7 @@ label.section-label { cursor: pointer; }
   to   { opacity: 1; transform: none; }
 }
 .effect-card.active-card {
-  border-color: oklch(70% 0.21 45 / 0.55);
+  border-color: oklch(70% 0.18 295 / 0.55);
 }
 /* 2px Orange-Signal top accent (full edge, NOT a side-stripe). */
 .effect-card::before {
@@ -895,7 +899,7 @@ label.section-label { cursor: pointer; }
   inset: -10px;
 }
 .color-rack-toggle[aria-pressed="true"] {
-  background: oklch(70% 0.21 45 / 0.20);
+  background: oklch(70% 0.18 295 / 0.20);
   border-color: var(--orange-signal);
   color: var(--orange-signal);
 }
@@ -1070,7 +1074,7 @@ label.section-label { cursor: pointer; }
   border-color: var(--orange-signal);
 }
 .color-rack-slot-toggle-btn.active {
-  background: oklch(70% 0.21 45 / 0.22);
+  background: oklch(70% 0.18 295 / 0.22);
   border-color: var(--orange-signal);
   color: var(--text-key);
 }
@@ -1187,10 +1191,11 @@ label.section-label { cursor: pointer; }
   border: 1px solid var(--border-hairline);
   color: var(--text-key);
   padding: var(--space-md) var(--space-lg);
-  font-family: inherit;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 800;
   font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.10em;
   cursor: pointer;
   text-align: left;
   min-height: 30px;
@@ -1247,7 +1252,7 @@ label.section-label { cursor: pointer; }
   outline: none;
 }
 .text-field:focus {
-  border-color: oklch(70% 0.21 45 / 0.55);
+  border-color: oklch(70% 0.18 295 / 0.55);
 }
 .preset-list {
   display: flex;
@@ -1343,10 +1348,11 @@ label.section-label { cursor: pointer; }
   border: 1px solid var(--border-hairline);
   color: var(--text-body);
   padding: var(--space-sm) var(--space-md);
-  font-family: inherit;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   cursor: pointer;
   flex: 1;
   min-width: 0;
@@ -1509,12 +1515,12 @@ label.section-label { cursor: pointer; }
   border-radius: 5px;
   transition: background var(--duration-base) var(--ease-out);
 }
-.knob:hover { background: oklch(70% 0.21 45 / 0.10); }
-.knob:focus-visible { background: oklch(70% 0.21 45 / 0.14); }
+.knob:hover { background: oklch(70% 0.18 295 / 0.10); }
+.knob:focus-visible { background: oklch(70% 0.18 295 / 0.14); }
 /* will-change promotes the knob to its own compositor layer while dragging,
    so the arc/pointer transform isn't repainted against the rest of the card.
    Active only during drag (released on pointerup). */
-.knob.dragging { background: oklch(70% 0.21 45 / 0.18); will-change: transform; }
+.knob.dragging { background: oklch(70% 0.18 295 / 0.18); will-change: transform; }
 
 .knob-svg {
   width: 40px;
@@ -1548,9 +1554,11 @@ label.section-label { cursor: pointer; }
 }
 
 .knob-label {
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0.4, 'wght' 800;
   font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.10em;
   color: var(--text-muted);
   text-transform: uppercase;
   text-align: center;
@@ -1617,15 +1625,15 @@ label.section-label { cursor: pointer; }
   text-align: center;
   outline: none;
   z-index: 20;
-  box-shadow: 0 0 0 3px oklch(70% 0.21 45 / 0.18), 0 4px 12px oklch(0% 0 0 / 0.5);
+  box-shadow: 0 0 0 3px oklch(70% 0.18 295 / 0.18), 0 4px 12px oklch(0% 0 0 / 0.5);
   caret-color: var(--orange-signal);
 }
 .knob-entry-input::selection {
-  background: oklch(70% 0.21 45 / 0.35);
+  background: oklch(70% 0.18 295 / 0.35);
 }
 /* While text entry is open, show a subtle orange outline on the host knob */
 .knob.entering {
-  background: oklch(70% 0.21 45 / 0.22);
+  background: oklch(70% 0.18 295 / 0.22);
   outline: 1.5px solid var(--orange-signal);
   outline-offset: 1px;
 }
@@ -1673,7 +1681,7 @@ label.section-label { cursor: pointer; }
 .param-slider:hover,
 .param-slider:focus-within {
   background: var(--surface-hover);
-  border-color: oklch(70% 0.21 45 / 0.62);
+  border-color: oklch(70% 0.18 295 / 0.62);
 }
 .param-slider .knob-label {
   text-align: left;
@@ -1834,7 +1842,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   border-bottom: 1px solid var(--display-hairline);
   background: var(--display-bezel);
   font-size: 10px;
-  color: oklch(92% 0.005 70 / 0.7);
+  color: oklch(92% 0.004 245 / 0.7);
   letter-spacing: 0.04em;
 }
 #canvas-topbar .topbar-title {
@@ -1849,7 +1857,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   font-family: ui-monospace, Menlo, monospace;
   font-size: 11px;
   letter-spacing: 0.02em;
-  color: oklch(92% 0.005 70 / 0.85);
+  color: oklch(92% 0.004 245 / 0.85);
   padding: var(--space-2xs) var(--space-md);
   border-radius: 3px;
   border: 1px solid transparent;
@@ -1866,14 +1874,14 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   outline: none;
 }
 #canvas-topbar .topbar-projectname.editing {
-  background: oklch(18% 0.01 70);
+  background: oklch(13% 0.005 245);
   border-color: var(--display-hairline);
   cursor: text;
   user-select: text;
 }
 #canvas-topbar .topbar-source {
   flex: 1;
-  color: oklch(92% 0.005 70 / 0.7);
+  color: oklch(92% 0.004 245 / 0.7);
   font-style: italic;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1916,19 +1924,19 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   flex-direction: column;
   align-items: center;
   gap: var(--space-lg);
-  color: oklch(92% 0.005 70 / 0.7);
+  color: oklch(92% 0.004 245 / 0.7);
   font-size: 13px;
   letter-spacing: 0.06em;
   text-align: center;
 }
 .placeholder-icon {
   font-size: 56px;
-  color: oklch(92% 0.005 70 / 0.4);
+  color: oklch(92% 0.004 245 / 0.4);
   line-height: 1;
 }
 .placeholder-hint {
   font-size: 10px;
-  color: oklch(92% 0.005 70 / 0.5);
+  color: oklch(92% 0.004 245 / 0.5);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-style: italic;
@@ -1940,7 +1948,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   inset: var(--space-md);
   border: 2px dashed var(--orange-signal);
   border-radius: 6px;
-  background: oklch(70% 0.21 45 / 0.10);
+  background: oklch(70% 0.18 295 / 0.10);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2044,7 +2052,8 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   border-radius: 3px;
   color: var(--text-key);
   cursor: pointer;
-  font: inherit;
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.10em;
@@ -2072,9 +2081,9 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   top: 4px;
   bottom: 4px;
   min-width: 8px;
-  border: 1px solid oklch(52% 0.10 65);
+  border: 1px solid oklch(55% 0.12 var(--seg-hue, 65));
   border-radius: 3px;
-  background: oklch(83% 0.09 65 / 0.92);
+  background: oklch(80% 0.10 var(--seg-hue, 65) / 0.90);
   color: var(--text-key);
   cursor: grab;
   font-family: var(--font-doto);
@@ -2088,8 +2097,8 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   white-space: nowrap;
 }
 .timeline-segment.is-selected {
-  border-color: var(--orange-signal);
-  background: oklch(85% 0.11 45 / 0.95);
+  border-color: oklch(60% 0.18 var(--seg-hue, 65));
+  background: oklch(75% 0.14 var(--seg-hue, 65) / 0.95);
 }
 .timeline-segment.is-active {
   box-shadow: inset 0 0 0 1px oklch(28% 0.06 65);
@@ -2161,7 +2170,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   font-variation-settings: 'DOTF' 1, 'ROND' 0.5, 'wght' 700;
   font-weight: 700;
   font-size: 11px;
-  color: oklch(92% 0.005 70 / 0.9);
+  color: oklch(92% 0.004 245 / 0.9);
   font-variant-numeric: tabular-nums;
   background: var(--display-bezel);
   padding: var(--space-xs) var(--space-md);
@@ -2201,7 +2210,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   contain: layout style paint;
 }
 .intro-kicker {
-  color: oklch(92% 0.005 70 / 0.58);
+  color: oklch(92% 0.004 245 / 0.58);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -2217,7 +2226,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   margin-bottom: var(--space-lg);
 }
 #intro-panel p {
-  color: oklch(92% 0.005 70 / 0.84);
+  color: oklch(92% 0.004 245 / 0.84);
   font-size: 12px;
   line-height: 1.55;
   letter-spacing: 0.04em;
@@ -2243,7 +2252,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
     color var(--duration-base) var(--ease-out);
 }
 .intro-action:hover {
-  background: oklch(12% 0.006 70);
+  background: oklch(9% 0.004 245);
   border-color: var(--orange-signal);
   color: var(--text-key);
 }
@@ -2252,7 +2261,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   top: var(--space-md); right: var(--space-lg);
   background: transparent;
   border: none;
-  color: oklch(92% 0.005 70 / 0.6);
+  color: oklch(92% 0.004 245 / 0.6);
   font-size: 20px;
   cursor: pointer;
   width: 28px; height: 28px;
@@ -2261,7 +2270,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
     color      var(--duration-base) var(--ease-out),
     background var(--duration-base) var(--ease-out);
 }
-#intro-close:hover { color: var(--text-on-display); background: oklch(92% 0.005 70 / 0.10); }
+#intro-close:hover { color: var(--text-on-display); background: oklch(92% 0.004 245 / 0.10); }
 
 /* ============================================================
    HELP PANEL — display surface, the only chrome surface allowed
@@ -2304,7 +2313,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: oklch(92% 0.005 70 / 0.7);
+  color: oklch(92% 0.004 245 / 0.7);
   margin-top: var(--space-xl);
   margin-bottom: var(--space-md);
 }
@@ -2327,7 +2336,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   flex-direction: column;
   gap: var(--space-sm);
   font-size: 11px;
-  color: oklch(92% 0.005 70 / 0.85);
+  color: oklch(92% 0.004 245 / 0.85);
 }
 #help-panel li {
   display: flex;
@@ -2336,14 +2345,14 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   padding: var(--space-xs) 0;
   border-bottom: 1px solid var(--display-hairline);
 }
-#help-panel li > span:first-child { color: oklch(92% 0.005 70 / 0.85); }
+#help-panel li > span:first-child { color: oklch(92% 0.004 245 / 0.85); }
 #help-panel li > span:last-child  { display: flex; gap: var(--space-xs); }
 #help-close {
   position: absolute;
   top: var(--space-md); right: var(--space-lg);
   background: transparent;
   border: none;
-  color: oklch(92% 0.005 70 / 0.6);
+  color: oklch(92% 0.004 245 / 0.6);
   font-size: 20px;
   cursor: pointer;
   width: 28px; height: 28px;
@@ -2352,7 +2361,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
     color      var(--duration-base) var(--ease-out),
     background var(--duration-base) var(--ease-out);
 }
-#help-close:hover { color: var(--text-on-display); background: oklch(92% 0.005 70 / 0.10); }
+#help-close:hover { color: var(--text-on-display); background: oklch(92% 0.004 245 / 0.10); }
 
 /* ============================================================
    Help tooltip — cursor-following description popup.
@@ -2401,7 +2410,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
   left: 0;
   width: 18px;
   height: 18px;
-  background: oklch(97% 0.005 70);
+  background: oklch(97% 0.003 245);
   border: none;
   border-radius: 50%;
   pointer-events: none;
@@ -2553,7 +2562,7 @@ body[data-track-backend]:not([data-track-backend="off"]) #track-composite-group 
 
 #track-panel {
   position: fixed;
-  top: 0;
+  top: var(--topbar-h, 0px);
   right: 0;
   bottom: 0;
   width: var(--track-panel-width);
@@ -2698,8 +2707,8 @@ body[data-track-panel="closed"] .track-panel-toggle-arrow {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-xl);
-  background: rgba(255, 87, 34, 0.12);
-  border-bottom: 1px solid rgba(255, 87, 34, 0.35);
+  background: oklch(80% 0.16 295 / 0.12);
+  border-bottom: 1px solid oklch(80% 0.16 295 / 0.35);
   color: var(--orange-signal);
   font-size: 9px;
   font-weight: 700;
@@ -2779,10 +2788,13 @@ body[data-segment-active="true"] .track-panel-header {
   color: var(--text-on-display);
   min-height: 22px;
   padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-doto);
+  font-variation-settings: 'DOTF' 1, 'ROND' 0, 'wght' 700;
+  font-weight: 700;
   font-size: 9px;
-  letter-spacing: 0.10em;
+  letter-spacing: 0.12em;
 }
-.topbar-mode .toggle-btn:hover { background: oklch(12% 0.005 70); }
+.topbar-mode .toggle-btn:hover { background: oklch(9% 0.004 245); }
 .topbar-mode .toggle-btn.active,
 .topbar-mode .toggle-btn[aria-checked="true"] {
   background: var(--orange-signal);

@@ -774,19 +774,19 @@ void main() {
   vec2 res = vec2(textureSize(u_video, 0));
   vec2 texel = 1.0 / res;
   float val = texture(u_video, uv).r;
-  float c = mix(1.0, 2.5, uParams.y);
+  float c = mix(1.0, 3.0, uParams.y);
   float adj = clamp(0.5 + (val - 0.5) * c, 0.0, 1.0);
-  vec3 deepBlue = mix(vec3(0.10,0.20,0.45), vec3(0.02,0.08,0.25), uParams.x);
-  vec3 midBlue = vec3(0.45,0.65,0.85);
-  vec3 paper = vec3(0.94,0.90,0.79);
+  // depth=0: muted cyan wash  depth=1: true Prussian navy
+  vec3 deepBlue = mix(vec3(0.08,0.18,0.44), vec3(0.00,0.03,0.16), uParams.x);
+  vec3 midBlue  = mix(vec3(0.38,0.62,0.84), vec3(0.12,0.36,0.70), uParams.x);
+  vec3 paper    = mix(vec3(0.94,0.91,0.82), vec3(0.90,0.89,0.78), uParams.x);
   vec3 col;
   if (adj < 0.5) col = mix(deepBlue, midBlue, adj * 2.0);
   else col = mix(midBlue, paper, (adj - 0.5) * 2.0);
-  col *= smoothstep(0.0, 0.1, val);
   if (uParams.z > 0.01) {
     float fiber = hash(uv * res * 0.7) * 0.5 + hash(uv * res * 2.1) * 0.3;
-    float grainMask = smoothstep(0.4, 0.85, val);
-    col -= fiber * uParams.z * 0.18 * grainMask * vec3(0.5, 0.65, 1.0);
+    float grainMask = smoothstep(0.4, 0.9, adj);
+    col -= fiber * uParams.z * 0.15 * grainMask;
   }
   if (uParams.w > 0.01) {
     float l = texture(u_video, uv - vec2(texel.x, 0.0)).r;
@@ -2676,6 +2676,235 @@ void main() {
   fragColor = vec4(clamp(mix(color, result, uParams.w), 0.0, 1.0), 1.0);
 }`;
 
+const FRAG_SUBTLEAURORA = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float streakVal = val;
+  if (uParams.z > 0.01) {
+    float acc = val;
+    float tw = 1.0;
+    int streakLen = int(mix(2.0, 12.0, uParams.z));
+    for (int i = 1; i <= 12; i++) {
+      if (i > streakLen) break;
+      float w = 1.0 / (float(i) + 1.0);
+      acc += texture(u_video, uv + vec2(0.0, texel.y * float(i) * 1.5)).r * w;
+      acc += texture(u_video, uv - vec2(0.0, texel.y * float(i) * 1.5)).r * w;
+      tw += w * 2.0;
+    }
+    streakVal = acc / tw;
+  }
+  float curtain = pow(streakVal, mix(2.0, 0.7, uParams.x));
+  vec3 greenDim    = vec3(0.0,  0.18, 0.08);
+  vec3 greenBright = vec3(0.15, 0.85, 0.4);
+  vec3 violetDim   = vec3(0.08, 0.0,  0.15);
+  vec3 violetBright= vec3(0.55, 0.3,  0.9);
+  vec3 peakWhite   = vec3(0.7,  0.95, 0.85);
+  float cm = uParams.y;
+  vec3 colorBase, colorBright;
+  if (cm < 0.5) {
+    colorBase   = mix(greenDim,    mix(greenDim,   violetDim,   cm * 2.0), 1.0);
+    colorBright = mix(greenBright, mix(greenBright, violetBright, cm * 2.0), 1.0);
+  } else {
+    colorBase   = mix(mix(greenDim,   violetDim,   1.0), violetDim,   (cm - 0.5) * 2.0);
+    colorBright = mix(mix(greenBright,violetBright,1.0), violetBright,(cm - 0.5) * 2.0);
+  }
+  vec3 col = mix(colorBase * 0.3, colorBright, curtain);
+  col *= smoothstep(0.05, 0.25, streakVal);
+  col += peakWhite * smoothstep(0.85, 1.0, streakVal) * 0.4;
+  if (uParams.w > 0.01 && val > 0.85) {
+    vec2 cell = floor(uv * res / 3.0);
+    float h = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    if (h > 1.0 - uParams.w * 0.3) {
+      vec2 cellUV = fract(uv * res / 3.0);
+      float starD = length(cellUV - 0.5);
+      if (starD < 0.2) {
+        float bright = (h - (1.0 - uParams.w * 0.3)) * 6.0;
+        col += vec3(0.9, 0.95, 1.0) * bright * (1.0 - starD / 0.2);
+      }
+    }
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_TOKAPLASMA = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float v = pow(val, mix(1.0, 0.5, uParams.y));
+  vec3 chamber   = vec3(0.005, 0.005, 0.015);
+  vec3 coolEdge  = vec3(0.10, 0.05, 0.35);
+  vec3 magEdge   = vec3(0.55, 0.10, 0.45);
+  vec3 plasmaMid = vec3(1.0, 0.5, 0.8);
+  vec3 plasmaHot = vec3(1.0, 0.95, 0.9);
+  vec3 edge = mix(coolEdge, magEdge, uParams.w);
+  vec3 col;
+  if (v < 0.15) col = mix(chamber, edge * 0.4, v / 0.15);
+  else if (v < 0.4) col = mix(edge * 0.4, edge, (v - 0.15) / 0.25);
+  else if (v < 0.7) col = mix(edge, plasmaMid, (v - 0.4) / 0.3);
+  else if (v < 0.9) col = mix(plasmaMid, plasmaHot, (v - 0.7) / 0.2);
+  else col = plasmaHot * (1.0 + (v - 0.9) * 2.0);
+  col *= mix(0.7, 1.5, uParams.x) * mix(1.0, smoothstep(0.0, 0.3, val), 0.3);
+  if (uParams.z > 0.01) {
+    float glow = 0.0;
+    for (int i = 1; i <= 4; i++) {
+      float r = float(i) * 1.8;
+      for (int a = 0; a < 6; a++) {
+        float ang = float(a) * 1.0472;
+        vec2 sp = uv + vec2(cos(ang), sin(ang)) * texel * r;
+        float nv = texture(u_video, sp).r;
+        if (nv > 0.5) glow += (nv - 0.5) * (1.0 - r / 8.0);
+      }
+    }
+    glow /= 24.0;
+    col += edge * glow * uParams.z * 0.5;
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_IRISHELL = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+  return a + b * cos(6.2832 * (c * t + d));
+}
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float lv = texture(u_video, uv - vec2(texel.x * 2.0, 0.0)).r;
+  float rv = texture(u_video, uv + vec2(texel.x * 2.0, 0.0)).r;
+  float dv = texture(u_video, uv - vec2(0.0, texel.y * 2.0)).r;
+  float uv2 = texture(u_video, uv + vec2(0.0, texel.y * 2.0)).r;
+  vec2 grad = vec2(rv - lv, uv2 - dv);
+  float gmag = length(grad);
+  float gangle = atan(grad.y, grad.x);
+  float angleNorm = gangle / 6.2832 + 0.5;
+  float iri_t = fract(val + angleNorm * uParams.x + uParams.y);
+  vec3 col = pal(iri_t, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.0, 0.2, 0.5));
+  col *= mix(1.0, val * 0.3 + 0.1, uParams.z);
+  float shimmer = smoothstep(0.02, 0.15, gmag);
+  col += shimmer * uParams.w * col * 0.8;
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_QUANTUMSTATE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+  return a + b * cos(6.2832 * (c * t + d));
+}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  float val = texture(u_video, uv).r;
+  vec3 pA = vec3(0.35, 0.15, 0.55);
+  vec3 pB = vec3(0.55, 0.50, 0.45);
+  vec3 pC = vec3(1.00, 1.00, 0.80);
+  vec3 pD = vec3(0.10, 0.35, 0.65) + uParams.y * 0.5;
+  float nStates = 5.0;
+  float quantized = floor(val * nStates + 0.5) / nStates;
+  float lumaState = mix(val, quantized, uParams.x);
+  float stateDist = abs(val * nStates - round(val * nStates));
+  float boundary = smoothstep(0.35, 0.05, stateDist);
+  float noise = (hash(uv * 800.0 + vec2(val * 17.3)) - 0.5) * 0.15;
+  lumaState = clamp(lumaState + noise * boundary * uParams.z, 0.0, 1.0);
+  vec3 col = pal(lumaState, pA, pB, pC, pD);
+  vec3 superposed = pal(lumaState + 0.1, pA, pB, pC, pD + vec3(0.25, 0.15, 0.35));
+  col = mix(col, superposed, boundary * 0.4);
+  col = mix(col * 0.7, col, uParams.w);
+  if (val > 0.85) col = mix(col, vec3(0.9, 0.95, 1.0), (val - 0.85) / 0.15 * 0.6);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const FRAG_COSPALETTE = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D u_video;
+uniform vec4 uParams;
+out vec4 fragColor;
+vec3 cosPal(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+  return a + b * cos(6.28318 * (c * t + d));
+}
+void main() {
+  vec2 uv = vUV;
+  vec2 res = vec2(textureSize(u_video, 0));
+  vec2 texel = 1.0 / res;
+  float val = texture(u_video, uv).r;
+  float vL = texture(u_video, uv - vec2(texel.x, 0.0)).r;
+  float vR = texture(u_video, uv + vec2(texel.x, 0.0)).r;
+  float vD = texture(u_video, uv - vec2(0.0, texel.y)).r;
+  float vU = texture(u_video, uv + vec2(0.0, texel.y)).r;
+  float edgeMag = length(vec2(vR - vL, vU - vD));
+  float freqMult = mix(1.0, 10.0, uParams.y);
+  float t = val * freqMult + edgeMag * uParams.z * 8.0;
+  float sel = fract(uParams.x);
+  vec3 a, b, cv, d;
+  if (sel < 0.2) {
+    float s = sel * 5.0;
+    // Oil slick -> Sunset fire
+    a  = mix(vec3(0.5,0.5,0.5), vec3(0.5,0.5,0.3), s);
+    b  = mix(vec3(0.5,0.5,0.5), vec3(0.5,0.5,0.4), s);
+    cv = mix(vec3(2.0,2.0,2.0), vec3(1.0,1.0,1.0), s);
+    d  = mix(vec3(0.00,0.33,0.67), vec3(0.00,0.10,0.20), s);
+  } else if (sel < 0.4) {
+    float s = (sel - 0.2) * 5.0;
+    // Sunset fire -> Ocean biolum
+    a  = mix(vec3(0.5,0.5,0.3), vec3(0.5,0.5,0.5), s);
+    b  = mix(vec3(0.5,0.5,0.4), vec3(0.5,0.5,0.5), s);
+    cv = vec3(1.0,1.0,1.0);
+    d  = mix(vec3(0.00,0.10,0.20), vec3(0.00,0.10,0.30), s);
+  } else if (sel < 0.6) {
+    float s = (sel - 0.4) * 5.0;
+    // Ocean biolum -> Toxic neon
+    a  = vec3(0.5,0.5,0.5);
+    b  = vec3(0.5,0.5,0.5);
+    cv = mix(vec3(1.0,1.0,1.0), vec3(2.0,1.0,1.0), s);
+    d  = mix(vec3(0.00,0.10,0.30), vec3(0.50,0.20,0.25), s);
+  } else if (sel < 0.8) {
+    float s = (sel - 0.6) * 5.0;
+    // Toxic neon -> Copper patina
+    a  = mix(vec3(0.5,0.5,0.5), vec3(0.5,0.5,0.3), s);
+    b  = mix(vec3(0.5,0.5,0.5), vec3(0.5,0.5,0.3), s);
+    cv = mix(vec3(2.0,1.0,1.0), vec3(2.0,1.0,0.0), s);
+    d  = mix(vec3(0.50,0.20,0.25), vec3(0.00,0.15,0.20), s);
+  } else {
+    float s = (sel - 0.8) * 5.0;
+    // Copper patina -> back to oil slick
+    a  = mix(vec3(0.5,0.5,0.3), vec3(0.5,0.5,0.5), s);
+    b  = mix(vec3(0.5,0.5,0.3), vec3(0.5,0.5,0.5), s);
+    cv = mix(vec3(2.0,1.0,0.0), vec3(2.0,2.0,2.0), s);
+    d  = mix(vec3(0.00,0.15,0.20), vec3(0.00,0.33,0.67), s);
+  }
+  vec3 col = cosPal(t, a, b, cv, d);
+  float highlight = smoothstep(0.7, 1.0, val) * uParams.w;
+  col += vec3(highlight);
+  col *= smoothstep(0.0, 0.15, val);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
 export const FRAGS = {
   erode:        FRAG_ERODE,
   oxide:        FRAG_OXIDE,
@@ -2753,6 +2982,11 @@ export const FRAGS = {
   colorisolation:  FRAG_COLORISOLATION,
   cartoon:         FRAG_CARTOON_STRUCT,
   colorfulposter:  FRAG_COLORFULPOSTER,
+  cospalette:      FRAG_COSPALETTE,
+  subtleaurora:    FRAG_SUBTLEAURORA,
+  tokaplasma:      FRAG_TOKAPLASMA,
+  irishell:        FRAG_IRISHELL,
+  quantumstate:    FRAG_QUANTUMSTATE,
   fakehdr:         FRAG_FAKEHDR,
   okdrift:      FRAG_OKDRIFT,
 };

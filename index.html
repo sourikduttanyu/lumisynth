@@ -17,7 +17,7 @@
       <defs>
         <linearGradient id="knobGradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%"   stop-color="#ffffff"/>
-          <stop offset="100%" stop-color="#ff5722"/>
+          <stop offset="100%" stop-color="oklch(80% 0.16 295)"/>
         </linearGradient>
       </defs>
     </svg>
@@ -115,6 +115,11 @@
 
         <section class="effect-card hidden" id="ascii-controls" data-card-effect="ascii" data-mode-section="synth" aria-label="ASCII parameters">
           <div class="effect-card-header"><div class="effect-card-title">ASCII</div><button class="card-reset-btn" type="button" data-reset-card="ascii" title="Reset ASCII knobs" aria-label="Reset ASCII knobs">×</button></div>
+          <div class="section-label" id="lbl-ascii-palette">Palette</div>
+          <div class="toggle-group" id="ascii-palette-group" role="radiogroup" aria-labelledby="lbl-ascii-palette">
+            <button class="toggle-btn active" type="button" role="radio" aria-checked="true"  data-value="0" data-tip="Classic ASCII — letter and symbol density ramp.">Classic</button>
+            <button class="toggle-btn"        type="button" role="radio" aria-checked="false" data-value="1" data-tip="Matrix — digits and bracket symbols.">Matrix</button>
+          </div>
           <div class="control-stack">
             <div class="slider-stack" aria-label="ASCII range controls">
               <div class="knob" id="ascii-cell-size"       data-knob data-control="slider" data-min="0" data-max="1" data-step="0.01" data-default="0.33" aria-label="ASCII Cell Size"        data-tip="Character cell size in pixels (10-32). Smaller = denser ASCII grid with more characters per frame." tabindex="0"><span class="knob-label">Cell Size</span><span class="knob-val" id="ascii-cell-size-val">0.33</span></div>

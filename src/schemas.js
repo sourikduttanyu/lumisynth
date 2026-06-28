@@ -55,7 +55,7 @@ export const DEFAULTS = Object.freeze({
   structure: 'none', structureOutputMode: 'mono',
   color: 'none', colorHue: 0, colorSat: 0.5, colorHueRange: 0, colorHueRate: 0,
   inkBlackHex: '#0a0908', inkCreamHex: '#ebe0c7',
-  asciiCellSize: 0.33, asciiContrast: 0.3, asciiBlackThresh: 0.63, asciiGlyphStrength: 0.9, asciiEdgeThreshold: 0.5,
+  asciiCellSize: 0.33, asciiContrast: 0.3, asciiBlackThresh: 0.63, asciiGlyphStrength: 0.9, asciiEdgeThreshold: 0.5, asciiPalette: 0,
   erodeMode: 0,       erodeRadius: 1.0,    erodeStrength: 0.7,    erodeEdge: 1.0,
   pixelsortThresh: 0.4, pixelsortLength: 0.5, pixelsortOpacity: 1.0, pixelsortDir: 0.5,
   meltAmount: 0.5,     meltDrip: 0.4,         meltViscosity: 0.5,   meltDir: 0.0,
@@ -521,6 +521,56 @@ export const COLOR_PARAM_SCHEMAS = {
     toggles: [],
     order: ['levels', 'slope', 'cont', 'tint'],
   },
+  subtleaurora: {
+    knobs: [
+      { key: 'density', label: 'Density', min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Curtain density. 0 = sparse, barely-there wisps. 1 = full soft curtain filling bright regions.' },
+      { key: 'color',   label: 'Color',   min: 0, max: 1, step: 0.01, default: 0.1, tip: '0 = pure green aurora. 0.5 = green-violet mix. 1 = pure violet/purple.' },
+      { key: 'streak',  label: 'Streak',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Vertical curtain streak length. 0 = no stretch. 1 = long vertical smear along luminance.' },
+      { key: 'stars',   label: 'Stars',   min: 0, max: 1, step: 0.01, default: 0,   tip: 'Cell-based stars at peak-luminance spots only. 0 = off. Higher = more star clusters in bright zones.' },
+    ],
+    toggles: [],
+    order: ['density', 'color', 'streak', 'stars'],
+  },
+  tokaplasma: {
+    knobs: [
+      { key: 'heat',  label: 'Heat',  min: 0, max: 1, step: 0.01, default: 0.7, tip: 'Plasma heat. 0 = dim, cool filaments. 1 = blazing fusion-core brightness.' },
+      { key: 'sharp', label: 'Sharp', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Filament sharpness. 0 = diffuse blurry plasma cloud. 1 = tight sharp magnetic threads.' },
+      { key: 'glow',  label: 'Glow',  min: 0, max: 1, step: 0.01, default: 0.4, tip: 'Containment glow. Spreads outward halo energy from bright filament cores.' },
+      { key: 'edge',  label: 'Edge',  min: 0, max: 1, step: 0.01, default: 0,   tip: '0 = deep blue containment field edges. 1 = magenta magnetic pinch edges.' },
+    ],
+    toggles: [],
+    order: ['heat', 'sharp', 'glow', 'edge'],
+  },
+  irishell: {
+    knobs: [
+      { key: 'iri',   label: 'Iri',   min: 0, max: 1, step: 0.01, default: 0.6, tip: 'Iridescence strength. 0 = single-color pearl. 1 = extreme hue shift across surface gradients, like abalone.' },
+      { key: 'phase', label: 'Phase', min: 0, max: 1, step: 0.01, default: 0,   tip: 'Palette phase. Rotates the color spectrum — pink/purple/cyan/gold band assignment.' },
+      { key: 'dark',  label: 'Dark',  min: 0, max: 1, step: 0.01, default: 0.4, tip: '0 = bright pearl surface. 1 = deep oil-slick darkness in shadow zones.' },
+      { key: 'shine', label: 'Shine', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Highlight glow at gradient peaks — the wet, oily, specular shimmer of the shell surface.' },
+    ],
+    toggles: [],
+    order: ['iri', 'phase', 'dark', 'shine'],
+  },
+  quantumstate: {
+    knobs: [
+      { key: 'sharp', label: 'Sharp', min: 0, max: 1, step: 0.01, default: 0.4, tip: 'State sharpness. 0 = smooth gradient. 1 = luma hard-quantized into 5 discrete color eigenstates.' },
+      { key: 'phase', label: 'Phase', min: 0, max: 1, step: 0.01, default: 0,   tip: 'Palette phase. Rotates hue assignments across all 5 eigenstates through the purple/magenta/cyan spectrum.' },
+      { key: 'fuzz',  label: 'Fuzz',  min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Probability cloud fuzz. Adds spatial noise at eigenstate boundaries — the quantum uncertainty between states.' },
+      { key: 'intens',label: 'Intens',min: 0, max: 1, step: 0.01, default: 0.8, tip: '0 = muted, low-energy palette. 1 = full saturated quantum emission colors.' },
+    ],
+    toggles: [],
+    order: ['sharp', 'phase', 'fuzz', 'intens'],
+  },
+  cospalette: {
+    knobs: [
+      { key: 'palette',   label: 'Palette',   min: 0, max: 1, step: 0.01, default: 0,    tip: 'Morphs through 5 color universes: Oil Slick → Sunset Fire → Ocean Biolum → Toxic Neon → Copper Patina. Wraps continuously.' },
+      { key: 'freq',      label: 'Freq',      min: 0, max: 1, step: 0.01, default: 0.3,  tip: '0 = slow gradual color change across the image. 1 = rapid iridescent banding — many cycles per tonal range.' },
+      { key: 'edge',      label: 'Edge',      min: 0, max: 1, step: 0.01, default: 0,    tip: 'Edge contribution to the cosine input. 0 = luma only. 1 = sharp edges drive additional color cycling along contours.' },
+      { key: 'highlight', label: 'Blowout',   min: 0, max: 1, step: 0.01, default: 0,    tip: 'Highlight blowout. Peaks above 70% luma blow toward white. 0 = off. 1 = full white-hot peaks.' },
+    ],
+    toggles: [],
+    order: ['palette', 'freq', 'edge', 'highlight'],
+  },
   // PROCEDURAL tab — generative OKLCH palette effects.
   okdrift: {
     knobs: [
@@ -925,13 +975,13 @@ export const COLOR_MAP_SECTIONS = [
 // passes: anything that needs to ACCUMULATE across frames belongs in the
 // FX RACK instead.
 export const COLOR_UNIQUE_SECTIONS = [
-  { key: 'atmosphere', label: 'Atmosphere', effects: ['nebula', 'aurorastorm', 'deepfield', 'dreamstatic'] },
-  { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin', 'hologram'] },
+  { key: 'atmosphere', label: 'Atmosphere', effects: ['nebula', 'aurorastorm', 'subtleaurora', 'deepfield', 'dreamstatic', 'quantumstate'] },
+  { key: 'light',      label: 'Light',      effects: ['neontube', 'prismatic', 'heatbleed', 'sequin', 'hologram', 'tokaplasma', 'irishell'] },
   { key: 'dimension',  label: 'Dimension',  effects: ['depthstack', 'abyss'] },
   { key: 'deepsea',    label: 'Deep Sea',   effects: ['octopus'] },
   { key: 'print',      label: 'Print',      effects: ['risograph', 'newsprint', 'sketch', 'okband', 'halftone'] },
   { key: 'motion',     label: 'Motion',     effects: ['predator'] },
-  { key: 'painterly',  label: 'Painterly',  effects: ['colorfulposter'] },
+  { key: 'painterly',  label: 'Painterly',  effects: ['colorfulposter', 'cospalette'] },
 ];
 export const COLOR_UNIQUE_FLAT = COLOR_UNIQUE_SECTIONS.flatMap((c) => c.effects);
 export const COLOR_PROC_SECTIONS = ['okdrift'];
@@ -1103,7 +1153,7 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
     toggles: [],
     knobs: [
       { key: 'thresh',  label: 'Thresh',  min: 0, max: 1, step: 0.01, default: 0.4, control: 'slider', tip: 'Luminance threshold — pixels above sort.' },
-      { key: 'length',  label: 'Length',  min: 0, max: 1, step: 0.01, default: 0.5, control: 'slider', tip: 'Sort run length.' },
+      { key: 'length',  label: 'Length',  min: 0, max: 5, step: 0.01, default: 0.5, control: 'slider', tip: 'Streak length (0–1000px). How far the trails extend.' },
       { key: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.01, default: 1.0, control: 'slider', tip: 'Blend with original.' },
       { key: 'dir',     label: 'Dir',     min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Sort direction (0=horizontal, 1=vertical).' },
     ],
@@ -1118,7 +1168,13 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
     ],
   },
   ascii: {
-    toggles: [],
+    toggles: [{
+      key: 'palette', label: 'Palette',
+      options: [
+        { value: 0, label: 'Classic', tip: 'Classic ASCII — letter and symbol density ramp.' },
+        { value: 1, label: 'Matrix',  tip: 'Matrix — digits and bracket symbols (1 7 ? < > [ ] ! 2 3 4 5 6 9 0 8 # @).' },
+      ],
+    }],
     knobs: [
       { key: 'cellSize',  label: 'Cell',    min: 0, max: 1, step: 0.01, default: 0.33, control: 'slider', tip: 'Character cell size (10–32px). Smaller = denser grid.' },
       { key: 'contrast',  label: 'Contrast',min: 0, max: 1, step: 0.01, default: 0.3,  tip: 'Gamma contrast on per-cell luma.' },
