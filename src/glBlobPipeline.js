@@ -630,8 +630,8 @@ export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displa
       writeIdx ^= 1;
 
       // Stage 2: source-blend + output mode (mirrors synth's applyStructureMode).
-      // ColorIso forces mono (0) — structure already ran on the isolated hue.
-      const blendMode = isColorIso ? 0 : structureOutputMode;
+      // ColorIso forces source (1) — blends structure result with original video, preserving color.
+      const blendMode = isColorIso ? 1 : structureOutputMode;
       const isStructLast = chained.length === 0;
       runBlobStructBlend(bw, bh, structTex, blendMode, inkLow, inkHigh,
         isStructLast ? null : writeFBOs[writeIdx]);
@@ -640,9 +640,9 @@ export function runBlobFrame(srcEl, bx, by, bw, bh, blobPipe, displayCtx, displa
         writeIdx ^= 1;
       }
     } else if (isColorIso && colorIsoTex) {
-      // ColorIso with no structure: blend the coloriso mask as mono output.
+      // ColorIso with no structure: blend the coloriso mask as source (1) to preserve video color.
       const isLast = chained.length === 0;
-      runBlobStructBlend(bw, bh, colorIsoTex, 0, inkLow, inkHigh,
+      runBlobStructBlend(bw, bh, colorIsoTex, 1, inkLow, inkHigh,
         isLast ? null : writeFBOs[writeIdx]);
       if (!isLast) {
         currentTex = readTexs[writeIdx];
