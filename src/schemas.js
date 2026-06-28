@@ -1229,6 +1229,26 @@ export const BLOB_STRUCTURE_PARAM_SCHEMAS = {
     ],
     order: ['radius', 'sharp'],
   },
+  colorisolation: {
+    toggles: [],
+    knobs: [
+      { key: 'hue',     label: 'Hue',   min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Target hue to isolate or reject (0–1 maps 0–360°). Red=0, Yellow=0.17, Green=0.33, Cyan=0.5, Blue=0.67, Magenta=0.83.' },
+      { key: 'overlap', label: 'Width', min: 0, max: 1, step: 0.01, default: 0.5, tip: 'Width of the hue acceptance window. Low = narrow colour slice.' },
+      { key: 'steep',   label: 'Steep', min: 0, max: 1, step: 0.01, default: 0.9, tip: 'Gaussian falloff steepness outside the window. High = hard cutoff.' },
+      { key: 'mode',    label: 'Mode',  min: 0, max: 1, step: 1,    default: 0.0, tip: '0 = Isolate (matching hue bright, others dark). 1 = Reject (matching hue dark).' },
+    ],
+  },
+  sketch: {
+    toggles: [],
+    knobs: [
+      { key: 'ink',    label: 'Ink',    min: 0, max: 1, step: 0.01, default: 0.5,  tip: 'Line boldness. Low = faint pencil. High = heavy inked hatching.' },
+      { key: 'stroke', label: 'Stroke', min: 0, max: 1, step: 0.01, default: 0.45, tip: 'Stroke width. Low = fine lines. High = thick brushwork.' },
+      { key: 'wobble', label: 'Wobble', min: 0, max: 1, step: 0.01, default: 1.0,  tip: 'Hand-shake. 0 = steady, 1 = caffeinated.' },
+      { key: 'speed',  label: 'Speed',  min: 0, max: 1, step: 0.01, default: 1.0,  tip: 'Animation speed of the wobble.' },
+      { key: 'bg',     label: 'Bg',     min: 0, max: 1, step: 0.01, default: 0.0,  tip: '0 = grayscale strokes on white. 1 = warm sepia ink.' },
+    ],
+    order: ['ink', 'stroke', 'wobble', 'speed', 'bg'],
+  },
 };
 
 export const BLOB_STRUCTURE_SECTIONS = Object.keys(BLOB_STRUCTURE_PARAM_SCHEMAS);

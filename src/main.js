@@ -1418,6 +1418,7 @@ function resolveBlobPipeline(look) {
       case 'colorisolation': structureParams = [p.hue ?? 0.0, p.overlap ?? 0.3, p.steep ?? 0.5, p.mode ?? 0]; break;
       case 'kuwahara':       structureParams = [p.radius ?? 0.4, p.sharp ?? 0.5, 0, 0]; break;
       case 'moddiff':   structureParams = [p.freq ?? 0.25, p.mod ?? 0.45, p.black ?? 0.08, p.axis ?? 0, p.drift ?? 0]; break;
+      case 'sketch':    structureParams = [p.ink ?? 0.5, p.stroke ?? 0.45, p.wobble ?? 1.0, p.speed ?? 1.0, p.bg ?? 0.0]; break;
       default:          structureParams = [0, 0, 0, 0]; break;
     }
   }
@@ -3409,7 +3410,8 @@ function setTrackFxSlotType(slotId, type) {
     slot.enabled = true;
     slot.params = makeTrackFxFactoryParams(type);
   }
-  _expandedTrackFxSlots.delete(slotId);
+  if (type !== 'none') _expandedTrackFxSlots.add(slotId);
+  else _expandedTrackFxSlots.delete(slotId);
   renderTrackFxRack();
   schedulePersist();
 }
@@ -3751,7 +3753,8 @@ function setBlobFxSlotType(slotId, type) {
     slot.enabled = true;
     slot.params = makeFxFactoryParams(type);
   }
-  _expandedBlobFxSlots.delete(slotId);
+  if (type !== 'none') _expandedBlobFxSlots.add(slotId);
+  else _expandedBlobFxSlots.delete(slotId);
   renderBlobFxRack();
   schedulePersist();
 }
